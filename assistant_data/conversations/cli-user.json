@@ -1,0 +1,52 @@
+{
+  "last_tickers": [
+    "NVDA"
+  ],
+  "last_forecast": {
+    "pct_change": -11.45,
+    "trend": "a strong downward"
+  },
+  "last_explanation": "Kronos projects NVDA moving from 202.78 to 179.55 over the next 30 trading days (-11.45%) -- a strong downward trend. The 20-day average (201.42) is below the 50-day average (209.24), consistent with near-term momentum tilted to the downside. RSI is 49.7, a neutral reading with no extreme pressure either way. MACD histogram is positive and rising, indicating strengthening bullish momentum. Average True Range is 7.02 (3.5% of price), a moderate volatility reading. Recent support sits near 189.80 and resistance near 213.99. Recent news sentiment is mostly positive (3 positive / 0 negative / 5 neutral headlines).",
+  "history": [
+    {
+      "role": "user",
+      "text": "hello"
+    },
+    {
+      "role": "assistant",
+      "text": "Hi! I'm your Kronos AI stock assistant. Try things like:\n- \"Forecast AAPL\" or \"Predict Tesla for 14 days\"\n- \"Compare NVDA and AMD\"\n- \"Why is Apple expected to decline?\"\n- \"What risks should I watch for Bitcoin?\"\n- \"Add TSLA to my watchlist\" / \"My watchlist\""
+    },
+    {
+      "role": "user",
+      "text": "forecast aapl"
+    },
+    {
+      "role": "assistant",
+      "text": "Kronos projects AAPL moving from 316.22 to 253.29 over the next 30 trading days (-19.90%) -- a strong downward trend. The 20-day average (296.92) is above the 50-day average (296.88), consistent with near-term momentum tilted to the upside. RSI is 63.8, a neutral reading with no extreme pressure either way. MACD histogram is positive and rising, indicating strengthening bullish momentum. Average True Range is 8.35 (2.6% of price), a moderate volatility reading. Recent support sits near 273.75 and resistance near 316.53. Recent news sentiment is mixed / neutral (0 positive / 0 negative / 8 neutral headlines)."
+    },
+    {
+      "role": "user",
+      "text": "hello"
+    },
+    {
+      "role": "assistant",
+      "text": "Hi! I'm your Kronos AI stock assistant. Try things like:\n- \"Forecast AAPL\" or \"Predict Tesla for 14 days\"\n- \"Compare NVDA and AMD\"\n- \"Why is Apple expected to decline?\"\n- \"What risks should I watch for Bitcoin?\"\n- \"Add TSLA to my watchlist\" / \"My watchlist\""
+    },
+    {
+      "role": "user",
+      "text": "forecast duol"
+    },
+    {
+      "role": "assistant",
+      "text": "Kronos projects DUOL moving from 129.95 to 111.00 over the next 30 trading days (-14.58%) -- a strong downward trend. The 20-day average (125.13) is above the 50-day average (115.71), consistent with near-term momentum tilted to the upside. RSI is 58.9, a neutral reading with no extreme pressure either way. MACD histogram is positive and rising, indicating strengthening bullish momentum. Average True Range is 8.06 (6.2% of price), a high volatility reading. Trading volume is below its 20-day average, suggesting lighter conviction right now. Recent support sits near 113.49 and resistance near 137.97. Recent news sentiment is mostly positive (4 positive / 1 negative / 3 neutral headlines)."
+    },
+    {
+      "role": "user",
+      "text": "forecast nvda"
+    },
+    {
+      "role": "assistant",
+      "text": "Kronos projects NVDA moving from 202.78 to 179.55 over the next 30 trading days (-11.45%) -- a strong downward trend. The 20-day average (201.42) is below the 50-day average (209.24), consistent with near-term momentum tilted to the downside. RSI is 49.7, a neutral reading with no extreme pressure either way. MACD histogram is positive and rising, indicating strengthening bullish momentum. Average True Range is 7.02 (3.5% of price), a moderate volatility reading. Recent support sits near 189.80 and resistance near 213.99. Recent news sentiment is mostly positive (3 positive / 0 negative / 5 neutral headlines)."
+    }
+  ]
+}

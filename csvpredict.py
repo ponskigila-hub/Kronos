@@ -33,7 +33,7 @@ predictor = KronosPredictor(
 
 print("📊 Loading CSV data...")
 
-df = pd.read_csv("./own_data/SLB-history (1).csv")
+df = pd.read_csv("./own_data/CIFR-history.csv")
 
 print("\nOriginal columns:")
 print(df.columns.tolist())
