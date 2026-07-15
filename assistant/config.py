@@ -22,7 +22,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # ---------------------------------------------------------------------------
 # Kronos model settings
 # ---------------------------------------------------------------------------
-KRONOS_MODEL_ID = os.getenv("KRONOS_MODEL_ID", "NeoQuasar/Kronos-small")
+KRONOS_MODEL_ID = os.getenv("KRONOS_MODEL_ID", "NeoQuasar/Kronos-base")
 KRONOS_TOKENIZER_ID = os.getenv("KRONOS_TOKENIZER_ID", "NeoQuasar/Kronos-Tokenizer-base")
 KRONOS_MAX_CONTEXT = int(os.getenv("KRONOS_MAX_CONTEXT", "512"))
 DEFAULT_LOOKBACK_DAYS = int(os.getenv("DEFAULT_LOOKBACK_DAYS", "400"))
@@ -38,9 +38,24 @@ DATA_DIR = os.path.join(BASE_DIR, "assistant_data")
 WATCHLIST_PATH = os.path.join(DATA_DIR, "watchlists.json")
 CONVERSATION_DIR = os.path.join(DATA_DIR, "conversations")
 CHARTS_DIR = os.path.join(DATA_DIR, "charts")
+BACKTEST_DIR = os.path.join(DATA_DIR, "backtests")
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(CONVERSATION_DIR, exist_ok=True)
 os.makedirs(CHARTS_DIR, exist_ok=True)
+os.makedirs(BACKTEST_DIR, exist_ok=True)
+
+# ---------------------------------------------------------------------------
+# Quick in-chat backtest defaults (see backtesting/runner.py: quick_backtest).
+# A full walk-forward run (backtesting/run_backtest.py) is much more
+# thorough but too slow to run inline in a chat reply -- these defaults
+# keep an in-chat "backtest AAPL" fast (a handful of windows, few horizons).
+# ---------------------------------------------------------------------------
+BACKTEST_QUICK_HORIZONS = tuple(
+    int(h) for h in os.getenv("BACKTEST_QUICK_HORIZONS", "5,14,30").split(",")
+)
+BACKTEST_QUICK_MAX_WINDOWS = int(os.getenv("BACKTEST_QUICK_MAX_WINDOWS", "5"))
+BACKTEST_QUICK_MIN_TRAIN_SIZE = int(os.getenv("BACKTEST_QUICK_MIN_TRAIN_SIZE", "252"))
+BACKTEST_QUICK_STEP_SIZE = int(os.getenv("BACKTEST_QUICK_STEP_SIZE", "30"))
 
 # ---------------------------------------------------------------------------
 # Optional third-party news / sentiment keys.

@@ -11,6 +11,7 @@ Type things like:
     why is tesla expected to decline
     add btc to my watchlist
     my watchlist
+    backtest AAPL
     quit
 """
 import platform

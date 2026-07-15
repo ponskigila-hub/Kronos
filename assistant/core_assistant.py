@@ -36,6 +36,8 @@ class StockAssistant:
                 result = self._watchlist_remove(user_id, tickers)
             elif intent == "watchlist_show":
                 result = self._watchlist_show(user_id)
+            elif intent == "backtest":
+                result = self._backtest(tickers)
             elif intent == "compare":
                 result = self._compare(tickers)
             elif intent == "history":
@@ -69,9 +71,23 @@ class StockAssistant:
             "- \"Compare NVDA and AMD\"\n"
             "- \"Why is Apple expected to decline?\"\n"
             "- \"What risks should I watch for Bitcoin?\"\n"
-            "- \"Add TSLA to my watchlist\" / \"My watchlist\""
+            "- \"Add TSLA to my watchlist\" / \"My watchlist\"\n"
+            "- \"Backtest AAPL\" -- quick walk-forward accuracy + trading check"
         )
         return {"text": msg, "chart": None, "data": {}}
+
+    def _backtest(self, tickers):
+        if not tickers:
+            return {"text": "Which ticker should I backtest? e.g. \"Backtest AAPL\"",
+                     "chart": None, "data": {}}
+        ticker = tickers[0]
+        # Imported lazily -- backtesting/ pulls in scipy/statsmodels, which
+        # only need to load if this command is actually used.
+        from backtesting.runner import quick_backtest
+        result = quick_backtest(ticker)
+        return {"text": result["text"], "chart": None,
+                "image_path": result.get("image_path"),
+                "data": {"ticker": ticker, "portfolio_metrics": result.get("portfolio_metrics")}}
 
     def _forecast(self, context, tickers):
         if not tickers:

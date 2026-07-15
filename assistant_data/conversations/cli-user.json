@@ -1,53 +1,13 @@
 {
   "last_tickers": [
-    "AXTI"
+    "NBIS"
   ],
   "last_forecast": {
-    "pct_change": -80.24,
+    "pct_change": -70.71,
     "trend": "a strong downward"
   },
-  "last_explanation": "Kronos projects AXTI moving from 50.45 to 9.97 over the next 30 trading days (-80.24%) -- a strong downward trend. The 20-day average (73.73) is below the 50-day average (94.53), consistent with near-term momentum tilted to the downside. RSI is 34.2, a neutral reading with no extreme pressure either way. MACD histogram is negative and falling, indicating strengthening bearish momentum. Average True Range is 10.84 (21.5% of price), a high volatility reading. Trading volume is below its 20-day average, suggesting lighter conviction right now. Recent support sits near 49.75 and resistance near 116.75. Recent news sentiment is mixed / neutral (1 positive / 0 negative / 7 neutral headlines).",
+  "last_explanation": "Kronos projects NBIS moving from 216.00 to 63.27 over the next 30 trading days (-70.71%) -- a strong downward trend. The 20-day average (243.87) is above the 50-day average (224.43), consistent with near-term momentum tilted to the upside. RSI is 45.8, a neutral reading with no extreme pressure either way. MACD momentum is mixed / losing steam in its current direction. Average True Range is 23.71 (11.0% of price), a high volatility reading. Trading volume is below its 20-day average, suggesting lighter conviction right now. Recent support sits near 192.67 and resistance near 299.86. Recent news sentiment is mixed / neutral (1 positive / 0 negative / 7 neutral headlines).",
   "history": [
-    {
-      "role": "user",
-      "text": "forecast cifr"
-    },
-    {
-      "role": "assistant",
-      "text": "Kronos projects CIFR moving from 21.41 to 11.46 over the next 30 trading days (-46.47%) -- a strong downward trend. The 20-day average (24.45) is above the 50-day average (22.88), consistent with near-term momentum tilted to the upside. RSI is 44.2, a neutral reading with no extreme pressure either way. MACD momentum is mixed / losing steam in its current direction. Average True Range is 2.35 (11.0% of price), a high volatility reading. Trading volume is below its 20-day average, suggesting lighter conviction right now. Recent support sits near 19.39 and resistance near 30.14. Recent news sentiment is mixed / neutral (1 positive / 1 negative / 6 neutral headlines)."
-    },
-    {
-      "role": "user",
-      "text": "forecast intc"
-    },
-    {
-      "role": "assistant",
-      "text": "Kronos projects INTC moving from 104.98 to 43.24 over the next 30 trading days (-58.81%) -- a strong downward trend. The 20-day average (123.98) is above the 50-day average (117.21), consistent with near-term momentum tilted to the upside. RSI is 40.4, a neutral reading with no extreme pressure either way. MACD histogram is negative and falling, indicating strengthening bearish momentum. Average True Range is 9.46 (9.0% of price), a high volatility reading. Trading volume is below its 20-day average, suggesting lighter conviction right now. Recent support sits near 103.37 and resistance near 142.35. Recent news sentiment is mixed / neutral (1 positive / 0 negative / 7 neutral headlines)."
-    },
-    {
-      "role": "user",
-      "text": "forecast avgo"
-    },
-    {
-      "role": "assistant",
-      "text": "Kronos projects AVGO moving from 392.17 to 348.83 over the next 30 trading days (-11.05%) -- a strong downward trend. The 20-day average (383.09) is below the 50-day average (406.18), consistent with near-term momentum tilted to the downside. RSI is 50.8, a neutral reading with no extreme pressure either way. MACD histogram is positive and rising, indicating strengthening bullish momentum. Average True Range is 17.20 (4.4% of price), a high volatility reading. Trading volume is below its 20-day average, suggesting lighter conviction right now. Recent support sits near 356.43 and resistance near 414.64. Recent news sentiment is mixed / neutral (2 positive / 1 negative / 5 neutral headlines)."
-    },
-    {
-      "role": "user",
-      "text": "forecast amd"
-    },
-    {
-      "role": "assistant",
-      "text": "Kronos projects AMD moving from 537.50 to 171.06 over the next 30 trading days (-68.18%) -- a strong downward trend. The 20-day average (533.41) is above the 50-day average (485.90), consistent with near-term momentum tilted to the upside. RSI is 53.6, a neutral reading with no extreme pressure either way. MACD histogram is negative and falling, indicating strengthening bearish momentum. Average True Range is 35.85 (6.7% of price), a high volatility reading. Trading volume is below its 20-day average, suggesting lighter conviction right now. Recent support sits near 494.00 and resistance near 584.73. Recent news sentiment is mixed / neutral (1 positive / 1 negative / 6 neutral headlines)."
-    },
-    {
-      "role": "user",
-      "text": "forecast nvda"
-    },
-    {
-      "role": "assistant",
-      "text": "Kronos projects NVDA moving from 209.08 to 190.53 over the next 30 trading days (-8.87%) -- a strong downward trend. The 20-day average (202.16) is below the 50-day average (209.20), consistent with near-term momentum tilted to the downside. RSI is 55.0, a neutral reading with no extreme pressure either way. MACD histogram is positive and rising, indicating strengthening bullish momentum. Average True Range is 6.94 (3.3% of price), a moderate volatility reading. Trading volume is below its 20-day average, suggesting lighter conviction right now. Recent support sits near 189.80 and resistance near 213.99. Recent news sentiment is mostly positive (2 positive / 0 negative / 6 neutral headlines)."
-    },
     {
       "role": "user",
       "text": "forecast bumi"
@@ -87,6 +47,46 @@
     {
       "role": "assistant",
       "text": "Kronos projects AXTI moving from 50.45 to 9.97 over the next 30 trading days (-80.24%) -- a strong downward trend. The 20-day average (73.73) is below the 50-day average (94.53), consistent with near-term momentum tilted to the downside. RSI is 34.2, a neutral reading with no extreme pressure either way. MACD histogram is negative and falling, indicating strengthening bearish momentum. Average True Range is 10.84 (21.5% of price), a high volatility reading. Trading volume is below its 20-day average, suggesting lighter conviction right now. Recent support sits near 49.75 and resistance near 116.75. Recent news sentiment is mixed / neutral (1 positive / 0 negative / 7 neutral headlines)."
+    },
+    {
+      "role": "user",
+      "text": "hi"
+    },
+    {
+      "role": "assistant",
+      "text": "Hi! I'm your Kronos AI stock assistant. Try things like:\n- \"Forecast AAPL\" or \"Predict Tesla for 14 days\"\n- \"Compare NVDA and AMD\"\n- \"Why is Apple expected to decline?\"\n- \"What risks should I watch for Bitcoin?\"\n- \"Add TSLA to my watchlist\" / \"My watchlist\""
+    },
+    {
+      "role": "user",
+      "text": "forecast nvda for 14 days"
+    },
+    {
+      "role": "assistant",
+      "text": "Kronos projects NVDA moving from 204.42 to 182.20 over the next 30 trading days (-10.87%) -- a strong downward trend. The 20-day average (201.85) is below the 50-day average (209.18), consistent with near-term momentum tilted to the downside. RSI is 50.7, a neutral reading with no extreme pressure either way. MACD momentum is mixed / losing steam in its current direction. Average True Range is 7.05 (3.4% of price), a moderate volatility reading. Trading volume is below its 20-day average, suggesting lighter conviction right now. Recent support sits near 189.80 and resistance near 213.99. Recent news sentiment is mostly positive (2 positive / 0 negative / 6 neutral headlines)."
+    },
+    {
+      "role": "user",
+      "text": "forecast now"
+    },
+    {
+      "role": "assistant",
+      "text": "Kronos projects NOW moving from 104.25 to 144.60 over the next 30 trading days (+38.72%) -- a strong upward trend. The 20-day average (101.82) is below the 50-day average (102.59), consistent with near-term momentum tilted to the downside. RSI is 49.9, a neutral reading with no extreme pressure either way. MACD momentum is mixed / losing steam in its current direction. Average True Range is 6.25 (6.0% of price), a high volatility reading. Trading volume is below its 20-day average, suggesting lighter conviction right now. Recent support sits near 89.39 and resistance near 113.79. Recent news sentiment is mixed / neutral (0 positive / 1 negative / 7 neutral headlines)."
+    },
+    {
+      "role": "user",
+      "text": "forecast sofi"
+    },
+    {
+      "role": "assistant",
+      "text": "Kronos projects SOFI moving from 18.50 to 19.84 over the next 30 trading days (+7.27%) -- a strong upward trend. The 20-day average (17.90) is above the 50-day average (16.95), consistent with near-term momentum tilted to the upside. RSI is 56.8, a neutral reading with no extreme pressure either way. MACD momentum is mixed / losing steam in its current direction. Average True Range is 0.94 (5.1% of price), a high volatility reading. Trading volume is below its 20-day average, suggesting lighter conviction right now. Recent support sits near 16.72 and resistance near 19.74. Recent news sentiment is mostly positive (4 positive / 0 negative / 4 neutral headlines)."
+    },
+    {
+      "role": "user",
+      "text": "forecast nbis"
+    },
+    {
+      "role": "assistant",
+      "text": "Kronos projects NBIS moving from 216.00 to 63.27 over the next 30 trading days (-70.71%) -- a strong downward trend. The 20-day average (243.87) is above the 50-day average (224.43), consistent with near-term momentum tilted to the upside. RSI is 45.8, a neutral reading with no extreme pressure either way. MACD momentum is mixed / losing steam in its current direction. Average True Range is 23.71 (11.0% of price), a high volatility reading. Trading volume is below its 20-day average, suggesting lighter conviction right now. Recent support sits near 192.67 and resistance near 299.86. Recent news sentiment is mixed / neutral (1 positive / 0 negative / 7 neutral headlines)."
     }
   ]
 }

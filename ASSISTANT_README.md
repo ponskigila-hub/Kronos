@@ -75,6 +75,7 @@ you> why is it expected to decline
 you> compare NVDA and AMD
 you> add TSLA to my watchlist
 you> my watchlist
+you> backtest AAPL
 ```
 Every `forecast`/`history`/`compare` reply now saves **a static PNG chart**
 (styled like the original `yahoopredict.py`/`csvpredict.py` matplotlib plot)

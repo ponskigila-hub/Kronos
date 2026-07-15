@@ -19,3 +19,7 @@ flask-cors>=4.0.0
 discord.py>=2.3.0          # Discord bot integration (item #9, optional)
 twilio>=9.0.0               # WhatsApp bot integration via Twilio (item #9, optional)
 kaleido>=0.2.1              # export Plotly charts to PNG for Discord/WhatsApp (optional)
+
+# --- Added for the Backtesting Framework (backtesting/) ---
+scipy>=1.11.0                # regression/correlation metrics, normality test
+statsmodels>=0.14.0          # ARIMA benchmark, Durbin-Watson/Ljung-Box/Breusch-Pagan tests

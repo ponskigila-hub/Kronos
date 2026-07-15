@@ -12,6 +12,7 @@ INTENT_PATTERNS = [
     ("watchlist_add", re.compile(r"\badd\b.*\bwatchlist\b|\bwatchlist\b.*\badd\b", re.I)),
     ("watchlist_remove", re.compile(r"\bremove\b.*\bwatchlist\b|\bwatchlist\b.*\bremove\b|\bdelete\b.*\bwatchlist\b", re.I)),
     ("watchlist_show", re.compile(r"\bmy watchlist\b|\bshow.*watchlist\b|\bwatchlist\b$", re.I)),
+    ("backtest", re.compile(r"\bbacktest\b|\bback-test\b|\bback test\b", re.I)),
     ("compare", re.compile(r"\bcompare\b|\bvs\.?\b|\bversus\b", re.I)),
     ("history", re.compile(r"\bhistory\b|\bshow.*(price|chart)\b", re.I)),
     ("why", re.compile(r"^\s*why\b", re.I)),

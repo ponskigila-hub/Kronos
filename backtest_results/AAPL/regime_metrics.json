@@ -1,0 +1,38 @@
+{
+  "bull": {
+    "n_predictions": 105,
+    "mae": 27.702456883021764,
+    "mse": 910.2437706916598,
+    "rmse": 30.170246447313946,
+    "mape": 16.83722965632057,
+    "smape": 18.64944264993296,
+    "rmsle": 0.2010816664910785,
+    "mean_forecast_error": -27.702456883021764,
+    "median_absolute_error": 27.801040649414062,
+    "direction_accuracy": 48.57142857142857,
+    "up_accuracy": 0.0,
+    "down_accuracy": 100.0,
+    "pearson_corr": 0.36438841271772326,
+    "spearman_corr": 0.31871572379614216,
+    "hit_ratio": 48.57142857142857,
+    "information_coefficient": 0.08391042919344806
+  },
+  "sideways": {
+    "n_predictions": 45,
+    "mae": 19.239312744140626,
+    "mse": 404.71085098961936,
+    "rmse": 20.117426549875095,
+    "mape": 12.783108855408068,
+    "smape": 13.735478571011761,
+    "rmsle": 0.14265791884869836,
+    "mean_forecast_error": -19.239312744140626,
+    "median_absolute_error": 19.48199462890625,
+    "direction_accuracy": 48.888888888888886,
+    "up_accuracy": 0.0,
+    "down_accuracy": 100.0,
+    "pearson_corr": 0.6257899057921728,
+    "spearman_corr": 0.6530961791831356,
+    "hit_ratio": 48.888888888888886,
+    "information_coefficient": 0.29762845849802366
+  }
+}

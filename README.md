@@ -40,9 +40,12 @@ Kronos-master/
 │
 ├── assistant/                 <- NEW: the AI assistant's business logic (13 files)
 ├── integrations/               <- NEW: thin Discord / WhatsApp adapters (2 files)
-├── chat_cli.py                  <- NEW: terminal chat for local testing
-├── .env.example                  <- NEW: optional config template
-└── ASSISTANT_README.md            <- NEW: shorter companion doc, same content as below
+├── backtesting/                  <- NEW: walk-forward backtesting framework
+├── chat_cli.py                     <- NEW: terminal chat for local testing
+├── run_backtest.py                  <- NEW: CLI for the backtesting framework
+├── .env.example                       <- NEW: optional config template
+├── ASSISTANT_README.md                  <- NEW: shorter companion doc, same content as below
+└── BACKTEST_README.md                     <- NEW: backtesting framework deep-dive
 ```
 
 ---
@@ -121,6 +124,7 @@ you> compare NVDA and AMD
 you> what risks should I watch for bitcoin
 you> add TSLA to my watchlist
 you> my watchlist
+you> backtest AAPL
 you> quit
 ```
 
@@ -431,6 +435,7 @@ folder, linked via `PUBLIC_BASE_URL` from your `.env`) if one exists.
 | 7 | Multi-stock support (compare) | `StockAssistant._compare()`, `data_fetcher.fetch_multi()` |
 | 8 | Watchlist / favorites | `assistant/watchlist.py` |
 | 9 | Discord / WhatsApp, platform-agnostic core | `integrations/discord_bot.py`, `integrations/whatsapp_bot.py` |
+| -- | In-chat "backtest AAPL" command | `assistant/core_assistant.py` (`_backtest`), `backtesting/runner.py` (`quick_backtest`) |
 
 ---
 
