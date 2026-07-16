@@ -9,6 +9,45 @@ nothing in `assistant/` or the original Kronos code was changed (the framework
 reuses `assistant/data_fetcher.py` and `assistant/forecaster.py` rather than
 duplicating them).
 
+## Accuracy fixes (if you saw an "always predicts one direction" or level-mismatch result)
+
+Three real issues were fixed based on a run that showed Kronos's synthetic
+price jumping to a different level than the real price at the start of each
+walk-forward window, and a model that predicted "down" on 100% of bars:
+
+1. **Continuity anchoring** (`assistant/forecaster.py:_anchor_to_last_close`,
+   on by default). Kronos denormalizes each forecast window using that
+   window's own mean/std, which can leave a visible jump between the last
+   real close and the first forecasted step even when the predicted
+   *shape* is reasonable. Forecasts are now shifted by a constant offset so
+   they continue smoothly from the last known price -- this doesn't change
+   what Kronos predicted about direction or magnitude of moves, it just
+   removes the artificial level-jump. Disable with
+   `anchor_to_last_close=False` if you specifically want Kronos's raw
+   unadjusted output for model diagnosis.
+2. **Internal sample averaging raised from 1 to 5**
+   (`DEFAULT_KRONOS_SAMPLE_COUNT=5` in `.env.example`). Kronos's own
+   `sample_count` parameter averages multiple internal samples into one
+   forecast -- a single sample is noisier. This trades some speed for a
+   smoother, more representative forecast.
+3. **Automatic reliability warnings** (`backtesting/metrics.py:reliability_flags`).
+   Every metrics computation now flags:
+   - **low sample size** (<30 predictions) -- with an actual confidence
+     interval on the direction accuracy, so "64% accuracy" doesn't get
+     read as solid when it's actually consistent with anywhere from 45-83%.
+   - **directional bias** (model predicts the same direction >90% of the
+     time) -- because a model that always says "down" scores exactly as
+     well as the market's own down-move base rate, regardless of any real
+     skill. These show up automatically in the `backtest AAPL` chat reply
+     and in `metrics_by_model_horizon.csv` (`low_sample_warning`,
+     `direction_bias_warning`, `reliability_notes` columns).
+
+**None of this guarantees Kronos is actually skillful on any given
+ticker** -- it just makes sure the numbers you're looking at aren't
+artifacts of a plumbing bug or too little data. Always run with enough
+windows (20-30+) before trusting a result, and treat the reliability
+warnings as a first filter, not a final verdict.
+
 ## Quick start
 
 ```bash
@@ -42,9 +81,13 @@ bot> Backtest for AAPL -- 5 walk-forward windows, horizons [5, 14, 30] days (exp
 
 This calls `backtesting.runner.quick_backtest()` -- a deliberately small,
 fast version of the full framework (5 windows, 3 horizons, 2 benchmarks,
-one equity curve chart saved to `assistant_data/backtests/<TICKER>/`) so it
-returns in a reasonable time inside a chat reply instead of running the full
-multi-hour walk-forward. Tune it via `.env`:
+one direction-summary chart attached inline, an equity curve chart also
+saved to disk) so it returns in a reasonable time inside a chat reply
+instead of running the full multi-hour walk-forward. The attached image is
+`direction_summary.png` -- real vs. Kronos price with green/red
+correct-vs-wrong direction markers, a rolling directional-accuracy line,
+and an up/down bias bar chart (see `backtesting/visualization.py:plot_direction_summary`).
+Tune it via `.env`:
 ```
 BACKTEST_QUICK_HORIZONS=5,14,30
 BACKTEST_QUICK_MAX_WINDOWS=5
@@ -59,6 +102,9 @@ Results land in `backtest_results/<TICKER>/`:
 - `portfolio_metrics_by_horizon.csv` -- Sharpe/Sortino/drawdown/etc. for Kronos's trading signals
 - `residual_diagnostics.csv` -- Shapiro-Wilk/Durbin-Watson/Ljung-Box/Breusch-Pagan per horizon
 - `regime_metrics.json` -- accuracy split by bull/bear/sideways
+- `direction_summary_h<N>.png` -- real vs. Kronos price with correct/wrong
+  direction markers, rolling directional accuracy, and an up/down bias bar
+  chart, for each horizon (see below)
 - `*.png` -- every plot from the visualization suite
 - `backtest_results/cross_asset_comparison.csv` -- best model per horizon per asset
 

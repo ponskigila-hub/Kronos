@@ -116,7 +116,7 @@ def pearson_correlation(y_true, y_pred):
 
 def spearman_correlation(y_true, y_pred):
     y_true, y_pred = _clean(y_true, y_pred)
-    if len(y_true) < 2:
+    if len(y_true) < 2 or np.std(y_true) == 0 or np.std(y_pred) == 0:
         return np.nan
     return float(stats.spearmanr(y_true, y_pred)[0])
 
@@ -153,8 +153,12 @@ def compute_all_metrics(df):
     """
     y_true, y_pred, y_prev = df["actual"].values, df["predicted"].values, df["prev_actual"].values
     updown = up_down_accuracy(y_true, y_pred, y_prev)
-    return {
-        "n_predictions": int(len(df)),
+    pred_dir = np.sign(y_pred - y_prev)
+    actual_dir = np.sign(y_true - y_prev)
+    n = len(df)
+
+    metrics_dict = {
+        "n_predictions": int(n),
         "mae": mae(y_true, y_pred),
         "mse": mse(y_true, y_pred),
         "rmse": rmse(y_true, y_pred),
@@ -170,4 +174,50 @@ def compute_all_metrics(df):
         "spearman_corr": spearman_correlation(y_true, y_pred),
         "hit_ratio": hit_ratio(y_true, y_pred, y_prev),
         "information_coefficient": information_coefficient(y_true, y_pred, y_prev),
+        "pred_up_fraction": float(np.mean(pred_dir == 1) * 100) if n else np.nan,
+        "actual_up_fraction": float(np.mean(actual_dir == 1) * 100) if n else np.nan,
+    }
+    metrics_dict.update(reliability_flags(metrics_dict))
+    return metrics_dict
+
+
+def reliability_flags(metrics_dict, min_reliable_n=30, bias_threshold=90.0):
+    """
+    Sanity checks so a headline accuracy/RMSE number doesn't get trusted
+    when it shouldn't be:
+      - low_sample_warning: True if there aren't enough predictions for the
+        accuracy figure to be statistically meaningful (rule of thumb: 30+).
+      - direction_bias_warning: True if the model predicted the same
+        direction (up or down) on more than `bias_threshold`% of
+        predictions -- in that case, "direction accuracy" mostly reflects
+        the market's own base rate, not real forecasting skill.
+    """
+    n = metrics_dict.get("n_predictions", 0)
+    pred_up = metrics_dict.get("pred_up_fraction", np.nan)
+
+    low_sample = n < min_reliable_n
+    biased = (pred_up == pred_up) and (pred_up >= bias_threshold or pred_up <= 100 - bias_threshold)
+
+    notes = []
+    if low_sample:
+        # rough 95% CI half-width for a proportion, informative even if the
+        # metric in question isn't itself a proportion
+        acc = metrics_dict.get("direction_accuracy", np.nan)
+        if acc == acc and n > 0:
+            p = acc / 100
+            half_width = 1.96 * (p * (1 - p) / n) ** 0.5 * 100
+            notes.append(f"only {n} predictions -- direction accuracy could plausibly be "
+                          f"anywhere from {max(0, acc - half_width):.0f}% to {min(100, acc + half_width):.0f}%")
+        else:
+            notes.append(f"only {n} predictions -- not enough to draw conclusions")
+    if biased:
+        direction = "UP" if pred_up >= bias_threshold else "DOWN"
+        notes.append(f"model predicted {direction} on {pred_up if direction == 'UP' else 100 - pred_up:.0f}% "
+                      f"of predictions -- accuracy mostly reflects the market's own base rate here, "
+                      f"not real directional skill")
+
+    return {
+        "low_sample_warning": bool(low_sample),
+        "direction_bias_warning": bool(biased),
+        "reliability_notes": notes,
     }

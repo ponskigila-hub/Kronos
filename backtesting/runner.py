@@ -141,6 +141,9 @@ class BacktestRunner:
             visualization.plot_direction_confusion_matrix(
                 hdf, f"{ticker} -- Direction Confusion Matrix (horizon={h}d)",
                 os.path.join(asset_dir, f"direction_confusion_h{h}.png"))
+            visualization.plot_direction_summary(
+                hdf, ticker, os.path.join(asset_dir, f"direction_summary_h{h}.png"),
+                pred_len=h, rolling_window=min(20, max(2, len(hdf) // 3)))
 
             if len(hdf) >= 10:
                 visualization.plot_rolling_metric(
@@ -262,8 +265,10 @@ def quick_backtest(ticker, horizons=None, max_windows=None, min_train_size=None,
 
     # Trading simulation + equity chart on the longest horizon evaluated
     main_horizon = max(horizons)
+    min_horizon = min(horizons)
     portfolio = {}
     image_path = None
+    equity_curve_path = None
     if kronos_results and not kronos_results.get(main_horizon, pd.DataFrame()).empty:
         hdf = kronos_results[main_horizon]
         sim = TradingSimulator(strategy=trading_strategy, threshold=trading_threshold)
@@ -275,14 +280,26 @@ def quick_backtest(ticker, horizons=None, max_windows=None, min_train_size=None,
             starting_capital=starting_capital, periods_per_year=periods_per_year,
         )
         if not equity_df.empty:
-            image_path = visualization.plot_equity_curve(
+            equity_curve_path = visualization.plot_equity_curve(
                 equity_df, f"{ticker} -- Backtest Equity Curve (horizon={main_horizon}d, "
                            f"{n_splits} windows)",
                 os.path.join(output_dir, "equity_curve.png"), starting_capital,
             )
 
+    # The direction-correct/wrong summary (real vs. synthetic price, rolling
+    # accuracy, up/down bias) is the most informative single chart for a
+    # quick "is this working" check -- generated at the shortest horizon
+    # for the clearest per-bar picture, and attached as the primary image.
+    if kronos_results and not kronos_results.get(min_horizon, pd.DataFrame()).empty:
+        hdf_min = kronos_results[min_horizon]
+        image_path = visualization.plot_direction_summary(
+            hdf_min, ticker, os.path.join(output_dir, "direction_summary.png"),
+            pred_len=min_horizon, rolling_window=min(20, max(2, len(hdf_min) // 3)),
+        )
+
     text = _format_quick_backtest_text(ticker, metrics_df, portfolio, horizons, max_windows)
-    return {"text": text, "metrics_df": metrics_df, "portfolio_metrics": portfolio, "image_path": image_path}
+    return {"text": text, "metrics_df": metrics_df, "portfolio_metrics": portfolio,
+            "image_path": image_path, "equity_curve_path": equity_curve_path}
 
 
 def _format_quick_backtest_text(ticker, metrics_df, portfolio, horizons, max_windows):
@@ -295,6 +312,7 @@ def _format_quick_backtest_text(ticker, metrics_df, portfolio, horizons, max_win
              f"horizons {list(horizons)} days (expanding window):"]
 
     kronos_df = metrics_df[metrics_df["model"] == "Kronos"].sort_values("horizon")
+    all_notes = []
     for _, row in kronos_df.iterrows():
         lines.append(
             f"  h={int(row['horizon'])}d: RMSE={row['rmse']:.2f}, MAE={row['mae']:.2f}, "
@@ -303,6 +321,10 @@ def _format_quick_backtest_text(ticker, metrics_df, portfolio, horizons, max_win
             else f"  h={int(row['horizon'])}d: RMSE={row['rmse']:.2f}, MAE={row['mae']:.2f}, "
                  f"direction accuracy={row['direction_accuracy']:.1f}%"
         )
+        for note in row.get("reliability_notes", []) or []:
+            tagged = f"h={int(row['horizon'])}d: {note}"
+            if tagged not in all_notes:
+                all_notes.append(tagged)
 
     # quick comparison vs baselines at the longest horizon
     main_h = max(horizons)
@@ -318,8 +340,12 @@ def _format_quick_backtest_text(ticker, metrics_df, portfolio, horizons, max_win
             f"Sharpe {portfolio.get('sharpe_ratio', float('nan')):.2f}, "
             f"win rate {portfolio.get('win_rate_pct', float('nan')):.1f}%, "
             f"max drawdown {portfolio.get('max_drawdown_pct', float('nan')):.1f}%, "
-            f"{int(portfolio.get('num_trades', 0))} trades."
+            f"{int(portfolio.get('num_trades', 0))} trades. "
+            f"(Equity curve chart also saved alongside the attached image.)"
         )
+
+    if all_notes:
+        lines.append("⚠️ Reliability notes: " + "; ".join(all_notes) + ".")
 
     lines.append("This is a quick in-chat check (few windows, few benchmarks). "
                   "For a full report with plots and diagnostics, run "

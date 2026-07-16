@@ -27,6 +27,9 @@ KRONOS_TOKENIZER_ID = os.getenv("KRONOS_TOKENIZER_ID", "NeoQuasar/Kronos-Tokeniz
 KRONOS_MAX_CONTEXT = int(os.getenv("KRONOS_MAX_CONTEXT", "512"))
 DEFAULT_LOOKBACK_DAYS = int(os.getenv("DEFAULT_LOOKBACK_DAYS", "400"))
 DEFAULT_PRED_LEN = int(os.getenv("DEFAULT_PRED_LEN", "30"))
+# How many samples Kronos averages internally per single predict() call
+# (its own built-in noise reduction -- higher is smoother but slower).
+DEFAULT_KRONOS_SAMPLE_COUNT = int(os.getenv("DEFAULT_KRONOS_SAMPLE_COUNT", "5"))
 # How many independent sampling passes to run through Kronos in order to
 # build a confidence band around the forecast. 1 = fast, no band.
 DEFAULT_SAMPLE_RUNS = int(os.getenv("DEFAULT_SAMPLE_RUNS", "1"))
@@ -53,7 +56,7 @@ os.makedirs(BACKTEST_DIR, exist_ok=True)
 BACKTEST_QUICK_HORIZONS = tuple(
     int(h) for h in os.getenv("BACKTEST_QUICK_HORIZONS", "5,14,30").split(",")
 )
-BACKTEST_QUICK_MAX_WINDOWS = int(os.getenv("BACKTEST_QUICK_MAX_WINDOWS", "5"))
+BACKTEST_QUICK_MAX_WINDOWS = int(os.getenv("BACKTEST_QUICK_MAX_WINDOWS", "15"))
 BACKTEST_QUICK_MIN_TRAIN_SIZE = int(os.getenv("BACKTEST_QUICK_MIN_TRAIN_SIZE", "252"))
 BACKTEST_QUICK_STEP_SIZE = int(os.getenv("BACKTEST_QUICK_STEP_SIZE", "30"))
 

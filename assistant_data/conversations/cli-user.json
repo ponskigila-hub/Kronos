@@ -1,53 +1,13 @@
 {
   "last_tickers": [
-    "NBIS"
+    "NOW"
   ],
   "last_forecast": {
-    "pct_change": -70.71,
-    "trend": "a strong downward"
+    "pct_change": 23.36,
+    "trend": "a strong upward"
   },
-  "last_explanation": "Kronos projects NBIS moving from 216.00 to 63.27 over the next 30 trading days (-70.71%) -- a strong downward trend. The 20-day average (243.87) is above the 50-day average (224.43), consistent with near-term momentum tilted to the upside. RSI is 45.8, a neutral reading with no extreme pressure either way. MACD momentum is mixed / losing steam in its current direction. Average True Range is 23.71 (11.0% of price), a high volatility reading. Trading volume is below its 20-day average, suggesting lighter conviction right now. Recent support sits near 192.67 and resistance near 299.86. Recent news sentiment is mixed / neutral (1 positive / 0 negative / 7 neutral headlines).",
+  "last_explanation": "Kronos projects NOW moving from 104.85 to 129.34 over the next 30 trading days (+23.36%) -- a strong upward trend. The 20-day average (101.85) is below the 50-day average (102.61), consistent with near-term momentum tilted to the downside. RSI is 50.5, a neutral reading with no extreme pressure either way. MACD momentum is mixed / losing steam in its current direction. Average True Range is 6.25 (6.0% of price), a high volatility reading. Recent support sits near 89.39 and resistance near 113.79. Recent news sentiment is mostly negative (0 positive / 4 negative / 4 neutral headlines).",
   "history": [
-    {
-      "role": "user",
-      "text": "forecast bumi"
-    },
-    {
-      "role": "assistant",
-      "text": "Kronos projects NVDA moving from 208.52 to 188.98 over the next 30 trading days (-9.37%) -- a strong downward trend. The 20-day average (202.13) is below the 50-day average (209.18), consistent with near-term momentum tilted to the downside. RSI is 54.4, a neutral reading with no extreme pressure either way. MACD histogram is positive and rising, indicating strengthening bullish momentum. Average True Range is 6.94 (3.3% of price), a moderate volatility reading. Trading volume is below its 20-day average, suggesting lighter conviction right now. Recent support sits near 189.80 and resistance near 213.99. Recent news sentiment is mostly positive (2 positive / 0 negative / 6 neutral headlines)."
-    },
-    {
-      "role": "user",
-      "text": "forecast btc"
-    },
-    {
-      "role": "assistant",
-      "text": "Kronos projects BTC-USD moving from 62337.05 to 79109.62 over the next 30 trading days (+26.91%) -- a strong upward trend. The 20-day average (61817.00) is below the 50-day average (64583.31), consistent with near-term momentum tilted to the downside. RSI is 46.0, a neutral reading with no extreme pressure either way. MACD momentum is mixed / losing steam in its current direction. Average True Range is 1927.71 (3.1% of price), a moderate volatility reading. Recent support sits near 57747.77 and resistance near 64658.97. Recent news sentiment is mixed / neutral (3 positive / 2 negative / 3 neutral headlines)."
-    },
-    {
-      "role": "user",
-      "text": "hi"
-    },
-    {
-      "role": "assistant",
-      "text": "Hi! I'm your Kronos AI stock assistant. Try things like:\n- \"Forecast AAPL\" or \"Predict Tesla for 14 days\"\n- \"Compare NVDA and AMD\"\n- \"Why is Apple expected to decline?\"\n- \"What risks should I watch for Bitcoin?\"\n- \"Add TSLA to my watchlist\" / \"My watchlist\""
-    },
-    {
-      "role": "user",
-      "text": "why is btc going to inclined"
-    },
-    {
-      "role": "assistant",
-      "text": "Kronos projects BTC-USD moving from 62334.93 to 80269.73 over the next 30 trading days (+28.77%) -- a strong upward trend. The 20-day average (61816.89) is below the 50-day average (64583.27), consistent with near-term momentum tilted to the downside. RSI is 46.0, a neutral reading with no extreme pressure either way. MACD momentum is mixed / losing steam in its current direction. Average True Range is 1920.25 (3.1% of price), a moderate volatility reading. Recent support sits near 57747.77 and resistance near 64658.97. Recent news sentiment is mixed / neutral (3 positive / 2 negative / 3 neutral headlines)."
-    },
-    {
-      "role": "user",
-      "text": "forecast axti"
-    },
-    {
-      "role": "assistant",
-      "text": "Kronos projects AXTI moving from 50.45 to 9.97 over the next 30 trading days (-80.24%) -- a strong downward trend. The 20-day average (73.73) is below the 50-day average (94.53), consistent with near-term momentum tilted to the downside. RSI is 34.2, a neutral reading with no extreme pressure either way. MACD histogram is negative and falling, indicating strengthening bearish momentum. Average True Range is 10.84 (21.5% of price), a high volatility reading. Trading volume is below its 20-day average, suggesting lighter conviction right now. Recent support sits near 49.75 and resistance near 116.75. Recent news sentiment is mixed / neutral (1 positive / 0 negative / 7 neutral headlines)."
-    },
     {
       "role": "user",
       "text": "hi"
@@ -87,6 +47,46 @@
     {
       "role": "assistant",
       "text": "Kronos projects NBIS moving from 216.00 to 63.27 over the next 30 trading days (-70.71%) -- a strong downward trend. The 20-day average (243.87) is above the 50-day average (224.43), consistent with near-term momentum tilted to the upside. RSI is 45.8, a neutral reading with no extreme pressure either way. MACD momentum is mixed / losing steam in its current direction. Average True Range is 23.71 (11.0% of price), a high volatility reading. Trading volume is below its 20-day average, suggesting lighter conviction right now. Recent support sits near 192.67 and resistance near 299.86. Recent news sentiment is mixed / neutral (1 positive / 0 negative / 7 neutral headlines)."
+    },
+    {
+      "role": "user",
+      "text": "hi"
+    },
+    {
+      "role": "assistant",
+      "text": "Hi! I'm your Kronos AI stock assistant. Try things like:\n- \"Forecast AAPL\" or \"Predict Tesla for 14 days\"\n- \"Compare NVDA and AMD\"\n- \"Why is Apple expected to decline?\"\n- \"What risks should I watch for Bitcoin?\"\n- \"Add TSLA to my watchlist\" / \"My watchlist\"\n- \"Backtest AAPL\" -- quick walk-forward accuracy + trading check"
+    },
+    {
+      "role": "user",
+      "text": "forecast amd"
+    },
+    {
+      "role": "assistant",
+      "text": "Kronos projects AMD moving from 534.39 to 200.78 over the next 30 trading days (-62.43%) -- a strong downward trend. The 20-day average (534.39) is above the 50-day average (489.44), consistent with near-term momentum tilted to the upside. RSI is 53.1, a neutral reading with no extreme pressure either way. MACD histogram is negative and falling, indicating strengthening bearish momentum. Average True Range is 36.13 (6.8% of price), a high volatility reading. Recent support sits near 495.35 and resistance near 584.73. Recent news sentiment is mixed / neutral (2 positive / 1 negative / 5 neutral headlines)."
+    },
+    {
+      "role": "user",
+      "text": "forecast now"
+    },
+    {
+      "role": "assistant",
+      "text": "Kronos projects NOW moving from 104.85 to 129.34 over the next 30 trading days (+23.36%) -- a strong upward trend. The 20-day average (101.85) is below the 50-day average (102.61), consistent with near-term momentum tilted to the downside. RSI is 50.5, a neutral reading with no extreme pressure either way. MACD momentum is mixed / losing steam in its current direction. Average True Range is 6.25 (6.0% of price), a high volatility reading. Recent support sits near 89.39 and resistance near 113.79. Recent news sentiment is mostly negative (0 positive / 4 negative / 4 neutral headlines)."
+    },
+    {
+      "role": "user",
+      "text": "hi"
+    },
+    {
+      "role": "assistant",
+      "text": "Hi! I'm your Kronos AI stock assistant. Try things like:\n- \"Forecast AAPL\" or \"Predict Tesla for 14 days\"\n- \"Compare NVDA and AMD\"\n- \"Why is Apple expected to decline?\"\n- \"What risks should I watch for Bitcoin?\"\n- \"Add TSLA to my watchlist\" / \"My watchlist\"\n- \"Backtest AAPL\" -- quick walk-forward accuracy + trading check"
+    },
+    {
+      "role": "user",
+      "text": "backtest msft"
+    },
+    {
+      "role": "assistant",
+      "text": "Backtest for MSFT -- 5 walk-forward windows, horizons [5, 14, 30] days (expanding window):\n  h=5d: RMSE=45.78, MAE=38.60, direction accuracy=64.0%, IC=-0.09\n  h=14d: RMSE=52.21, MAE=47.87, direction accuracy=48.6%, IC=-0.03\n  h=30d: RMSE=60.07, MAE=54.10, direction accuracy=51.3%, IC=0.06\nAt 30d horizon, ranked by RMSE (lower is better): Naive (last close) (RMSE=15.74), Linear Regression (RMSE=26.68), Kronos (RMSE=60.07)\nSimulated trading at 30d horizon: total return -4.4%, Sharpe 0.03, win rate 40.0%, max drawdown -9.7%, 5 trades. (Equity curve chart also saved alongside the attached image.)\nThis is a quick in-chat check (few windows, few benchmarks). For a full report with plots and diagnostics, run `python run_backtest.py --tickers MSFT`."
     }
   ]
 }

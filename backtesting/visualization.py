@@ -14,7 +14,8 @@ from scipy import stats
 
 
 def _save(fig, path):
-    fig.tight_layout()
+    if not fig.get_constrained_layout():
+        fig.tight_layout()
     fig.savefig(path, dpi=150)
     plt.close(fig)
     return path
@@ -71,14 +72,26 @@ def plot_residual_autocorrelation(horizon_df, title, save_path, max_lag=20):
     residuals = (horizon_df["predicted"] - horizon_df["actual"]).values
     residuals = residuals[~np.isnan(residuals)]
     n = len(residuals)
-    lags = range(1, min(max_lag, n - 1) + 1)
-    acf_vals = [np.corrcoef(residuals[:-lag], residuals[lag:])[0, 1] for lag in lags]
+    max_usable_lag = max(0, n - 3)  # need >=2 overlapping points with >0 variance
+    lags = range(1, min(max_lag, max_usable_lag) + 1)
 
     fig, ax = plt.subplots(figsize=(10, 5))
-    ax.stem(list(lags), acf_vals)
-    ci = 1.96 / np.sqrt(n)
-    ax.axhline(ci, color="gray", linestyle="--", linewidth=0.8)
-    ax.axhline(-ci, color="gray", linestyle="--", linewidth=0.8)
+    if len(lags) == 0:
+        ax.text(0.5, 0.5, "Not enough predictions for an autocorrelation plot\n"
+                           "(need more walk-forward windows)",
+                ha="center", va="center", transform=ax.transAxes)
+    else:
+        acf_vals = []
+        for lag in lags:
+            a, b = residuals[:-lag], residuals[lag:]
+            if np.std(a) == 0 or np.std(b) == 0:
+                acf_vals.append(0.0)
+            else:
+                acf_vals.append(np.corrcoef(a, b)[0, 1])
+        ax.stem(list(lags), acf_vals)
+        ci = 1.96 / np.sqrt(n)
+        ax.axhline(ci, color="gray", linestyle="--", linewidth=0.8)
+        ax.axhline(-ci, color="gray", linestyle="--", linewidth=0.8)
     ax.set_title(title)
     ax.set_xlabel("Lag")
     ax.set_ylabel("Autocorrelation")
@@ -169,7 +182,7 @@ def plot_monthly_returns_heatmap(equity_df, title, save_path):
     df = equity_df.copy()
     df["date"] = pd.to_datetime(df["date"])
     df = df.set_index("date").sort_index()
-    monthly = df["equity"].resample("ME").last().pct_change().dropna() * 100
+    monthly = df["equity"].resample("ME").last().pct_change(fill_method=None).dropna() * 100
     if monthly.empty:
         return None
     table = monthly.to_frame("ret")
@@ -192,6 +205,89 @@ def plot_monthly_returns_heatmap(equity_df, title, save_path):
                 ax.text(j, i, f"{val:.1f}", ha="center", va="center", fontsize=8)
     fig.colorbar(im, ax=ax, label="Monthly return (%)")
     ax.set_title(title)
+    return _save(fig, save_path)
+
+
+def plot_direction_summary(horizon_df, ticker, save_path, pred_len=1, lookback=None,
+                            rolling_window=20):
+    """
+    3-panel "does the model get the direction right" summary, matching the
+    style of: price overlay with correct/wrong direction markers, rolling
+    directional accuracy over time, and an up/down directional bias bar
+    chart. Clearest for horizon=1 (one prediction per bar) -- for longer
+    horizons the price panel will show overlapping predictions from
+    different walk-forward windows, which is still informative but busier.
+
+    horizon_df: a per-horizon walk-forward result (needs 'date', 'actual',
+                'predicted', 'prev_actual').
+    """
+    df = horizon_df.sort_values("date").reset_index(drop=True)
+    actual_dir = np.sign(df["actual"] - df["prev_actual"]).values
+    pred_dir = np.sign(df["predicted"] - df["prev_actual"]).values
+    correct = actual_dir == pred_dir
+
+    fig = plt.figure(figsize=(15, 12), constrained_layout=True)
+    gs = fig.add_gridspec(3, 1, height_ratios=[2.2, 1, 1])
+
+    # ---- Panel 1: real vs predicted price, direction-correct/wrong markers ----
+    ax1 = fig.add_subplot(gs[0])
+    ax1.plot(df["date"], df["actual"], label="Real close", color="#1f77b4", linewidth=1.3)
+    ax1.plot(df["date"], df["predicted"], label=f"Kronos synthetic close ({pred_len}-step)",
+              color="#ff7f0e", linestyle="--", linewidth=1, alpha=0.8)
+    ax1.scatter(df.loc[correct, "date"], df.loc[correct, "actual"],
+                marker="^", color="green", s=35, label="Direction correct", zorder=3)
+    ax1.scatter(df.loc[~correct, "date"], df.loc[~correct, "actual"],
+                marker="v", color="red", s=35, label="Direction wrong", zorder=3)
+    title_suffix = f" (pred_len={pred_len}" + (f", lookback={lookback})" if lookback else ")")
+    ax1.set_title(f"{ticker} -- Real vs Kronos Synthetic Price{title_suffix}")
+    ax1.set_ylabel("Price")
+    ax1.legend(loc="upper left")
+    ax1.grid(alpha=0.3)
+
+    # ---- Panel 2: rolling directional accuracy ----
+    ax2 = fig.add_subplot(gs[1])
+    overall_acc = float(np.mean(correct) * 100) if len(correct) else float("nan")
+    if len(correct) >= rolling_window:
+        rolling_acc = pd.Series(correct.astype(float)).rolling(rolling_window).mean() * 100
+        ax2.plot(df["date"], rolling_acc, color="#9467bd", linewidth=1,
+                  label=f"Overall {overall_acc:.1f}%")
+        ax2.axhline(overall_acc, color="orange", linestyle=":", linewidth=1)
+        ax2.axhline(50, color="gray", linestyle=":", linewidth=1)
+        ax2.legend(loc="upper left")
+    else:
+        ax2.text(0.5, 0.5, f"Need >= {rolling_window} predictions for a rolling window\n"
+                            f"(have {len(correct)})", ha="center", va="center", transform=ax2.transAxes)
+    ax2.set_title(f"Rolling directional accuracy (window={rolling_window})")
+    ax2.set_ylabel("Accuracy %")
+    ax2.set_ylim(0, 100)
+    ax2.grid(alpha=0.3)
+
+    # ---- Panel 3: directional bias bar chart ----
+    ax3 = fig.add_subplot(gs[2])
+    up_mask = actual_dir > 0
+    down_mask = actual_dir < 0
+    up_acc = float(np.mean(pred_dir[up_mask] == 1) * 100) if up_mask.any() else float("nan")
+    down_acc = float(np.mean(pred_dir[down_mask] == -1) * 100) if down_mask.any() else float("nan")
+    model_up_pct = float(np.mean(pred_dir == 1) * 100) if len(pred_dir) else float("nan")
+    market_up_pct = float(np.mean(actual_dir == 1) * 100) if len(actual_dir) else float("nan")
+    gap = model_up_pct - market_up_pct
+
+    labels = ["Overall", "Up moves", "Down moves"]
+    values = [overall_acc, up_acc, down_acc]
+    colors = ["#1f77b4", "#2ca02c", "#d62728"]
+    bars = ax3.bar(labels, [v if v == v else 0 for v in values], color=colors)
+    for bar, v in zip(bars, values):
+        label = f"{v:.1f}%" if v == v else "n/a"
+        ax3.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 2, label,
+                  ha="center", va="bottom")
+    ax3.axhline(50, color="gray", linestyle=":", linewidth=1)
+    ax3.set_ylim(0, 100)
+    ax3.set_ylabel("Accuracy %")
+    ax3.set_title(
+        f"Directional bias -- model predicts UP {model_up_pct:.1f}% of bars vs "
+        f"market UP {market_up_pct:.1f}% of bars (gap {gap:+.1f} pts)"
+    )
+
     return _save(fig, save_path)
 
 
