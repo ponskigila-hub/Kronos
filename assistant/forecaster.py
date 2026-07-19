@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 
 from .model_loader import get_predictor
-from .config import DEFAULT_PRED_LEN, DEFAULT_SAMPLE_RUNS, DEFAULT_KRONOS_SAMPLE_COUNT
+from .config import DEFAULT_PRED_LEN, DEFAULT_SAMPLE_RUNS, DEFAULT_KRONOS_SAMPLE_COUNT, DEFAULT_KRONOS_T
 
 FEATURE_COLS = ["open", "high", "low", "close", "volume", "amount"]
 OHLC_COLS = ["open", "high", "low", "close"]
@@ -42,7 +42,7 @@ def _anchor_to_last_close(pred_df, last_close):
     return pred_df
 
 
-def run_forecast(hist_df, pred_len=None, n_runs=None, lookback=None, T=1.0, top_p=0.9,
+def run_forecast(hist_df, pred_len=None, n_runs=None, lookback=None, T=None, top_p=0.9,
                   sample_count=None, anchor_to_last_close=True):
     """
     hist_df: cleaned history from assistant.data_fetcher.fetch_history
@@ -69,6 +69,7 @@ def run_forecast(hist_df, pred_len=None, n_runs=None, lookback=None, T=1.0, top_
     pred_len = pred_len or DEFAULT_PRED_LEN
     n_runs = n_runs or DEFAULT_SAMPLE_RUNS
     sample_count = sample_count or DEFAULT_KRONOS_SAMPLE_COUNT
+    T = DEFAULT_KRONOS_T if T is None else T
     predictor = get_predictor()
 
     lookback = lookback or min(predictor.max_context, len(hist_df))

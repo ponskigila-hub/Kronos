@@ -10,7 +10,7 @@ import os
 
 import pandas as pd
 
-from . import metrics, portfolio_metrics, residual_analysis, regimes, visualization
+from . import metrics, portfolio_metrics, residual_analysis, regimes, visualization, significance
 from .benchmarks import get_benchmark_suite
 from .data_loaders import YahooFinanceLoader
 from .kronos_adapter import make_kronos_predict_fn
@@ -22,7 +22,7 @@ class BacktestRunner:
     def __init__(self, tickers, horizons=(1, 3, 5, 7, 14, 30),
                  window_type="expanding", min_train_size=252, step_size=30,
                  max_windows=None, data_loader=None, output_dir="backtest_results",
-                 include_benchmarks=True, kronos_params=None,
+                 include_benchmarks=True, include_arima=True, kronos_params=None,
                  trading_strategy="long_short", trading_threshold=0.0,
                  starting_capital=10000.0):
         self.tickers = tickers if isinstance(tickers, (list, tuple)) else [tickers]
@@ -32,6 +32,7 @@ class BacktestRunner:
             step_size=step_size, horizons=self.horizons, max_windows=max_windows,
         )
         self.data_loader = data_loader or YahooFinanceLoader()
+        self.include_arima = include_arima
         self.output_dir = output_dir
         self.include_benchmarks = include_benchmarks
         self.kronos_params = kronos_params or {}
@@ -56,7 +57,7 @@ class BacktestRunner:
 
         models = {"Kronos": make_kronos_predict_fn(**self.kronos_params)}
         if self.include_benchmarks:
-            models.update(get_benchmark_suite())
+            models.update(get_benchmark_suite(include_arima=self.include_arima))
 
         results = {}
         for model_name, predict_fn in models.items():
@@ -77,6 +78,30 @@ class BacktestRunner:
                 metrics_table.append(m)
         metrics_df = pd.DataFrame(metrics_table)
         metrics_df.to_csv(os.path.join(asset_dir, "metrics_by_model_horizon.csv"), index=False)
+
+        # ------------------------------------------------------------
+        # Statistical significance: is Kronos actually better than the
+        # best benchmark, or is the RMSE gap just noise? Free to compute --
+        # reuses predictions already made, no extra Kronos calls.
+        # ------------------------------------------------------------
+        significance_table = []
+        if self.include_benchmarks and not metrics_df.empty:
+            for h in self.horizons:
+                kronos_hdf = kronos_results.get(h)
+                if kronos_hdf is None or kronos_hdf.empty:
+                    continue
+                bench_rows = metrics_df[(metrics_df["horizon"] == h) & (metrics_df["model"] != "Kronos")]
+                if bench_rows.empty:
+                    continue
+                best_bench_name = bench_rows.loc[bench_rows["rmse"].idxmin(), "model"]
+                bench_hdf = results.get(best_bench_name, {}).get(h)
+                if bench_hdf is None or bench_hdf.empty:
+                    continue
+                dm = significance.compare_models_dm(kronos_hdf, bench_hdf, h=h)
+                dm.update({"horizon": h, "kronos_vs": best_bench_name})
+                significance_table.append(dm)
+        pd.DataFrame(significance_table).to_csv(
+            os.path.join(asset_dir, "significance_vs_best_benchmark.csv"), index=False)
 
         # ------------------------------------------------------------
         # Trading simulation + portfolio metrics (Kronos only, per horizon)
@@ -251,8 +276,10 @@ def quick_backtest(ticker, horizons=None, max_windows=None, min_train_size=None,
 
     metrics_rows = []
     kronos_results = None
+    all_results = {}
     for model_name, predict_fn in models.items():
         horizon_results = validator.run(df, predict_fn, verbose=False)
+        all_results[model_name] = horizon_results
         if model_name == "Kronos":
             kronos_results = horizon_results
         for h, hdf in horizon_results.items():
@@ -297,12 +324,26 @@ def quick_backtest(ticker, horizons=None, max_windows=None, min_train_size=None,
             pred_len=min_horizon, rolling_window=min(20, max(2, len(hdf_min) // 3)),
         )
 
-    text = _format_quick_backtest_text(ticker, metrics_df, portfolio, horizons, max_windows)
+    # Statistical significance vs. the best benchmark at the main horizon --
+    # free to compute (reuses predictions already made), answers "is this
+    # RMSE gap real or just noise" instead of eyeballing a ranking.
+    dm_result = None
+    if include_benchmarks and not metrics_df.empty:
+        bench_rows = metrics_df[(metrics_df["horizon"] == main_horizon) & (metrics_df["model"] != "Kronos")]
+        if not bench_rows.empty and kronos_results and not kronos_results.get(main_horizon, pd.DataFrame()).empty:
+            best_bench_name = bench_rows.loc[bench_rows["rmse"].idxmin(), "model"]
+            bench_hdf = all_results.get(best_bench_name, {}).get(main_horizon)
+            if bench_hdf is not None and not bench_hdf.empty:
+                dm_result = significance.compare_models_dm(kronos_results[main_horizon], bench_hdf, h=main_horizon)
+                dm_result["vs_model"] = best_bench_name
+
+    text = _format_quick_backtest_text(ticker, metrics_df, portfolio, horizons, max_windows, dm_result)
     return {"text": text, "metrics_df": metrics_df, "portfolio_metrics": portfolio,
-            "image_path": image_path, "equity_curve_path": equity_curve_path}
+            "image_path": image_path, "equity_curve_path": equity_curve_path,
+            "significance_vs_benchmark": dm_result}
 
 
-def _format_quick_backtest_text(ticker, metrics_df, portfolio, horizons, max_windows):
+def _format_quick_backtest_text(ticker, metrics_df, portfolio, horizons, max_windows, dm_result=None):
     if metrics_df.empty:
         return (f"Couldn't run a backtest for {ticker} -- not enough history for "
                 f"{max_windows} walk-forward windows at these horizons. Try a "
@@ -332,6 +373,9 @@ def _format_quick_backtest_text(ticker, metrics_df, portfolio, horizons, max_win
     if len(at_main_h) > 1:
         ranking = ", ".join(f"{r['model']} (RMSE={r['rmse']:.2f})" for _, r in at_main_h.iterrows())
         lines.append(f"At {main_h}d horizon, ranked by RMSE (lower is better): {ranking}")
+
+    if dm_result:
+        lines.append(f"Significance check (Kronos vs {dm_result.get('vs_model', '?')}): {dm_result['note']}")
 
     if portfolio:
         lines.append(

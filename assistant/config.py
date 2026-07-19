@@ -25,8 +25,19 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 KRONOS_MODEL_ID = os.getenv("KRONOS_MODEL_ID", "NeoQuasar/Kronos-base")
 KRONOS_TOKENIZER_ID = os.getenv("KRONOS_TOKENIZER_ID", "NeoQuasar/Kronos-Tokenizer-base")
 KRONOS_MAX_CONTEXT = int(os.getenv("KRONOS_MAX_CONTEXT", "512"))
+# Limit PyTorch's CPU thread count when running without a GPU (e.g. an AMD
+# Radeon iGPU, which torch can't use for compute). Unset/0 = torch's own
+# default (usually all logical cores), which can cause more contention than
+# benefit on a laptop. A good starting point on a 6-core/12-thread CPU with
+# 8GB RAM is 4-6.
+KRONOS_CPU_THREADS = int(os.getenv("KRONOS_CPU_THREADS", "0")) or None
 DEFAULT_LOOKBACK_DAYS = int(os.getenv("DEFAULT_LOOKBACK_DAYS", "400"))
 DEFAULT_PRED_LEN = int(os.getenv("DEFAULT_PRED_LEN", "30"))
+# Sampling temperature: 1.0 = Kronos's most exploratory/random setting.
+# Lower values (0.6-0.8) produce more stable, less noisy forecasts --
+# generally preferable for financial forecasting where wild single-sample
+# swings hurt more than they help. Override with KRONOS_TEMPERATURE.
+DEFAULT_KRONOS_T = float(os.getenv("KRONOS_TEMPERATURE", "0.7"))
 # How many samples Kronos averages internally per single predict() call
 # (its own built-in noise reduction -- higher is smoother but slower).
 DEFAULT_KRONOS_SAMPLE_COUNT = int(os.getenv("DEFAULT_KRONOS_SAMPLE_COUNT", "5"))

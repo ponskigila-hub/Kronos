@@ -48,6 +48,75 @@ artifacts of a plumbing bug or too little data. Always run with enough
 windows (20-30+) before trusting a result, and treat the reliability
 warnings as a first filter, not a final verdict.
 
+## Running on limited hardware (8GB RAM, no GPU / AMD Radeon iGPU)
+
+Kronos runs on CPU automatically when no CUDA/MPS GPU is detected (an AMD
+Radeon iGPU can't be used by PyTorch for this) -- no crash, just slower.
+Three things help keep it usable on a machine like a Ryzen 5000-series
+laptop with 8GB RAM:
+
+```bash
+# one flag: caps walk-forward windows at 15, skips the slow ARIMA
+# benchmark, and limits PyTorch to 4 CPU threads so the rest of your
+# system (browser, OS) still has headroom
+python run_backtest.py --tickers AAPL --low-resource
+
+# or tune each part yourself
+python run_backtest.py --tickers AAPL --max-windows 15 --no-arima --cpu-threads 4
+```
+
+`--cpu-threads` (or `KRONOS_CPU_THREADS` in `.env`) matters more than it
+might seem: PyTorch defaults to using every logical core, which on a
+6-core/12-thread CPU can cause more contention and thermal throttling than
+it's worth, especially while other things are running. Start at 4 and
+adjust based on how the rest of your system feels during a run.
+
+For experimentation (hyperparameter search, trying settings on several
+tickers), consider switching `KRONOS_MODEL_ID` back to `NeoQuasar/Kronos-small`
+temporarily -- it's ~4x smaller than `Kronos-base` and iterates much faster
+for the exploratory phase. Switch back to `Kronos-base` for your final,
+fewer-but-longer verification runs once you've settled on settings.
+
+## Statistical significance (is Kronos actually better, or just noise?)
+
+`backtesting/significance.py` implements a Diebold-Mariano test, run
+automatically:
+- In `run_backtest.py`: `backtest_results/<TICKER>/significance_vs_best_benchmark.csv`
+  -- Kronos vs. whichever benchmark had the lowest RMSE, per horizon.
+- In the in-chat `backtest AAPL` command: a `Significance check` line in the
+  reply.
+
+This costs nothing extra to compute (it reuses predictions already made)
+and answers the question a plain RMSE comparison can't: is the gap between
+Kronos and the benchmark large enough, relative to the noise in the data,
+to trust -- or could you get a gap that size by chance even if the two
+models were equally good? A non-significant result (p >= 0.05) means "can't
+tell them apart with this much data," which is common and expected with
+small `--max-windows` values.
+
+## Other recommended next steps (not yet automated -- manual for now)
+
+- **Multi-ticker sweep**: run the same settings across several tickers
+  (`--tickers AAPL MSFT NVDA TSLA SPY BTC-USD`) and check
+  `cross_asset_comparison.csv` -- if a directional bias or weak result shows
+  up on every ticker, it's a general finding; if it's isolated to one, it's
+  ticker-specific.
+- **Kronos-small vs Kronos-base A/B test**: run the same backtest with each
+  `KRONOS_MODEL_ID` and compare `metrics_by_model_horizon.csv` -- bigger
+  isn't automatically better for every ticker/horizon.
+- **Hyperparameter search** (`backtesting/hyperparam_search.py`, already
+  built): search over `T`, `lookback`, `top_p` instead of guessing:
+  ```python
+  from backtesting.hyperparam_search import grid_search
+  results = grid_search(df, param_grid={"T": [0.6, 0.7, 0.8], "lookback": [200, 400]}, max_windows=10)
+  ```
+- **Regime-split results** (`backtesting/regimes.py`, already built): check
+  `regime_metrics.json` per ticker -- a model can look fine on average while
+  being much worse specifically in bear markets or high-volatility periods.
+- **Trading threshold**: the default `--threshold 0.0` acts on any signal,
+  however small. Raising it to `0.01-0.02` (1-2%) generally trades less
+  often but with more conviction.
+
 ## Quick start
 
 ```bash

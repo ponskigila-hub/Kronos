@@ -8,7 +8,7 @@ import numpy as np
 from assistant.forecaster import run_forecast
 
 
-def make_kronos_predict_fn(lookback=None, T=1.0, top_p=0.9, n_runs=1,
+def make_kronos_predict_fn(lookback=None, T=None, top_p=0.9, n_runs=1,
                             sample_count=None, anchor_to_last_close=True):
     """
     Returns a predict_fn closure with fixed Kronos hyperparameters -- used
