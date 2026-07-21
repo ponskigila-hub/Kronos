@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Kronos — Watchlist{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <p class="eyebrow">Saved</p>
+  <h1 class="page-title">Watchlist</h1>
+  <p class="page-desc">Tickers you're keeping an eye on. Shared with the CLI, Discord, and WhatsApp bots — this is the same list.</p>
+</div>
+
+<div class="card">
+  <form method="post" action="{{ url_for('watchlist_add') }}" style="display:flex; gap:10px; align-items:flex-end;">
+    <div class="field" style="flex:1; margin-bottom:0;">
+      <label for="ticker">Add a ticker</label>
+      <input type="text" id="ticker" name="ticker" placeholder="AAPL" required>
+    </div>
+    <button class="btn" type="submit">Add</button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="card-title">Currently watching</div>
+  {% if watchlist %}
+    {% for t in watchlist %}
+    <div class="watchlist-row">
+      <span>{{ t }}</span>
+      <span style="display:flex; gap:16px; align-items:center;">
+        <a href="{{ url_for('chat') }}?prefill=forecast+{{ t }}">forecast</a>
+        <form method="post" action="{{ url_for('watchlist_remove') }}" style="margin:0;">
+          <input type="hidden" name="ticker" value="{{ t }}">
+          <button type="submit" class="remove-link" style="background:none;border:none;cursor:pointer;padding:0;">remove</button>
+        </form>
+      </span>
+    </div>
+    {% endfor %}
+  {% else %}
+    <p class="empty-state">Your watchlist is empty.</p>
+  {% endif %}
+</div>
+
+{% endblock %}

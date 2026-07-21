@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Kronos — Dashboard{% endblock %}
+{% block content %}
+
+<section class="hero">
+  <div>
+    <h1>Time-series forecasting<br>for markets, <em>made conversational.</em></h1>
+    <p>Kronos reads price history the way a language model reads text. Ask it a question, upload your own data, or let it run a walk-forward backtest against itself — all from one desk.</p>
+    <div class="hero-ctas">
+      <a class="btn" href="{{ url_for('chat') }}">Start chatting</a>
+      <a class="btn btn-ghost" href="{{ url_for('forecast') }}">Run a forecast</a>
+    </div>
+  </div>
+  {% include "_clockface.html" %}
+</section>
+
+<div class="grid-3">
+  <a class="cta-card" href="{{ url_for('chat') }}">
+    <div class="cta-glyph">01 — CONVERSE</div>
+    <h3>Ask Kronos directly</h3>
+    <p>"Forecast AAPL", "why is it expected to decline", "compare NVDA and AMD" — plain language in, grounded explanation out.</p>
+  </a>
+  <a class="cta-card" href="{{ url_for('forecast') }}">
+    <div class="cta-glyph">02 — SUPPLY DATA</div>
+    <h3>Ticker or your own CSV</h3>
+    <p>Pull live history automatically by ticker, or upload your own OHLCV file for full manual control.</p>
+  </a>
+  <a class="cta-card" href="{{ url_for('backtest') }}">
+    <div class="cta-glyph">03 — VERIFY</div>
+    <h3>Walk-forward backtest</h3>
+    <p>Don't take the forecast on faith — check its historical accuracy against naive and statistical baselines first.</p>
+  </a>
+</div>
+
+<div class="card" style="margin-top:20px;">
+  <div class="card-title">Your watchlist</div>
+  {% if watchlist %}
+    <table class="data-table">
+      <thead><tr><th>Ticker</th><th></th></tr></thead>
+      <tbody>
+        {% for t in watchlist %}
+        <tr><td>{{ t }}</td><td><a href="{{ url_for('chat') }}?prefill=forecast+{{ t }}">forecast &rarr;</a></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty-state">Nothing saved yet. Add tickers from the <a href="{{ url_for('watchlist') }}">watchlist</a> page or say "add AAPL to my watchlist" in chat.</p>
+  {% endif %}
+</div>
+
+{% endblock %}

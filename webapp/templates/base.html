@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Kronos{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a href="{{ url_for('index') }}" class="brand">
+        {% include "_brandmark.html" %}
+        <div>
+          <span class="brand-word">Kronos</span>
+          <span class="brand-sub">Market Assistant</span>
+        </div>
+      </a>
+
+      <nav class="nav">
+        <a href="{{ url_for('index') }}" class="{{ 'active' if active == 'home' }}"><span class="nav-icon">&#9679;</span> Dashboard</a>
+        <a href="{{ url_for('chat') }}" class="{{ 'active' if active == 'chat' }}"><span class="nav-icon">&#9670;</span> Chat</a>
+        <a href="{{ url_for('forecast') }}" class="{{ 'active' if active == 'forecast' }}"><span class="nav-icon">&#9651;</span> Forecast</a>
+        <a href="{{ url_for('backtest') }}" class="{{ 'active' if active == 'backtest' }}"><span class="nav-icon">&#8635;</span> Backtest</a>
+        <a href="{{ url_for('watchlist') }}" class="{{ 'active' if active == 'watchlist' }}"><span class="nav-icon">&#9733;</span> Watchlist</a>
+      </nav>
+
+      <div class="sidebar-foot">
+        <div><span class="dot"></span>{{ kronos_model_id or 'NeoQuasar/Kronos-base' }}</div>
+        <div>local session &middot; no data leaves this machine</div>
+      </div>
+    </aside>
+
+    <main>
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="flash flash-{{ 'error' if category == 'error' else 'ok' }}">{{ message }}</div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

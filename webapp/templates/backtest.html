@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Kronos — Backtest{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <p class="eyebrow">Verification</p>
+  <h1 class="page-title">Walk-forward backtest</h1>
+  <p class="page-desc">A quick check of Kronos's own track record before you trust a forecast — direction accuracy, RMSE vs. simple baselines, and a significance test.</p>
+</div>
+
+<div class="card">
+  <form method="post" action="{{ url_for('backtest') }}">
+    <div class="field-row">
+      <div class="field">
+        <label for="ticker">Ticker</label>
+        <input type="text" id="ticker" name="ticker" placeholder="AAPL" required value="{{ request.form.ticker if request.form.ticker }}">
+      </div>
+      <div class="field">
+        <label for="max_windows">Walk-forward windows</label>
+        <input type="number" id="max_windows" name="max_windows" value="15" min="5" max="60">
+      </div>
+    </div>
+    <button class="btn" type="submit">Run backtest</button>
+    <span class="typing" id="backtestNote">Runs several Kronos calls — can take a while on CPU-only hardware.</span>
+  </form>
+</div>
+
+{% if result_text %}
+<div class="card">
+  <div class="card-title">Result — {{ result_ticker }}</div>
+  <div class="result-text">{{ result_text }}</div>
+  {% if image_url %}
+  <div class="chart-embed"><img src="{{ image_url }}" alt="Backtest direction summary for {{ result_ticker }}"></div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

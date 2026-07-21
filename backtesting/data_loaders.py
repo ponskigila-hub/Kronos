@@ -53,11 +53,25 @@ class CSVLoader(DataLoader):
             "volume": "volume", "amount": "amount",
         }
 
-    def load(self, symbol, start=None, end=None, lookback_days=None):
-        # `symbol` is treated as a file path for the CSV loader.
-        df = pd.read_csv(symbol)
+    def normalize(self, raw_df, start=None, end=None, lookback_days=None):
+        """
+        Reshape an already-loaded DataFrame (e.g. from pandas.read_csv on an
+        uploaded file, not necessarily a path on disk) into Kronos's
+        expected schema. Split out from load() so callers with an in-memory
+        DataFrame (like webapp/app.py's CSV upload route) don't need a
+        temp file on disk.
+        """
+        df = raw_df.copy()
         df.columns = [c.strip().lower() for c in df.columns]
         df = df.rename(columns={k: v for k, v in self.column_map.items() if k in df.columns})
+        if "timestamps" not in df.columns:
+            raise ValueError(
+                "Couldn't find a date/timestamp column. Expected one of: "
+                "date, datetime, timestamps (case-insensitive)."
+            )
+        missing = [c for c in ["open", "high", "low", "close", "volume"] if c not in df.columns]
+        if missing:
+            raise ValueError(f"CSV is missing required column(s): {', '.join(missing)}")
         df["timestamps"] = pd.to_datetime(df["timestamps"])
         if "amount" not in df.columns:
             df["amount"] = df["volume"] * df[["open", "high", "low", "close"]].mean(axis=1)
@@ -69,6 +83,11 @@ class CSVLoader(DataLoader):
         if lookback_days:
             df = df.tail(lookback_days)
         return df[["timestamps"] + KRONOS_COLUMNS].reset_index(drop=True)
+
+    def load(self, symbol, start=None, end=None, lookback_days=None):
+        # `symbol` is treated as a file path for the CSV loader.
+        raw_df = pd.read_csv(symbol)
+        return self.normalize(raw_df, start=start, end=end, lookback_days=lookback_days)
 
 
 class PolygonLoader(DataLoader):

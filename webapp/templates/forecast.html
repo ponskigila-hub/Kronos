@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Kronos — Forecast{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <p class="eyebrow">Manual setup</p>
+  <h1 class="page-title">Run a forecast</h1>
+  <p class="page-desc">Pull live history by ticker, or upload your own OHLCV CSV for full control over what Kronos sees.</p>
+</div>
+
+<div class="card">
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="ticker" type="button">By ticker</button>
+    <button class="tab-btn" data-tab="csv" type="button">Upload CSV</button>
+  </div>
+
+  <div class="tab-panel active" id="tab-ticker">
+    <form method="post" action="{{ url_for('forecast_ticker') }}">
+      <div class="field-row">
+        <div class="field">
+          <label for="ticker">Ticker</label>
+          <input type="text" id="ticker" name="ticker" placeholder="AAPL, BTC-USD, MSFT…" required value="{{ request.form.ticker if request.form.ticker }}">
+        </div>
+        <div class="field">
+          <label for="pred_len">Forecast horizon (days)</label>
+          <input type="number" id="pred_len" name="pred_len" value="30" min="1" max="120">
+        </div>
+        <div class="field">
+          <label for="lookback">Lookback (days)</label>
+          <input type="number" id="lookback" name="lookback" value="400" min="30" max="512">
+        </div>
+      </div>
+      <button class="btn" type="submit">Forecast</button>
+    </form>
+  </div>
+
+  <div class="tab-panel" id="tab-csv">
+    <form method="post" action="{{ url_for('forecast_csv') }}" enctype="multipart/form-data">
+      <label class="file-drop" id="dropZone">
+        <input type="file" name="file" id="fileInput" accept=".csv" required>
+        <span id="fileLabel">Drop a CSV here or click to browse<br><small>Needs a date/timestamp column + open, high, low, close, volume</small></span>
+      </label>
+      <div class="field-row" style="margin-top:16px;">
+        <div class="field">
+          <label for="csv_name">Label (optional)</label>
+          <input type="text" id="csv_name" name="name" placeholder="e.g. MYSTOCK">
+        </div>
+        <div class="field">
+          <label for="csv_pred_len">Forecast horizon (days)</label>
+          <input type="number" id="csv_pred_len" name="pred_len" value="30" min="1" max="120">
+        </div>
+      </div>
+      <button class="btn" type="submit">Upload &amp; forecast</button>
+    </form>
+  </div>
+</div>
+
+{% if result_text %}
+<div class="card">
+  <div class="card-title">Result — {{ result_ticker }}</div>
+  <div class="result-text">{{ result_text }}</div>
+  {% if image_url %}
+  <div class="chart-embed"><img src="{{ image_url }}" alt="Forecast chart for {{ result_ticker }}"></div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/forecast.js') }}"></script>
+{% endblock %}

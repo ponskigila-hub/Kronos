@@ -41,11 +41,13 @@ Kronos-master/
 ├── assistant/                 <- NEW: the AI assistant's business logic (13 files)
 ├── integrations/               <- NEW: thin Discord / WhatsApp adapters (2 files)
 ├── backtesting/                  <- NEW: walk-forward backtesting framework
+├── webapp/                         <- NEW: unified browser UI (chat, forecast, backtest, watchlist)
 ├── chat_cli.py                     <- NEW: terminal chat for local testing
 ├── run_backtest.py                  <- NEW: CLI for the backtesting framework
 ├── .env.example                       <- NEW: optional config template
 ├── ASSISTANT_README.md                  <- NEW: shorter companion doc, same content as below
-└── BACKTEST_README.md                     <- NEW: backtesting framework deep-dive
+├── BACKTEST_README.md                     <- NEW: backtesting framework deep-dive
+└── WEBAPP_README.md                         <- NEW: web app deep-dive
 ```
 
 ---
@@ -164,6 +166,12 @@ ngrok http 5001
 ```
 Set the ngrok URL + `/whatsapp` as your Twilio sandbox webhook. Full walkthrough:
 https://www.twilio.com/docs/whatsapp/sandbox
+
+**Web app (browser UI -- chat, forecast, backtest, watchlist, CSV upload):**
+```bash
+python webapp/app.py
+```
+Open http://127.0.0.1:5050. See `WEBAPP_README.md` for a full walkthrough and design notes.
 
 ---
 

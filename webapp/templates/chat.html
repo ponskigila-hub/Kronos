@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Kronos — Chat{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <p class="eyebrow">Conversational</p>
+  <h1 class="page-title">Talk to Kronos</h1>
+  <p class="page-desc">Same assistant as the CLI/Discord/WhatsApp bots — forecast, compare, backtest, and manage your watchlist in plain language.</p>
+</div>
+
+<div class="chat-wrap">
+  <div class="chat-log" id="chatLog">
+    <div class="msg msg-bot">
+      <div class="msg-bubble">Hi — I'm your Kronos market assistant. Try "forecast AAPL", "compare NVDA and AMD", or "backtest MSFT".</div>
+    </div>
+  </div>
+  <div class="suggestions">
+    <button class="suggestion-chip" type="button">forecast AAPL</button>
+    <button class="suggestion-chip" type="button">compare NVDA and AMD</button>
+    <button class="suggestion-chip" type="button">backtest MSFT</button>
+    <button class="suggestion-chip" type="button">my watchlist</button>
+  </div>
+  <form class="chat-input-row" id="chatForm">
+    <input type="text" id="chatInput" placeholder="Ask about a ticker…" autocomplete="off" required>
+    <button class="btn" type="submit">Send</button>
+  </form>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+{% endblock %}
