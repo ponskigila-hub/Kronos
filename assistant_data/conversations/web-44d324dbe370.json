@@ -1,0 +1,61 @@
+{
+  "last_tickers": [
+    "SOFI"
+  ],
+  "last_forecast": {
+    "pct_change": 29.08,
+    "trend": "a strong upward"
+  },
+  "last_explanation": "Kronos projects SOFI moving from 16.65 to 21.49 over the next 30 trading days (+29.08%) -- a strong upward trend. The 20-day average (17.85) is above the 50-day average (17.10), consistent with near-term momentum tilted to the upside. RSI is 42.4, a neutral reading with no extreme pressure either way. MACD histogram is negative and falling, indicating strengthening bearish momentum. Average True Range is 0.87 (5.2% of price), a high volatility reading. Recent support sits near 16.47 and resistance near 19.74. Recent news sentiment is mixed / neutral (1 positive / 0 negative / 7 neutral headlines). Heads up: SOFI has an earnings report expected around 2026-07-29 -- that falls within this forecast window, and earnings reports often cause bigger, harder-to-predict price moves than the model accounts for.",
+  "history": [
+    {
+      "role": "user",
+      "text": "forecast AAPL"
+    },
+    {
+      "role": "assistant",
+      "text": "Kronos projects AAPL moving from 321.66 to 264.10 over the next 30 trading days (-17.90%) -- a strong downward trend. The 20-day average (311.49) is above the 50-day average (305.47), consistent with near-term momentum tilted to the upside. RSI is 58.1, a neutral reading with no extreme pressure either way. MACD momentum is mixed / losing steam in its current direction. Average True Range is 7.92 (2.5% of price), a moderate volatility reading. Trading volume is below its 20-day average, suggesting lighter conviction right now. Recent support sits near 273.75 and resistance near 334.99. Recent news sentiment is mixed / neutral (0 positive / 0 negative / 8 neutral headlines). Heads up: AAPL has an earnings report expected around 2026-07-30 -- that falls within this forecast window, and earnings reports often cause bigger, harder-to-predict price moves than the model accounts for."
+    },
+    {
+      "role": "user",
+      "text": "Why is AAPL moving that way?"
+    },
+    {
+      "role": "assistant",
+      "text": "Kronos projects AAPL moving from 321.66 to 284.19 over the next 30 trading days (-11.65%) -- a strong downward trend. The 20-day average (311.49) is above the 50-day average (305.47), consistent with near-term momentum tilted to the upside. RSI is 58.1, a neutral reading with no extreme pressure either way. MACD momentum is mixed / losing steam in its current direction. Average True Range is 7.92 (2.5% of price), a moderate volatility reading. Trading volume is below its 20-day average, suggesting lighter conviction right now. Recent support sits near 273.75 and resistance near 334.99. Recent news sentiment is mixed / neutral (0 positive / 0 negative / 8 neutral headlines). Heads up: AAPL has an earnings report expected around 2026-07-30 -- that falls within this forecast window, and earnings reports often cause bigger, harder-to-predict price moves than the model accounts for."
+    },
+    {
+      "role": "user",
+      "text": "use beginner mode"
+    },
+    {
+      "role": "assistant",
+      "text": "Got it -- I'll explain things in beginner mode from now on."
+    },
+    {
+      "role": "user",
+      "text": "use advanced mode"
+    },
+    {
+      "role": "assistant",
+      "text": "Got it -- I'll explain things in advanced mode from now on."
+    },
+    {
+      "role": "user",
+      "text": "forecast GOOG"
+    },
+    {
+      "role": "assistant",
+      "text": "Kronos projects GOOG moving from 318.34 to 303.20 over the next 30 trading days (-4.75%) -- a modest downward trend. The 20-day average (351.50) is below the 50-day average (363.64), consistent with near-term momentum tilted to the downside. RSI is 32.3, a neutral reading with no extreme pressure either way. MACD histogram is negative and falling, indicating strengthening bearish momentum. Average True Range is 12.07 (3.8% of price), a moderate volatility reading. Trading volume is well above its 20-day average, suggesting elevated interest/conviction. Recent support sits near 314.89 and resistance near 374.35. Recent news sentiment is mixed / neutral (2 positive / 1 negative / 5 neutral headlines)."
+    },
+    {
+      "role": "user",
+      "text": "forecast sofi"
+    },
+    {
+      "role": "assistant",
+      "text": "Kronos projects SOFI moving from 16.65 to 21.49 over the next 30 trading days (+29.08%) -- a strong upward trend. The 20-day average (17.85) is above the 50-day average (17.10), consistent with near-term momentum tilted to the upside. RSI is 42.4, a neutral reading with no extreme pressure either way. MACD histogram is negative and falling, indicating strengthening bearish momentum. Average True Range is 0.87 (5.2% of price), a high volatility reading. Recent support sits near 16.47 and resistance near 19.74. Recent news sentiment is mixed / neutral (1 positive / 0 negative / 7 neutral headlines). Heads up: SOFI has an earnings report expected around 2026-07-29 -- that falls within this forecast window, and earnings reports often cause bigger, harder-to-predict price moves than the model accounts for."
+    }
+  ],
+  "beginner_mode": false
+}

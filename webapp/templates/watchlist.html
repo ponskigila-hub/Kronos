@@ -33,9 +33,24 @@
       </span>
     </div>
     {% endfor %}
+    {% if watchlist|length >= 2 %}
+    <div style="margin-top:16px;">
+      <a class="btn btn-ghost" href="{{ url_for('watchlist_correlation') }}">Correlation matrix</a>
+    </div>
+    {% endif %}
   {% else %}
     <p class="empty-state">Your watchlist is empty.</p>
   {% endif %}
 </div>
+
+{% if corr_text %}
+<div class="card">
+  <div class="card-title">Correlation matrix</div>
+  <div class="result-text">{{ corr_text }}</div>
+  {% if corr_image_url %}
+  <div class="chart-embed"><img src="{{ corr_image_url }}" alt="Watchlist correlation heatmap"></div>
+  {% endif %}
+</div>
+{% endif %}
 
 {% endblock %}

@@ -4,6 +4,11 @@ Forecasts). This is rule-based (no LLM required), so it always works
 offline/without an API key. If assistant.config.ANTHROPIC_API_KEY is set,
 assistant.core_assistant can optionally ask an LLM to smooth the wording,
 but the reasoning/content itself always comes from these grounded facts.
+
+Supports two registers via `beginner=True/False`: the default is a
+compact, jargon-normal style for people already comfortable with technical
+analysis; beginner mode spells out what each indicator means in plain
+language, at the cost of being more verbose.
 """
 from .indicators import summarize_latest, support_resistance
 
@@ -20,12 +25,18 @@ def _trend_label(pct_change):
     return "a roughly flat"
 
 
-def build_explanation(ticker, ind_df, forecast_result, news_summary=None):
+def build_explanation(ticker, ind_df, forecast_result, news_summary=None,
+                       beginner=False, earnings_warning=None):
     """
     ind_df: output of assistant.indicators.compute_indicators on the
             historical data (NOT the forecast).
     forecast_result: output of assistant.forecaster.run_forecast
     news_summary: aggregate dict from assistant.news.get_news (optional)
+    beginner: if True, indicator lines spell out what the reading means
+              instead of assuming the reader already knows.
+    earnings_warning: a datetime.date if an earnings report falls within
+              the forecast window (from assistant.fundamentals.earnings_within_horizon),
+              or None. When set, a caution sentence is appended.
     """
     stats = summarize_latest(ind_df)
     sr = support_resistance(ind_df)
@@ -45,43 +56,71 @@ def build_explanation(ticker, ind_df, forecast_result, news_summary=None):
 
     # Moving averages / momentum
     if stats["sma_20"] and stats["sma_50"]:
-        if stats["sma_20"] > stats["sma_50"]:
+        direction = "upside" if stats["sma_20"] > stats["sma_50"] else "downside"
+        if beginner:
             lines.append(
-                f"The 20-day average ({stats['sma_20']:.2f}) is above the 50-day "
-                f"average ({stats['sma_50']:.2f}), consistent with near-term momentum "
-                f"tilted to the upside."
+                f"The average price over the last 20 days ({stats['sma_20']:.2f}) is "
+                f"{'above' if direction == 'upside' else 'below'} the 50-day average "
+                f"({stats['sma_50']:.2f}). When the shorter average is above the longer "
+                f"one, it usually means the stock has been gaining momentum recently; "
+                f"below usually means it's been losing steam."
             )
         else:
             lines.append(
-                f"The 20-day average ({stats['sma_20']:.2f}) is below the 50-day "
+                f"The 20-day average ({stats['sma_20']:.2f}) is "
+                f"{'above' if direction == 'upside' else 'below'} the 50-day "
                 f"average ({stats['sma_50']:.2f}), consistent with near-term momentum "
-                f"tilted to the downside."
+                f"tilted to the {direction}."
             )
 
     # RSI
     if stats["rsi_14"] is not None:
         rsi = stats["rsi_14"]
-        if rsi >= 70:
-            lines.append(f"RSI is {rsi:.1f}, in overbought territory -- a pullback risk exists.")
-        elif rsi <= 30:
-            lines.append(f"RSI is {rsi:.1f}, in oversold territory -- a bounce is plausible.")
+        if beginner:
+            explainer = ("RSI (Relative Strength Index) measures how fast and how much a "
+                         "price has moved recently, on a 0-100 scale.")
+            if rsi >= 70:
+                lines.append(f"{explainer} It's currently {rsi:.1f} -- above 70 is considered "
+                              f"'overbought', meaning the stock has risen quickly and a pause "
+                              f"or pullback wouldn't be unusual.")
+            elif rsi <= 30:
+                lines.append(f"{explainer} It's currently {rsi:.1f} -- below 30 is considered "
+                              f"'oversold', meaning the stock has fallen quickly and a bounce "
+                              f"wouldn't be unusual.")
+            else:
+                lines.append(f"{explainer} It's currently {rsi:.1f}, a neutral reading (30-70 "
+                              f"is normal) -- no extreme pressure either way right now.")
         else:
-            lines.append(f"RSI is {rsi:.1f}, a neutral reading with no extreme pressure either way.")
+            if rsi >= 70:
+                lines.append(f"RSI is {rsi:.1f}, in overbought territory -- a pullback risk exists.")
+            elif rsi <= 30:
+                lines.append(f"RSI is {rsi:.1f}, in oversold territory -- a bounce is plausible.")
+            else:
+                lines.append(f"RSI is {rsi:.1f}, a neutral reading with no extreme pressure either way.")
 
     # MACD
     if stats["macd_hist"] is not None and stats["macd_hist_prev"] is not None:
+        macd_prefix = ("MACD compares two moving averages to gauge momentum; its histogram "
+                        "shows whether that momentum is strengthening or fading. ") if beginner else ""
         if stats["macd_hist"] > 0 and stats["macd_hist"] > stats["macd_hist_prev"]:
-            lines.append("MACD histogram is positive and rising, indicating strengthening bullish momentum.")
+            lines.append(f"{macd_prefix}MACD histogram is positive and rising, indicating strengthening bullish momentum.")
         elif stats["macd_hist"] < 0 and stats["macd_hist"] < stats["macd_hist_prev"]:
-            lines.append("MACD histogram is negative and falling, indicating strengthening bearish momentum.")
+            lines.append(f"{macd_prefix}MACD histogram is negative and falling, indicating strengthening bearish momentum.")
         else:
-            lines.append("MACD momentum is mixed / losing steam in its current direction.")
+            lines.append(f"{macd_prefix}MACD momentum is mixed / losing steam in its current direction.")
 
     # Volatility / ATR
     if stats["atr_14"] is not None:
         atr_pct = stats["atr_14"] / last_close * 100
-        lines.append(f"Average True Range is {stats['atr_14']:.2f} ({atr_pct:.1f}% of price), "
-                      f"a {'high' if atr_pct > 4 else 'moderate' if atr_pct > 2 else 'low'} volatility reading.")
+        level = "high" if atr_pct > 4 else "moderate" if atr_pct > 2 else "low"
+        if beginner:
+            lines.append(f"Average True Range (a measure of how much the price typically swings "
+                          f"day to day) is {stats['atr_14']:.2f}, about {atr_pct:.1f}% of the price -- "
+                          f"a {level} volatility reading, meaning day-to-day moves have been "
+                          f"{'large' if level == 'high' else 'moderate' if level == 'moderate' else 'fairly small'}.")
+        else:
+            lines.append(f"Average True Range is {stats['atr_14']:.2f} ({atr_pct:.1f}% of price), "
+                          f"a {level} volatility reading.")
 
     # Volume
     if stats["volume_sma_20"]:
@@ -92,7 +131,12 @@ def build_explanation(ticker, ind_df, forecast_result, news_summary=None):
             lines.append("Trading volume is below its 20-day average, suggesting lighter conviction right now.")
 
     # Support/resistance
-    lines.append(f"Recent support sits near {sr['support']:.2f} and resistance near {sr['resistance']:.2f}.")
+    if beginner:
+        lines.append(f"Recent support (a price level buyers have stepped in before) sits near "
+                      f"{sr['support']:.2f}; resistance (a level sellers have shown up before) is "
+                      f"near {sr['resistance']:.2f}.")
+    else:
+        lines.append(f"Recent support sits near {sr['support']:.2f} and resistance near {sr['resistance']:.2f}.")
 
     # Confidence band
     if forecast_result.get("low_df") is not None:
@@ -109,6 +153,14 @@ def build_explanation(ticker, ind_df, forecast_result, news_summary=None):
             f"{news_summary['neutral']} neutral headlines)."
         )
 
+    # Earnings caution
+    if earnings_warning is not None:
+        lines.append(
+            f"Heads up: {ticker} has an earnings report expected around {earnings_warning} -- "
+            f"that falls within this forecast window, and earnings reports often cause bigger, "
+            f"harder-to-predict price moves than the model accounts for."
+        )
+
     return {
         "text": " ".join(lines),
         "pct_change": pct_change,
@@ -118,12 +170,15 @@ def build_explanation(ticker, ind_df, forecast_result, news_summary=None):
     }
 
 
-def build_risk_note(ind_df, news_summary=None):
+def build_risk_note(ind_df, news_summary=None, beginner=False):
     """Short, focused answer for follow-up questions like 'what risks should I watch?'"""
     stats = summarize_latest(ind_df)
     risks = []
     if stats["rsi_14"] is not None and stats["rsi_14"] >= 70:
-        risks.append("RSI shows overbought conditions -- short-term pullback risk.")
+        if beginner:
+            risks.append("RSI shows 'overbought' conditions (it's risen quickly) -- short-term pullback risk.")
+        else:
+            risks.append("RSI shows overbought conditions -- short-term pullback risk.")
     if stats["rsi_14"] is not None and stats["rsi_14"] <= 30:
         risks.append("RSI shows oversold conditions -- can stay oversold longer than expected.")
     if stats["atr_14"] is not None and stats["close"]:

@@ -76,7 +76,16 @@ you> compare NVDA and AMD
 you> add TSLA to my watchlist
 you> my watchlist
 you> backtest AAPL
+you> fundamentals of AAPL
+you> analyst targets for TSLA
+you> when does MSFT report earnings
+you> correlation matrix for my watchlist
+you> use beginner mode
 ```
+New since the last update: **fundamentals, earnings dates, analyst price
+targets, watchlist correlation**, and a **beginner/advanced explanation
+toggle** -- all covered in the "New chatbot features" section below.
+
 Every `forecast`/`history`/`compare` reply now saves **a static PNG chart**
 (styled like the original `yahoopredict.py`/`csvpredict.py` matplotlib plot)
 to `assistant_data/charts/`, and `chat_cli.py` will try to pop it open in
@@ -117,6 +126,56 @@ sandbox settings. Full walkthrough: https://www.twilio.com/docs/whatsapp/sandbox
 Still works exactly as before for CSV/local-file based predictions; it does
 not currently call into `assistant/`. Wiring it up to the new auto-fetch
 pipeline is a natural next step if you want a browser UI on top of this too.
+
+## New chatbot features
+
+**Quick-reply chips** -- every reply now includes a `suggestions` list of
+plain follow-up messages ("Why is AAPL moving that way?", "Backtest AAPL").
+In the web app these render as clickable chips; other interfaces can ignore
+the field or render it however makes sense.
+
+**Beginner / advanced explanation mode** -- say "use beginner mode" or
+"use advanced mode" any time (or click the toggle in the web app). Beginner
+mode spells out what each indicator means in plain language; advanced mode
+(the default) assumes you already know RSI/MACD/etc. The preference is
+saved per user (`assistant/conversation.py`) and persists across messages.
+
+**Fundamentals** (`assistant/fundamentals.py`) -- "fundamentals of AAPL"
+returns market cap, P/E (trailing/forward), EPS, revenue growth, profit
+margin, dividend yield, beta, and 52-week range, all free via yfinance.
+
+**Earnings calendar** -- "when does AAPL report earnings" returns the next
+expected earnings date. Forecasts and "why" explanations now also
+automatically warn when the forecast horizon crosses an upcoming earnings
+date, since those tend to cause larger, harder-to-predict moves than the
+model accounts for.
+
+**Analyst price targets** -- "analyst targets for TSLA" returns Wall
+Street's mean/high/low 12-month price target and consensus rating, plus
+the implied upside from the current price -- a useful sanity check against
+Kronos's own forecast.
+
+**Watchlist correlation matrix** (`assistant/portfolio_analysis.py`) --
+"correlation matrix for my watchlist" (needs 2+ tickers) computes pairwise
+correlation of daily returns and flags pairs that move together strongly,
+useful for spotting hidden concentration. Also available as a heatmap image
+and, in the web app, a dedicated button on the Watchlist page.
+
+**Sparklines in chat** -- forecast/history/why/risk replies include the
+last 14 closing prices as a compact array (`data.sparkline`); the web app
+renders this as a small inline SVG line next to the reply, no need to wait
+for the full chart image.
+
+**Ticker autocomplete** (`assistant/ticker_directory.py`) -- the web app's
+chat input suggests tickers as you type (e.g. "AAP" -> "AAPL — Apple
+Inc."), backed by a small static list of ~90 common tickers/companies. It's
+just a typing aid -- any real ticker beyond this list still works fine,
+`ticker_utils.py` validates against Yahoo Finance directly.
+
+**Chat history persistence (web app)** -- refreshing the Chat page no
+longer loses your conversation; it's reloaded from the same
+`assistant_data/conversations/<user_id>.json` file the CLI/Discord/WhatsApp
+bots already used for follow-up context.
 
 ## Known limitations / honest notes
 

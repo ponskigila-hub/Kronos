@@ -25,6 +25,7 @@ class ConversationContext:
         self.last_forecast = None      # small serializable summary, not the full DataFrame
         self.last_explanation = None
         self.history = []              # list of {"role": "user"/"assistant", "text": ...}
+        self.beginner_mode = False     # explanation register -- see assistant.nlp.detect_mode
         self._path = os.path.join(CONVERSATION_DIR, f"{self.user_id}.json")
         self._load()
 
@@ -37,6 +38,7 @@ class ConversationContext:
                 self.last_forecast = data.get("last_forecast")
                 self.last_explanation = data.get("last_explanation")
                 self.history = data.get("history", [])[-20:]
+                self.beginner_mode = data.get("beginner_mode", False)
             except (json.JSONDecodeError, OSError):
                 pass
 
@@ -48,6 +50,7 @@ class ConversationContext:
                     "last_forecast": self.last_forecast,
                     "last_explanation": self.last_explanation,
                     "history": self.history[-20:],
+                    "beginner_mode": self.beginner_mode,
                 }, f, indent=2, default=str)
 
     def remember_turn(self, user_text, assistant_text):

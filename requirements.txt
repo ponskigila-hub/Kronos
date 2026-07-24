@@ -23,3 +23,7 @@ kaleido>=0.2.1              # export Plotly charts to PNG for Discord/WhatsApp (
 # --- Added for the Backtesting Framework (backtesting/) ---
 scipy>=1.11.0                # regression/correlation metrics, normality test
 statsmodels>=0.14.0          # ARIMA benchmark, Durbin-Watson/Ljung-Box/Breusch-Pagan tests
+
+# --- Optional: production WSGI servers for webapp/ (see DEPLOYMENT.md) ---
+gunicorn>=21.2.0; sys_platform != "win32"   # Linux/Mac production server
+waitress>=2.1.2                              # cross-platform, works on Windows too

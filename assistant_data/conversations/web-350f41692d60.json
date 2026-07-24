@@ -1,0 +1,52 @@
+{
+  "last_tickers": [
+    "MSFT"
+  ],
+  "last_forecast": {
+    "pct_change": 12.78,
+    "trend": "a strong upward"
+  },
+  "last_explanation": "Kronos projects MSFT moving from 400.12 to 451.27 over the next 30 trading days (+12.78%) -- a strong upward trend. The 20-day average (383.94) is below the 50-day average (400.87), consistent with near-term momentum tilted to the downside. RSI is 54.8, a neutral reading with no extreme pressure either way. MACD momentum is mixed / losing steam in its current direction. Average True Range is 11.76 (2.9% of price), a moderate volatility reading. Trading volume is below its 20-day average, suggesting lighter conviction right now. Recent support sits near 349.20 and resistance near 405.99. Recent news sentiment is mixed / neutral (2 positive / 1 negative / 5 neutral headlines).",
+  "history": [
+    {
+      "role": "user",
+      "text": "forecast intc"
+    },
+    {
+      "role": "assistant",
+      "text": "Kronos projects INTC moving from 101.60 to 67.78 over the next 30 trading days (-33.28%) -- a strong downward trend. The 20-day average (115.68) is below the 50-day average (116.79), consistent with near-term momentum tilted to the downside. RSI is 42.2, a neutral reading with no extreme pressure either way. MACD momentum is mixed / losing steam in its current direction. Average True Range is 8.84 (8.7% of price), a high volatility reading. Trading volume is below its 20-day average, suggesting lighter conviction right now. Recent support sits near 89.59 and resistance near 142.35. Recent news sentiment is mostly positive (3 positive / 0 negative / 5 neutral headlines)."
+    },
+    {
+      "role": "user",
+      "text": "compare NVDA and AMD"
+    },
+    {
+      "role": "assistant",
+      "text": "Relative performance -- AMD: +307.35% over the period; NVDA: +49.32% over the period"
+    },
+    {
+      "role": "user",
+      "text": "my watchlist"
+    },
+    {
+      "role": "assistant",
+      "text": "Your watchlist is empty. Say \"add AAPL to my watchlist\" to start one."
+    },
+    {
+      "role": "user",
+      "text": "forecast nbis"
+    },
+    {
+      "role": "assistant",
+      "text": "Kronos projects NBIS moving from 206.58 to 122.34 over the next 30 trading days (-40.78%) -- a strong downward trend. The 20-day average (220.86) is below the 50-day average (225.02), consistent with near-term momentum tilted to the downside. RSI is 47.4, a neutral reading with no extreme pressure either way. MACD momentum is mixed / losing steam in its current direction. Average True Range is 24.02 (11.6% of price), a high volatility reading. Trading volume is below its 20-day average, suggesting lighter conviction right now. Recent support sits near 164.31 and resistance near 295.23. Recent news sentiment is mostly positive (4 positive / 1 negative / 3 neutral headlines)."
+    },
+    {
+      "role": "user",
+      "text": "forecast msft"
+    },
+    {
+      "role": "assistant",
+      "text": "Kronos projects MSFT moving from 400.12 to 451.27 over the next 30 trading days (+12.78%) -- a strong upward trend. The 20-day average (383.94) is below the 50-day average (400.87), consistent with near-term momentum tilted to the downside. RSI is 54.8, a neutral reading with no extreme pressure either way. MACD momentum is mixed / losing steam in its current direction. Average True Range is 11.76 (2.9% of price), a moderate volatility reading. Trading volume is below its 20-day average, suggesting lighter conviction right now. Recent support sits near 349.20 and resistance near 405.99. Recent news sentiment is mixed / neutral (2 positive / 1 negative / 5 neutral headlines)."
+    }
+  ]
+}

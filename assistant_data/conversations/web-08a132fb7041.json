@@ -1,0 +1,20 @@
+{
+  "last_tickers": [
+    "AAPL"
+  ],
+  "last_forecast": {
+    "pct_change": -8.04,
+    "trend": "a strong downward"
+  },
+  "last_explanation": "Kronos projects AAPL moving from 324.76 to 298.64 over the next 30 trading days (-8.04%) -- a strong downward trend. The 20-day average (308.33) is above the 50-day average (304.18), consistent with near-term momentum tilted to the upside. RSI is 62.0, a neutral reading with no extreme pressure either way. MACD momentum is mixed / losing steam in its current direction. Average True Range is 7.99 (2.5% of price), a moderate volatility reading. Trading volume is below its 20-day average, suggesting lighter conviction right now. Recent support sits near 273.75 and resistance near 334.99. Recent news sentiment is mostly positive (3 positive / 0 negative / 5 neutral headlines).",
+  "history": [
+    {
+      "role": "user",
+      "text": "forecast AAPL"
+    },
+    {
+      "role": "assistant",
+      "text": "Kronos projects AAPL moving from 324.76 to 298.64 over the next 30 trading days (-8.04%) -- a strong downward trend. The 20-day average (308.33) is above the 50-day average (304.18), consistent with near-term momentum tilted to the upside. RSI is 62.0, a neutral reading with no extreme pressure either way. MACD momentum is mixed / losing steam in its current direction. Average True Range is 7.99 (2.5% of price), a moderate volatility reading. Trading volume is below its 20-day average, suggesting lighter conviction right now. Recent support sits near 273.75 and resistance near 334.99. Recent news sentiment is mostly positive (3 positive / 0 negative / 5 neutral headlines)."
+    }
+  ]
+}

@@ -47,7 +47,8 @@ Kronos-master/
 ├── .env.example                       <- NEW: optional config template
 ├── ASSISTANT_README.md                  <- NEW: shorter companion doc, same content as below
 ├── BACKTEST_README.md                     <- NEW: backtesting framework deep-dive
-└── WEBAPP_README.md                         <- NEW: web app deep-dive
+├── WEBAPP_README.md                         <- NEW: web app deep-dive
+└── DEPLOYMENT.md                              <- NEW: how to deploy the web app / bots
 ```
 
 ---

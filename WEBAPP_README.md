@@ -26,10 +26,10 @@ Then open **http://127.0.0.1:5050**. Change the port with `WEBAPP_PORT` in
 | Page | What it does |
 |---|---|
 | **Dashboard** (`/`) | Landing page, your watchlist at a glance, links into the other three flows. |
-| **Chat** (`/chat`) | Same conversational assistant as the CLI/Discord/WhatsApp bots, over AJAX (`POST /api/chat`). Forecast charts show inline. |
+| **Chat** (`/chat`) | Same conversational assistant as the CLI/Discord/WhatsApp bots, over AJAX (`POST /api/chat`). Forecast charts and sparklines show inline, quick-reply chips suggest follow-ups, a ticker autocomplete dropdown helps while typing, chat history survives a page refresh, and a Beginner/Advanced toggle controls how technical the explanations are. |
 | **Forecast** (`/forecast`) | Two tabs: **by ticker** (auto-fetches from Yahoo Finance, same as chat) or **upload CSV** (manual setup -- bring your own OHLCV file, no ticker required). |
 | **Backtest** (`/backtest`) | Runs `quick_backtest()` -- the same walk-forward check available via the `backtest AAPL` chat command -- and shows the direction-summary chart plus a significance check against the best baseline. |
-| **Watchlist** (`/watchlist`) | Add/remove tickers. Shared storage with the CLI/Discord/WhatsApp bots (`assistant_data/watchlists.json`) -- same list everywhere. |
+| **Watchlist** (`/watchlist`) | Add/remove tickers, plus a correlation matrix (heatmap + text) across everything on your list once you have 2+. Shared storage with the CLI/Discord/WhatsApp bots (`assistant_data/watchlists.json`) -- same list everywhere. |
 
 ## CSV upload format
 

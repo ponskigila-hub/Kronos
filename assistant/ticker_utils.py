@@ -110,6 +110,10 @@ def extract_tickers(text, max_tickers=5):
         "hi", "hello", "hey", "help", "start", "it", "will", "be",
         "this", "that", "expected", "declining", "rising", "falling",
         "should", "would", "could", "about", "over", "at", "by",
+        "mode", "simple", "plain", "expert", "beginner", "advanced",
+        "target", "rating", "ratings", "cap", "when", "does", "eps",
+        "fundamentals", "earnings", "analyst", "correlation", "diversify",
+        "ratio", "report", "reports", "use", "switch", "of", "the",
     }
     for tok in tokens:
         if tok.lower() in stopwords:

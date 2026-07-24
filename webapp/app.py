@@ -24,7 +24,10 @@ from flask import (
 from assistant.core_assistant import StockAssistant
 from assistant import watchlist as watchlist_store
 from assistant import data_fetcher, indicators, forecaster as forecaster_mod, charts, config as assistant_config
+from assistant import portfolio_analysis
 from assistant.data_fetcher import TickerNotFoundError
+from assistant.ticker_directory import search_tickers
+from assistant.conversation import get_context
 from backtesting.data_loaders import CSVLoader
 
 app = Flask(__name__)
@@ -85,10 +88,25 @@ def chat():
     return render_template("chat.html", active="chat")
 
 
+@app.route("/api/chat/history")
+def api_chat_history():
+    context = get_context(_user_id())
+    return jsonify({"history": context.history, "beginner_mode": context.beginner_mode})
+
+
 @app.route("/api/chat", methods=["POST"])
 def api_chat():
     payload = request.get_json(silent=True) or {}
     text = (payload.get("message") or "").strip()
+
+    # A mode toggle from the UI switch arrives as an explicit field rather
+    # than parsed from the message text -- feed it through the same
+    # "set_mode"-style text so core_assistant's normal path handles it.
+    # Resolved before the empty-text check below, since a pure mode-toggle
+    # request has no "message" at all.
+    if not text and payload.get("mode") in ("beginner", "advanced"):
+        text = f"use {payload['mode']} mode"
+
     if not text:
         return jsonify({"text": "Say something and I'll take a look."})
 
@@ -96,7 +114,16 @@ def api_chat():
     return jsonify({
         "text": result.get("text", ""),
         "image_url": _to_url(result.get("image_path")),
+        "suggestions": result.get("suggestions", []),
+        "sparkline": (result.get("data") or {}).get("sparkline", []),
     })
+
+
+@app.route("/api/tickers/search")
+def api_ticker_search():
+    q = request.args.get("q", "")
+    results = search_tickers(q)
+    return jsonify({"results": [{"symbol": s, "name": n} for s, n in results]})
 
 
 # ---------------------------------------------------------------------------
@@ -213,6 +240,24 @@ def watchlist():
                             watchlist=watchlist_store.get(_user_id()))
 
 
+@app.route("/watchlist/correlation")
+def watchlist_correlation():
+    wl = watchlist_store.get(_user_id())
+    if len(wl) < 2:
+        flash("Add at least two tickers to your watchlist first.", "error")
+        return redirect(url_for("watchlist"))
+    corr_df, failed = portfolio_analysis.compute_correlation_matrix(wl)
+    if corr_df is None:
+        flash("Couldn't compute correlations -- not enough overlapping history.", "error")
+        return redirect(url_for("watchlist"))
+    text = portfolio_analysis.format_correlation_text(corr_df)
+    if failed:
+        text += f"\n(couldn't fetch: {', '.join(failed)})"
+    image_path = portfolio_analysis.build_correlation_heatmap(corr_df)
+    return render_template("watchlist.html", active="watchlist", watchlist=wl,
+                            corr_text=text, corr_image_url=_to_url(image_path))
+
+
 @app.route("/watchlist/add", methods=["POST"])
 def watchlist_add():
     ticker = (request.form.get("ticker") or "").strip().upper()
@@ -231,5 +276,19 @@ def watchlist_remove():
 
 if __name__ == "__main__":
     port = int(os.getenv("WEBAPP_PORT", "5050"))
-    print(f"Kronos web app -- http://127.0.0.1:{port}")
-    app.run(host="0.0.0.0", port=port, debug=True)
+    debug = os.getenv("WEBAPP_DEBUG", "true").lower() in ("1", "true", "yes")
+    # The auto-reloader watches every imported module's file, including
+    # everything under the venv's site-packages if the venv lives inside
+    # the project folder (common setup, especially on Windows) -- that
+    # makes it "restart" on unrelated numpy/scipy/torch file changes,
+    # which is disruptive here since a restart means Kronos's model gets
+    # reloaded from scratch. Off by default; set WEBAPP_RELOADER=true if
+    # you specifically want auto-restart-on-code-change during development
+    # (and consider moving kronos_env/ outside the project folder if so).
+    use_reloader = os.getenv("WEBAPP_RELOADER", "false").lower() in ("1", "true", "yes")
+    print(f"Kronos web app -- http://127.0.0.1:{port} (debug={debug}, reloader={use_reloader})")
+    if debug:
+        print("Running Flask's built-in dev server. For anything beyond your own "
+              "machine, set WEBAPP_DEBUG=false and run behind a real WSGI server "
+              "(gunicorn/waitress) -- see DEPLOYMENT.md.")
+    app.run(host="0.0.0.0", port=port, debug=debug, use_reloader=use_reloader)

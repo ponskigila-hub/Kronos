@@ -357,6 +357,62 @@ input:focus, select:focus { border-color: var(--gold-dim); }
 
 .typing { color: var(--bone-dim); font-family: var(--mono); font-size: 12px; }
 
+/* ---------------------------------------------------------------- mode toggle */
+
+.mode-toggle { display: flex; flex-direction: column; align-items: flex-end; }
+.mode-toggle label {
+  font-family: var(--mono); font-size: 10.5px; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--bone-dim);
+}
+.toggle-pair {
+  display: inline-flex;
+  background: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 3px;
+}
+.toggle-btn {
+  background: none; border: none; color: var(--bone-dim);
+  font-family: var(--sans); font-size: 12.5px; font-weight: 500;
+  padding: 6px 14px; border-radius: 16px; cursor: pointer;
+}
+.toggle-btn.active { background: var(--gold); color: var(--ink-0); }
+
+/* ------------------------------------------------------- ticker autocomplete */
+
+.ticker-input-wrap { position: relative; flex: 1; }
+.ticker-suggest {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0; right: 0;
+  background: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  max-height: 220px;
+  overflow-y: auto;
+  display: none;
+  z-index: 10;
+}
+.ticker-suggest.open { display: block; }
+.ticker-suggest-item {
+  padding: 9px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ticker-suggest-item:hover, .ticker-suggest-item.highlighted { background: var(--ink-3); }
+.ticker-suggest-item .sym { font-family: var(--mono); color: var(--gold); }
+.ticker-suggest-item .name { color: var(--bone-dim); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* -------------------------------------------------------------- sparkline */
+
+.sparkline-wrap { margin-top: 8px; display: flex; align-items: center; gap: 8px; }
+.sparkline-wrap svg { display: block; }
+.sparkline-label { font-family: var(--mono); font-size: 10.5px; color: var(--bone-dim); }
+
 /* --------------------------------------------------------------- results */
 
 .result-text {
