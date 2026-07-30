@@ -29,7 +29,7 @@ Then open **http://127.0.0.1:5050**. Change the port with `WEBAPP_PORT` in
 | **Chat** (`/chat`) | Same conversational assistant as the CLI/Discord/WhatsApp bots, over AJAX (`POST /api/chat`). Forecast charts and sparklines show inline, quick-reply chips suggest follow-ups, a ticker autocomplete dropdown helps while typing, chat history survives a page refresh, and a Beginner/Advanced toggle controls how technical the explanations are. |
 | **Forecast** (`/forecast`) | Two tabs: **by ticker** (auto-fetches from Yahoo Finance, same as chat) or **upload CSV** (manual setup -- bring your own OHLCV file, no ticker required). |
 | **Backtest** (`/backtest`) | Runs `quick_backtest()` -- the same walk-forward check available via the `backtest AAPL` chat command -- and shows the direction-summary chart plus a significance check against the best baseline. |
-| **Watchlist** (`/watchlist`) | Add/remove tickers, plus a correlation matrix (heatmap + text) across everything on your list once you have 2+. Shared storage with the CLI/Discord/WhatsApp bots (`assistant_data/watchlists.json`) -- same list everywhere. |
+| **Watchlist** (`/watchlist`) | Per-ticker cards with the latest price (auto-refreshing), next earnings date + estimated quarter, a buy-range entry zone you set yourself (flagged in/above/below once a price is known), free-text notes (autosaved), and a correlation matrix across everything on your list once you have 2+. Shared ticker list with the CLI/Discord/WhatsApp bots (`assistant_data/watchlists.json`); notes and entry zones are web-app-only for now. |
 
 ## CSV upload format
 
@@ -37,6 +37,39 @@ Same schema as `backtesting/data_loaders.py:CSVLoader` (which the upload
 route reuses directly): a date/timestamp column plus `open`, `high`, `low`,
 `close`, `volume`. Column names are matched case-insensitively; `amount` is
 computed automatically if your file doesn't have it. Needs at least 30 rows.
+
+## Watchlist page features
+
+**Latest price** -- `assistant/fundamentals.py:get_live_price()` via yfinance's
+lightweight `fast_info`. Labeled "latest price," not "live," on purpose:
+Yahoo Finance's free/unauthenticated data is typically delayed ~15-20
+minutes during market hours, not true tick-by-tick. The page polls
+`/api/watchlist/prices` every 45 seconds to keep it reasonably current
+without hammering Yahoo Finance.
+
+**Next earnings date + quarter** -- `assistant/fundamentals.py:get_next_earnings_info()`.
+The date itself comes straight from yfinance. The *quarter* label (e.g.
+"Q3 2026") is a **heuristic estimate**, not authoritative: it assumes a
+standard January-December fiscal year and infers which quarter is being
+reported from the report month. Companies with a non-calendar fiscal year
+(Apple's ends in September, for instance) will show a quarter that's off
+by one from how that company actually labels it -- hence "(est.)" always
+shown alongside it. Good enough to know roughly what's coming; don't quote
+it as the company's own label.
+
+**Entry zone** -- a price range you set yourself (`assistant/watchlist_extras.py`),
+purely a personal annotation, not a recommendation Kronos generated. The
+badge (in zone / above / below) is a simple comparison against the latest
+price, recalculated on every price poll.
+
+**Notes** -- free-text per ticker, autosaved on blur (`assistant/watchlist_extras.py`).
+No formatting, no AI involvement -- just a place to jot down your own
+thesis so it doesn't live only in your head.
+
+Both notes and entry zones are stored in `assistant_data/watchlist_notes.json`
+and `assistant_data/watchlist_entry_zones.json`, keyed by the same
+session-based `user_id` as the watchlist itself -- back them up along with
+`assistant_data/` if that matters to you.
 
 ## Design notes
 

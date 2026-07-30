@@ -24,7 +24,7 @@ from flask import (
 from assistant.core_assistant import StockAssistant
 from assistant import watchlist as watchlist_store
 from assistant import data_fetcher, indicators, forecaster as forecaster_mod, charts, config as assistant_config
-from assistant import portfolio_analysis
+from assistant import portfolio_analysis, fundamentals, watchlist_extras
 from assistant.data_fetcher import TickerNotFoundError
 from assistant.ticker_directory import search_tickers
 from assistant.conversation import get_context
@@ -272,6 +272,89 @@ def watchlist_remove():
     if ticker:
         watchlist_store.remove(_user_id(), ticker)
     return redirect(url_for("watchlist"))
+
+
+@app.route("/api/watchlist/details")
+def api_watchlist_details():
+    """
+    Full per-ticker enrichment for the watchlist page: latest price,
+    upcoming earnings date/quarter, saved note, and saved entry zone (+
+    whether the current price is inside it). Called once when the page
+    loads -- this does one or more yfinance calls per ticker, so it's kept
+    separate from the lightweight /api/watchlist/prices used for polling.
+    """
+    user_id = _user_id()
+    tickers = watchlist_store.get(user_id)
+    notes = watchlist_extras.get_all_notes(user_id)
+    zones = watchlist_extras.get_all_entry_zones(user_id)
+
+    rows = []
+    for t in tickers:
+        row = {"ticker": t, "note": notes.get(t, ""), "entry_zone": zones.get(t)}
+        try:
+            price_info = fundamentals.get_live_price(t)
+        except ValueError:
+            price_info = None
+        row["price"] = price_info
+        row["zone_status"] = (
+            watchlist_extras.check_zone_status(price_info["price"], zones.get(t))
+            if price_info and zones.get(t) else None
+        )
+        try:
+            earnings_info = fundamentals.get_next_earnings_info(t)
+            row["earnings"] = {
+                "date": str(earnings_info["date"]) if earnings_info["date"] else None,
+                "quarter": earnings_info["quarter"],
+                "days_until": earnings_info["days_until"],
+            }
+        except ValueError:
+            row["earnings"] = {"date": None, "quarter": None, "days_until": None}
+        rows.append(row)
+
+    return jsonify({"tickers": rows})
+
+
+@app.route("/api/watchlist/prices")
+def api_watchlist_prices():
+    """Lightweight endpoint for periodic polling -- just prices, no
+    earnings/notes lookups, so it's cheap enough to call every 30-60s."""
+    tickers = watchlist_store.get(_user_id())
+    prices = {}
+    for t in tickers:
+        try:
+            prices[t] = fundamentals.get_live_price(t)
+        except ValueError:
+            prices[t] = None
+    return jsonify({"prices": prices})
+
+
+@app.route("/watchlist/note", methods=["POST"])
+def watchlist_note():
+    payload = request.get_json(silent=True) or {}
+    ticker = (payload.get("ticker") or "").strip().upper()
+    text = payload.get("note", "")
+    if not ticker:
+        return jsonify({"error": "ticker required"}), 400
+    saved = watchlist_extras.set_note(_user_id(), ticker, text)
+    return jsonify({"ticker": ticker, "note": saved})
+
+
+@app.route("/watchlist/entry_zone", methods=["POST"])
+def watchlist_entry_zone():
+    payload = request.get_json(silent=True) or {}
+    ticker = (payload.get("ticker") or "").strip().upper()
+    if not ticker:
+        return jsonify({"error": "ticker required"}), 400
+    if payload.get("clear"):
+        watchlist_extras.clear_entry_zone(_user_id(), ticker)
+        return jsonify({"ticker": ticker, "entry_zone": None})
+    try:
+        low = float(payload.get("low"))
+        high = float(payload.get("high"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "low/high must be numbers"}), 400
+    zone = watchlist_extras.set_entry_zone(_user_id(), ticker, low, high)
+    return jsonify({"ticker": ticker, "entry_zone": zone})
 
 
 if __name__ == "__main__":

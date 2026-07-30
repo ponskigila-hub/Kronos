@@ -1,0 +1,69 @@
+{
+  "last_tickers": [
+    "NVDA"
+  ],
+  "last_forecast": {
+    "pct_change": -2.84,
+    "trend": "a modest downward"
+  },
+  "last_explanation": "Kronos projects NVDA moving from 190.01 to 184.60 over the next 30 trading days (-2.84%) -- a modest downward trend. The 20-day average (203.13) is below the 50-day average (207.12), consistent with near-term momentum tilted to the downside. RSI is 38.0, a neutral reading with no extreme pressure either way. MACD histogram is negative and falling, indicating strengthening bearish momentum. Average True Range is 7.53 (4.0% of price), a moderate volatility reading. Recent support sits near 190.01 and resistance near 214.39. Recent news sentiment is mostly positive (4 positive / 0 negative / 4 neutral headlines). Heads up: NVDA has an earnings report expected around 2026-08-26 -- that falls within this forecast window, and earnings reports often cause bigger, harder-to-predict price moves than the model accounts for.",
+  "history": [
+    {
+      "role": "user",
+      "text": "forecast AAPL"
+    },
+    {
+      "role": "assistant",
+      "text": "\u26a0\ufe0f Something went wrong: unsupported operand type(s) for *: 'Tensor' and 'NoneType'"
+    },
+    {
+      "role": "user",
+      "text": "forecast NBIS"
+    },
+    {
+      "role": "assistant",
+      "text": "Kronos projects NBIS moving from 148.22 to 106.42 over the next 30 trading days (-28.20%) -- a strong downward trend. The 20-day average (199.56) is below the 50-day average (224.07), consistent with near-term momentum tilted to the downside. RSI is 34.0, a neutral reading with no extreme pressure either way. MACD histogram is negative and falling, indicating strengthening bearish momentum. Average True Range is 24.47 (16.5% of price), a high volatility reading. Trading volume is well above its 20-day average, suggesting elevated interest/conviction. Recent support sits near 145.80 and resistance near 246.49. Recent news sentiment is mixed / neutral (3 positive / 2 negative / 3 neutral headlines). Heads up: NBIS has an earnings report expected around 2026-08-12 -- that falls within this forecast window, and earnings reports often cause bigger, harder-to-predict price moves than the model accounts for."
+    },
+    {
+      "role": "user",
+      "text": "forecast NBIS"
+    },
+    {
+      "role": "assistant",
+      "text": "Kronos projects NBIS moving from 148.22 to 117.22 over the next 30 trading days (-20.91%) -- a strong downward trend. The 20-day average (199.56) is below the 50-day average (224.07), consistent with near-term momentum tilted to the downside. RSI is 34.0, a neutral reading with no extreme pressure either way. MACD histogram is negative and falling, indicating strengthening bearish momentum. Average True Range is 24.47 (16.5% of price), a high volatility reading. Trading volume is well above its 20-day average, suggesting elevated interest/conviction. Recent support sits near 145.80 and resistance near 246.49. Recent news sentiment is mixed / neutral (3 positive / 2 negative / 3 neutral headlines). Heads up: NBIS has an earnings report expected around 2026-08-12 -- that falls within this forecast window, and earnings reports often cause bigger, harder-to-predict price moves than the model accounts for."
+    },
+    {
+      "role": "user",
+      "text": "yes"
+    },
+    {
+      "role": "assistant",
+      "text": "Kronos projects NBIS moving from 148.22 to 119.03 over the next 30 trading days (-19.69%) -- a strong downward trend. The 20-day average (199.56) is below the 50-day average (224.07), consistent with near-term momentum tilted to the downside. RSI is 34.0, a neutral reading with no extreme pressure either way. MACD histogram is negative and falling, indicating strengthening bearish momentum. Average True Range is 24.47 (16.5% of price), a high volatility reading. Trading volume is well above its 20-day average, suggesting elevated interest/conviction. Recent support sits near 145.80 and resistance near 246.49. Recent news sentiment is mixed / neutral (3 positive / 2 negative / 3 neutral headlines). Heads up: NBIS has an earnings report expected around 2026-08-12 -- that falls within this forecast window, and earnings reports often cause bigger, harder-to-predict price moves than the model accounts for."
+    },
+    {
+      "role": "user",
+      "text": "forecast MSFT"
+    },
+    {
+      "role": "assistant",
+      "text": "Kronos projects MSFT moving from 390.54 to 442.55 over the next 30 trading days (+13.32%) -- a strong upward trend. The 20-day average (389.81) is below the 50-day average (397.91), consistent with near-term momentum tilted to the downside. RSI is 50.0, a neutral reading with no extreme pressure either way. MACD momentum is mixed / losing steam in its current direction. Average True Range is 11.88 (3.0% of price), a moderate volatility reading. Trading volume is well above its 20-day average, suggesting elevated interest/conviction. Recent support sits near 373.35 and resistance near 405.99. Recent news sentiment is mostly positive (5 positive / 0 negative / 3 neutral headlines)."
+    },
+    {
+      "role": "user",
+      "text": "forecast META"
+    },
+    {
+      "role": "assistant",
+      "text": "Kronos projects META moving from 585.61 to 649.23 over the next 30 trading days (+10.86%) -- a strong upward trend. The 20-day average (625.81) is above the 50-day average (604.55), consistent with near-term momentum tilted to the upside. RSI is 41.4, a neutral reading with no extreme pressure either way. MACD histogram is negative and falling, indicating strengthening bearish momentum. Average True Range is 22.90 (3.9% of price), a moderate volatility reading. Recent support sits near 577.07 and resistance near 686.08. Recent news sentiment is mixed / neutral (1 positive / 2 negative / 5 neutral headlines)."
+    },
+    {
+      "role": "user",
+      "text": "forecast NVDA"
+    },
+    {
+      "role": "assistant",
+      "text": "Kronos projects NVDA moving from 190.01 to 184.60 over the next 30 trading days (-2.84%) -- a modest downward trend. The 20-day average (203.13) is below the 50-day average (207.12), consistent with near-term momentum tilted to the downside. RSI is 38.0, a neutral reading with no extreme pressure either way. MACD histogram is negative and falling, indicating strengthening bearish momentum. Average True Range is 7.53 (4.0% of price), a moderate volatility reading. Recent support sits near 190.01 and resistance near 214.39. Recent news sentiment is mostly positive (4 positive / 0 negative / 4 neutral headlines). Heads up: NVDA has an earnings report expected around 2026-08-26 -- that falls within this forecast window, and earnings reports often cause bigger, harder-to-predict price moves than the model accounts for."
+    }
+  ],
+  "beginner_mode": false
+}

@@ -50,6 +50,8 @@ DEFAULT_SAMPLE_RUNS = int(os.getenv("DEFAULT_SAMPLE_RUNS", "1"))
 # ---------------------------------------------------------------------------
 DATA_DIR = os.path.join(BASE_DIR, "assistant_data")
 WATCHLIST_PATH = os.path.join(DATA_DIR, "watchlists.json")
+WATCHLIST_NOTES_PATH = os.path.join(DATA_DIR, "watchlist_notes.json")
+WATCHLIST_ENTRY_ZONES_PATH = os.path.join(DATA_DIR, "watchlist_entry_zones.json")
 CONVERSATION_DIR = os.path.join(DATA_DIR, "conversations")
 CHARTS_DIR = os.path.join(DATA_DIR, "charts")
 BACKTEST_DIR = os.path.join(DATA_DIR, "backtests")

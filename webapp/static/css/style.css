@@ -448,18 +448,80 @@ table.data-table th { color: var(--gold-dim); font-weight: 500; text-transform: 
 .flash-error { background: rgba(224, 104, 95, 0.1); border-color: var(--red); color: #f0b3ae; }
 .flash-ok { background: rgba(73, 197, 182, 0.1); border-color: var(--teal); color: #a8e6de; }
 
-.watchlist-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--line);
-  font-family: var(--mono);
-}
-.watchlist-row:last-child { border-bottom: none; }
 .remove-link { color: var(--red); font-family: var(--sans); font-size: 12.5px; }
 
 .empty-state { color: var(--bone-dim); font-size: 13.5px; padding: 20px 0; }
+
+/* -------------------------------------------------------------- watchlist cards */
+
+.watchlist-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.wl-card {
+  background: var(--ink-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wl-card-head { display: flex; justify-content: space-between; align-items: baseline; }
+.wl-ticker { font-family: var(--serif); font-size: 19px; font-weight: 500; color: var(--bone); }
+.wl-price-block { text-align: right; font-family: var(--mono); }
+.wl-price { font-size: 16px; color: var(--bone); }
+.wl-change { display: block; font-size: 11.5px; margin-top: 1px; }
+.wl-change.up { color: var(--teal); }
+.wl-change.down { color: var(--red); }
+.wl-price.stale { color: var(--bone-dim); }
+
+.wl-row { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; }
+.wl-label {
+  font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.06em;
+  font-size: 10.5px; color: var(--bone-dim);
+}
+.wl-value { font-family: var(--mono); color: var(--bone); text-align: right; }
+.wl-value.soon { color: var(--gold); }
+
+.wl-zone-badge {
+  font-family: var(--mono); font-size: 10.5px; padding: 2px 8px; border-radius: 20px;
+}
+.wl-zone-badge.zone-in { background: rgba(73, 197, 182, 0.15); color: var(--teal); }
+.wl-zone-badge.zone-above { background: rgba(224, 104, 95, 0.15); color: var(--red); }
+.wl-zone-badge.zone-below { background: rgba(227, 165, 72, 0.15); color: var(--gold); }
+
+.wl-zone-form { display: flex; align-items: center; gap: 6px; }
+.wl-zone-form input {
+  width: 0; flex: 1; padding: 6px 8px; font-size: 12.5px;
+}
+.wl-zone-sep { color: var(--bone-dim); font-size: 11px; }
+.wl-zone-save { padding: 6px 10px; font-size: 11.5px; }
+.wl-zone-clear {
+  background: none; border: none; color: var(--bone-dim); cursor: pointer;
+  font-size: 13px; padding: 4px 6px;
+}
+.wl-zone-clear:hover { color: var(--red); }
+
+.wl-notes-wrap { display: flex; flex-direction: column; gap: 4px; }
+.wl-notes {
+  width: 100%; background: var(--ink-2); border: 1px solid var(--line);
+  border-radius: var(--radius); color: var(--bone); padding: 8px 10px;
+  font-family: var(--sans); font-size: 12.5px; resize: vertical; min-height: 44px;
+}
+.wl-notes:focus { border-color: var(--gold-dim); }
+.wl-notes-status {
+  font-family: var(--mono); font-size: 10px; color: var(--bone-dim); min-height: 12px;
+}
+.wl-notes-status.saved { color: var(--teal); }
+
+.wl-card-foot {
+  display: flex; justify-content: space-between; align-items: center;
+  padding-top: 8px; border-top: 1px solid var(--line); font-size: 12.5px;
+}
 
 /* --------------------------------------------------------- hero signature */
 

@@ -112,6 +112,75 @@ def get_earnings_date(ticker):
         return None
 
 
+def estimate_reporting_quarter(report_date):
+    """
+    Companies report earnings ~4-6 weeks after a quarter closes, so the
+    calendar quarter *of the report date* is usually one quarter ahead of
+    the quarter being reported on. This is a heuristic based on a standard
+    Jan-Dec fiscal year -- it will be off by one quarter for companies with
+    a non-calendar fiscal year (e.g. Apple's fiscal year ends in
+    September), so it's labeled "estimated" everywhere it's shown rather
+    than treated as an authoritative fiscal-quarter label.
+    """
+    if report_date is None:
+        return None
+    month = report_date.month
+    year = report_date.year
+    if month <= 3:
+        return f"Q4 {year - 1} (est.)"
+    elif month <= 6:
+        return f"Q1 {year} (est.)"
+    elif month <= 9:
+        return f"Q2 {year} (est.)"
+    else:
+        return f"Q3 {year} (est.)"
+
+
+def get_next_earnings_info(ticker):
+    """
+    Convenience combo used by the watchlist UI: returns
+    {"date": datetime.date | None, "quarter": str | None, "days_until": int | None}
+    """
+    earnings_date = get_earnings_date(ticker)
+    if earnings_date is None:
+        return {"date": None, "quarter": None, "days_until": None}
+    return {
+        "date": earnings_date,
+        "quarter": estimate_reporting_quarter(earnings_date),
+        "days_until": (earnings_date - datetime.date.today()).days,
+    }
+
+
+def get_live_price(ticker):
+    """
+    Latest available price via yfinance's lightweight `fast_info` (a single
+    small request, not the full `.info` payload). Note this is Yahoo
+    Finance's data, which for free/unauthenticated access is typically
+    delayed ~15-20 minutes during market hours, not true tick-by-tick
+    real-time -- labeled "latest price" in the UI rather than "live" for
+    that reason.
+
+    Returns {"price": float, "prev_close": float, "change_pct": float} or
+    None if unavailable.
+    """
+    is_valid, symbol = validate_ticker(ticker)
+    if not is_valid:
+        raise ValueError(f"'{ticker}' does not look like a valid ticker on Yahoo Finance.")
+
+    try:
+        fast = yf.Ticker(symbol).fast_info
+        price = fast.get("lastPrice") or fast.get("last_price")
+        prev_close = fast.get("previousClose") or fast.get("previous_close")
+        if price is None:
+            return None
+        change_pct = ((price - prev_close) / prev_close * 100) if prev_close else None
+        return {"price": float(price),
+                "prev_close": float(prev_close) if prev_close else None,
+                "change_pct": round(change_pct, 2) if change_pct is not None else None}
+    except Exception:
+        return None
+
+
 def earnings_within_horizon(ticker, pred_len):
     """Convenience check used by assistant.explain -- True if the next
     earnings date falls within the next `pred_len` calendar days."""

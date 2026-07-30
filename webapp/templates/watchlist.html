@@ -5,7 +5,7 @@
 <div class="page-head">
   <p class="eyebrow">Saved</p>
   <h1 class="page-title">Watchlist</h1>
-  <p class="page-desc">Tickers you're keeping an eye on. Shared with the CLI, Discord, and WhatsApp bots — this is the same list.</p>
+  <p class="page-desc">Tickers you're keeping an eye on — latest price, next earnings, your entry zone, and notes, all in one place. The ticker list itself is shared with the CLI, Discord, and WhatsApp bots.</p>
 </div>
 
 <div class="card">
@@ -18,30 +18,11 @@
   </form>
 </div>
 
-<div class="card">
-  <div class="card-title">Currently watching</div>
-  {% if watchlist %}
-    {% for t in watchlist %}
-    <div class="watchlist-row">
-      <span>{{ t }}</span>
-      <span style="display:flex; gap:16px; align-items:center;">
-        <a href="{{ url_for('chat') }}?prefill=forecast+{{ t }}">forecast</a>
-        <form method="post" action="{{ url_for('watchlist_remove') }}" style="margin:0;">
-          <input type="hidden" name="ticker" value="{{ t }}">
-          <button type="submit" class="remove-link" style="background:none;border:none;cursor:pointer;padding:0;">remove</button>
-        </form>
-      </span>
-    </div>
-    {% endfor %}
-    {% if watchlist|length >= 2 %}
-    <div style="margin-top:16px;">
-      <a class="btn btn-ghost" href="{{ url_for('watchlist_correlation') }}">Correlation matrix</a>
-    </div>
-    {% endif %}
-  {% else %}
-    <p class="empty-state">Your watchlist is empty.</p>
-  {% endif %}
+{% if watchlist and watchlist|length >= 2 %}
+<div style="margin: 4px 0 20px;">
+  <a class="btn btn-ghost" href="{{ url_for('watchlist_correlation') }}">Correlation matrix</a>
 </div>
+{% endif %}
 
 {% if corr_text %}
 <div class="card">
@@ -53,4 +34,52 @@
 </div>
 {% endif %}
 
+{% if watchlist %}
+<div id="watchlistCards" class="watchlist-cards">
+  {% for t in watchlist %}
+  <div class="wl-card" data-ticker="{{ t }}">
+    <div class="wl-card-head">
+      <div class="wl-ticker">{{ t }}</div>
+      <div class="wl-price-block">
+        <span class="wl-price">…</span>
+        <span class="wl-change"></span>
+      </div>
+    </div>
+    <div class="wl-row wl-earnings">
+      <span class="wl-label">Next earnings</span>
+      <span class="wl-value wl-earnings-value">loading…</span>
+    </div>
+    <div class="wl-row wl-zone-row">
+      <span class="wl-label">Entry zone</span>
+      <span class="wl-zone-badge" style="display:none;"></span>
+    </div>
+    <form class="wl-zone-form">
+      <input type="number" step="0.01" class="wl-zone-low" placeholder="Low">
+      <span class="wl-zone-sep">–</span>
+      <input type="number" step="0.01" class="wl-zone-high" placeholder="High">
+      <button type="submit" class="btn btn-ghost wl-zone-save">Save</button>
+      <button type="button" class="wl-zone-clear" title="Clear entry zone">✕</button>
+    </form>
+    <div class="wl-notes-wrap">
+      <span class="wl-label">Notes</span>
+      <textarea class="wl-notes" placeholder="Thesis, catalysts, anything worth remembering…" rows="2"></textarea>
+      <span class="wl-notes-status"></span>
+    </div>
+    <div class="wl-card-foot">
+      <a href="{{ url_for('chat') }}?prefill=forecast+{{ t }}">forecast</a>
+      <form method="post" action="{{ url_for('watchlist_remove') }}" style="margin:0;">
+        <input type="hidden" name="ticker" value="{{ t }}">
+        <button type="submit" class="remove-link" style="background:none;border:none;cursor:pointer;padding:0;">remove</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card"><p class="empty-state">Your watchlist is empty.</p></div>
+{% endif %}
+
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/watchlist.js') }}"></script>
 {% endblock %}
