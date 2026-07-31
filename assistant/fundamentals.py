@@ -151,34 +151,101 @@ def get_next_earnings_info(ticker):
     }
 
 
+def _epoch_to_iso(value):
+    """yfinance returns market-time fields as either a Unix epoch (int) or
+    an ISO string depending on version -- handle both, return None rather
+    than raise if the format is unrecognized."""
+    if value is None:
+        return None
+    try:
+        if isinstance(value, (int, float)):
+            dt = datetime.datetime.fromtimestamp(value, tz=datetime.timezone.utc)
+        else:
+            dt = datetime.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return dt.isoformat()
+    except (ValueError, OSError, TypeError):
+        return None
+
+
+_SESSION_LABELS = {
+    "pre": "Pre-Market",
+    "regular": "Market Open",
+    "post": "After-Hours",
+    "closed": "Market Closed",
+}
+
+
 def get_live_price(ticker):
     """
-    Latest available price via yfinance's lightweight `fast_info` (a single
-    small request, not the full `.info` payload). Note this is Yahoo
-    Finance's data, which for free/unauthenticated access is typically
-    delayed ~15-20 minutes during market hours, not true tick-by-tick
-    real-time -- labeled "latest price" in the UI rather than "live" for
-    that reason.
+    Latest available price, aware of which trading session it's from:
+    pre-market, regular hours, after-hours, or last close while closed.
+    Uses yfinance's `.info` (not `fast_info`) since only `.info` carries
+    the pre/post-market fields and `marketState`.
 
-    Returns {"price": float, "prev_close": float, "change_pct": float} or
-    None if unavailable.
+    Note this is Yahoo Finance's data, which for free/unauthenticated
+    access is typically delayed ~15-20 minutes during market hours, not
+    true tick-by-tick real-time -- labeled "latest price" in the UI rather
+    than "live" for that reason. Field availability (especially the
+    pre/post-market fields and exact timestamps) can vary by ticker type --
+    ETFs/indices/crypto often don't have pre/post-market data at all, in
+    which case this falls back to the regular/last price.
+
+    Returns None if unavailable, otherwise:
+        {
+          "price": float,               the price to display right now
+          "prev_close": float | None,   previous regular-session close
+          "change_pct": float | None,   % change vs. prev_close
+          "session": "pre"|"regular"|"post"|"closed",
+          "session_label": "Pre-Market"|"Market Open"|"After-Hours"|"Market Closed",
+          "as_of": ISO datetime string | None,   when this price was last updated
+        }
     """
     is_valid, symbol = validate_ticker(ticker)
     if not is_valid:
         raise ValueError(f"'{ticker}' does not look like a valid ticker on Yahoo Finance.")
 
     try:
-        fast = yf.Ticker(symbol).fast_info
-        price = fast.get("lastPrice") or fast.get("last_price")
-        prev_close = fast.get("previousClose") or fast.get("previous_close")
-        if price is None:
-            return None
-        change_pct = ((price - prev_close) / prev_close * 100) if prev_close else None
-        return {"price": float(price),
-                "prev_close": float(prev_close) if prev_close else None,
-                "change_pct": round(change_pct, 2) if change_pct is not None else None}
+        info = yf.Ticker(symbol).info or {}
     except Exception:
         return None
+    if not info:
+        return None
+
+    market_state = (info.get("marketState") or "CLOSED").upper()
+    session = {"PRE": "pre", "PREPRE": "pre", "REGULAR": "regular",
+               "POST": "post", "POSTPOST": "post"}.get(market_state, "closed")
+
+    regular_price = info.get("regularMarketPrice") or info.get("currentPrice")
+    prev_close = info.get("regularMarketPreviousClose") or info.get("previousClose")
+    regular_time = info.get("regularMarketTime")
+
+    price, change_pct, as_of_raw = regular_price, info.get("regularMarketChangePercent"), regular_time
+
+    # Prefer the pre/post-market price + change when that's the active
+    # session and yfinance actually has that data for this ticker (not
+    # every ticker type -- e.g. crypto trades 24/7 and has no such fields).
+    if session == "pre" and info.get("preMarketPrice") is not None:
+        price = info["preMarketPrice"]
+        change_pct = info.get("preMarketChangePercent")
+        as_of_raw = info.get("preMarketTime")
+    elif session == "post" and info.get("postMarketPrice") is not None:
+        price = info["postMarketPrice"]
+        change_pct = info.get("postMarketChangePercent")
+        as_of_raw = info.get("postMarketTime")
+
+    if price is None:
+        return None
+    if change_pct is None and prev_close:
+        change_pct = (price - prev_close) / prev_close * 100
+
+    return {
+        "price": float(price),
+        "prev_close": float(prev_close) if prev_close else None,
+        "change_pct": round(change_pct, 2) if change_pct is not None else None,
+        "session": session,
+        "session_label": _SESSION_LABELS.get(session, "Market Closed"),
+        "as_of": _epoch_to_iso(as_of_raw),
+    }
 
 
 def earnings_within_horizon(ticker, pred_len):

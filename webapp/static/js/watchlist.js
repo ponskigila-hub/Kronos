@@ -9,13 +9,38 @@
     return p == null ? "n/a" : p.toFixed(2);
   }
 
+  const SESSION_META = {
+    pre: { label: "Pre-Market", cls: "sess-pre" },
+    regular: { label: "Market Open", cls: "sess-regular" },
+    post: { label: "After-Hours", cls: "sess-post" },
+    closed: { label: "Market Closed", cls: "sess-closed" },
+  };
+
+  function fmtAsOf(iso) {
+    if (!iso) return "";
+    try {
+      const d = new Date(iso);
+      const now = new Date();
+      const sameDay = d.toDateString() === now.toDateString();
+      const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return sameDay ? `as of ${time}` : `as of ${d.toLocaleDateString()} ${time}`;
+    } catch (err) {
+      return "";
+    }
+  }
+
   function applyPrice(card, priceInfo) {
     const priceEl = card.querySelector(".wl-price");
     const changeEl = card.querySelector(".wl-change");
+    const sessionEl = card.querySelector(".wl-session-badge");
+    const asOfEl = card.querySelector(".wl-asof");
+
     if (!priceInfo || priceInfo.price == null) {
       priceEl.textContent = "n/a";
       priceEl.classList.add("stale");
       changeEl.textContent = "";
+      sessionEl.textContent = "";
+      asOfEl.textContent = "";
       return;
     }
     priceEl.textContent = fmtPrice(priceInfo.price);
@@ -27,6 +52,12 @@
     } else {
       changeEl.textContent = "";
     }
+
+    const meta = SESSION_META[priceInfo.session] || SESSION_META.closed;
+    sessionEl.textContent = meta.label;
+    sessionEl.className = "wl-session-badge " + meta.cls;
+    asOfEl.textContent = fmtAsOf(priceInfo.as_of);
+
     updateZoneBadge(card, priceInfo.price);
   }
 

@@ -41,11 +41,17 @@ computed automatically if your file doesn't have it. Needs at least 30 rows.
 ## Watchlist page features
 
 **Latest price** -- `assistant/fundamentals.py:get_live_price()` via yfinance's
-lightweight `fast_info`. Labeled "latest price," not "live," on purpose:
-Yahoo Finance's free/unauthenticated data is typically delayed ~15-20
-minutes during market hours, not true tick-by-tick. The page polls
-`/api/watchlist/prices` every 45 seconds to keep it reasonably current
-without hammering Yahoo Finance.
+`.info` payload. Session-aware: shows whether the price is from **pre-market**,
+**regular hours**, **after-hours**, or the **last regular close while the
+market's closed**, each with its own badge (pulsing dot when the market is
+open) and an "as of HH:MM" timestamp converted to your browser's local
+time. Labeled "latest price," not "live," on purpose: Yahoo Finance's
+free/unauthenticated data is typically delayed ~15-20 minutes during market
+hours, not true tick-by-tick. The page polls `/api/watchlist/prices` every
+45 seconds to keep it reasonably current without hammering Yahoo Finance.
+Pre/post-market data isn't available for every ticker type (crypto trades
+24/7 and has none, for instance) -- falls back to the regular/last price
+when that's the case.
 
 **Next earnings date + quarter** -- `assistant/fundamentals.py:get_next_earnings_info()`.
 The date itself comes straight from yfinance. The *quarter* label (e.g.
@@ -72,6 +78,13 @@ session-based `user_id` as the watchlist itself -- back them up along with
 `assistant_data/` if that matters to you.
 
 ## Design notes
+
+**UI polish pass**: subtle hover elevation on cards, smoother transitions
+throughout (nav, buttons, inputs, toggles), a dark custom scrollbar instead
+of the browser default, and a soft page fade-in on navigation. All
+respects `prefers-reduced-motion` -- animations (the clockface sweep, the
+market-open pulse dot, the page fade-in) turn off automatically if the
+user's OS has reduced-motion enabled.
 
 - **Direction**: a trading desk after hours -- ink-dark surfaces, one warm
   gold accent (ticker tape / clock hands), teal for gains, soft red for

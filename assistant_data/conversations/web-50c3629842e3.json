@@ -1,0 +1,37 @@
+{
+  "last_tickers": [
+    "MSFT"
+  ],
+  "last_forecast": {
+    "pct_change": 2.69,
+    "trend": "a modest upward"
+  },
+  "last_explanation": "Kronos projects MSFT moving from 451.10 to 463.22 over the next 30 trading days (+2.69%) -- a modest upward trend. The 20-day average (393.15) is below the 50-day average (398.46), consistent with near-term momentum tilted to the downside. RSI is 71.8, in overbought territory -- a pullback risk exists. MACD histogram is positive and rising, indicating strengthening bullish momentum. Average True Range is 15.90 (3.5% of price), a moderate volatility reading. Trading volume is well above its 20-day average, suggesting elevated interest/conviction. Recent support sits near 373.35 and resistance near 458.69. Recent news sentiment is mostly positive (3 positive / 0 negative / 5 neutral headlines).",
+  "history": [
+    {
+      "role": "user",
+      "text": "Forecast amd"
+    },
+    {
+      "role": "assistant",
+      "text": "Kronos projects AMD moving from 485.39 to 237.48 over the next 30 trading days (-51.08%) -- a strong downward trend. The 20-day average (517.14) is above the 50-day average (510.97), consistent with near-term momentum tilted to the upside. RSI is 46.5, a neutral reading with no extreme pressure either way. MACD momentum is mixed / losing steam in its current direction. Average True Range is 40.37 (8.3% of price), a high volatility reading. Trading volume is well above its 20-day average, suggesting elevated interest/conviction. Recent support sits near 424.03 and resistance near 574.20. Recent news sentiment is mostly positive (3 positive / 0 negative / 5 neutral headlines). Heads up: AMD has an earnings report expected around 2026-08-04 -- that falls within this forecast window, and earnings reports often cause bigger, harder-to-predict price moves than the model accounts for."
+    },
+    {
+      "role": "user",
+      "text": "Why is AMD moving that way?"
+    },
+    {
+      "role": "assistant",
+      "text": "Kronos projects AMD moving from 485.39 to 271.16 over the next 30 trading days (-44.14%) -- a strong downward trend. The 20-day average (517.14) is above the 50-day average (510.97), consistent with near-term momentum tilted to the upside. RSI is 46.5, a neutral reading with no extreme pressure either way. MACD momentum is mixed / losing steam in its current direction. Average True Range is 40.37 (8.3% of price), a high volatility reading. Trading volume is well above its 20-day average, suggesting elevated interest/conviction. Recent support sits near 424.03 and resistance near 574.20. Recent news sentiment is mostly positive (3 positive / 0 negative / 5 neutral headlines). Heads up: AMD has an earnings report expected around 2026-08-04 -- that falls within this forecast window, and earnings reports often cause bigger, harder-to-predict price moves than the model accounts for."
+    },
+    {
+      "role": "user",
+      "text": "forecast MSFT"
+    },
+    {
+      "role": "assistant",
+      "text": "Kronos projects MSFT moving from 451.10 to 463.22 over the next 30 trading days (+2.69%) -- a modest upward trend. The 20-day average (393.15) is below the 50-day average (398.46), consistent with near-term momentum tilted to the downside. RSI is 71.8, in overbought territory -- a pullback risk exists. MACD histogram is positive and rising, indicating strengthening bullish momentum. Average True Range is 15.90 (3.5% of price), a moderate volatility reading. Trading volume is well above its 20-day average, suggesting elevated interest/conviction. Recent support sits near 373.35 and resistance near 458.69. Recent news sentiment is mostly positive (3 positive / 0 negative / 5 neutral headlines)."
+    }
+  ],
+  "beginner_mode": false
+}
