@@ -1,0 +1,21 @@
+{
+  "last_tickers": [
+    "AAPL"
+  ],
+  "last_forecast": {
+    "pct_change": -8.68,
+    "trend": "a strong downward"
+  },
+  "last_explanation": "Kronos projects AAPL moving from 308.91 to 282.11 over the next 30 trading days (-8.68%) -- a strong downward trend. The 20-day average (324.37) is above the 50-day average (309.50), consistent with near-term momentum tilted to the upside. RSI is 43.2, a neutral reading with no extreme pressure either way. MACD histogram is negative and falling, indicating strengthening bearish momentum. Average True Range is 9.87 (3.2% of price), a moderate volatility reading. Trading volume is well above its 20-day average, suggesting elevated interest/conviction. Recent support sits near 300.00 and resistance near 344.57. Recent news sentiment is mixed / neutral (1 positive / 0 negative / 7 neutral headlines). Market context: AAPL is currently in an uptrend (bull), with elevated volatility (trailing 60-day trend, 20-day volatility). Say \"backtest AAPL\" to see how Kronos has actually performed in similar past conditions.",
+  "history": [
+    {
+      "role": "user",
+      "text": "forecast AAPL"
+    },
+    {
+      "role": "assistant",
+      "text": "Kronos projects AAPL moving from 308.91 to 282.11 over the next 30 trading days (-8.68%) -- a strong downward trend. The 20-day average (324.37) is above the 50-day average (309.50), consistent with near-term momentum tilted to the upside. RSI is 43.2, a neutral reading with no extreme pressure either way. MACD histogram is negative and falling, indicating strengthening bearish momentum. Average True Range is 9.87 (3.2% of price), a moderate volatility reading. Trading volume is well above its 20-day average, suggesting elevated interest/conviction. Recent support sits near 300.00 and resistance near 344.57. Recent news sentiment is mixed / neutral (1 positive / 0 negative / 7 neutral headlines). Market context: AAPL is currently in an uptrend (bull), with elevated volatility (trailing 60-day trend, 20-day volatility). Say \"backtest AAPL\" to see how Kronos has actually performed in similar past conditions."
+    }
+  ],
+  "beginner_mode": false
+}

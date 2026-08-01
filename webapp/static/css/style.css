@@ -271,6 +271,15 @@ input[type="text"], input[type="number"], select {
 input:focus, select:focus { border-color: var(--gold-dim); }
 
 .field { margin-bottom: 16px; }
+
+.checkbox-field {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--sans); font-size: 13px; color: var(--bone-dim);
+  margin-bottom: 16px; cursor: pointer; text-transform: none; letter-spacing: normal;
+}
+.checkbox-field input[type="checkbox"] {
+  width: auto; accent-color: var(--gold); cursor: pointer;
+}
 .field-row { display: flex; gap: 14px; flex-wrap: wrap; }
 .field-row .field { flex: 1; min-width: 140px; }
 

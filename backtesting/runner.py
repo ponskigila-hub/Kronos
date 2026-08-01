@@ -313,6 +313,19 @@ def quick_backtest(ticker, horizons=None, max_windows=None, min_train_size=None,
                 os.path.join(output_dir, "equity_curve.png"), starting_capital,
             )
 
+    # Market-regime breakdown -- how well did Kronos do specifically in
+    # bull / bear / sideways conditions historically, not just on average?
+    # Free to compute (reuses df + kronos_results already fetched/computed).
+    regime_breakdown = None
+    if kronos_results and not kronos_results.get(main_horizon, pd.DataFrame()).empty:
+        regime_df = regimes.classify_regimes(df)
+        regime_groups = regimes.split_by_regime(kronos_results[main_horizon], regime_df, "trend_regime")
+        regime_breakdown = {}
+        for label, group in regime_groups.items():
+            if label == "unknown" or group.empty:
+                continue
+            regime_breakdown[label] = metrics.compute_all_metrics(group)
+
     # The direction-correct/wrong summary (real vs. synthetic price, rolling
     # accuracy, up/down bias) is the most informative single chart for a
     # quick "is this working" check -- generated at the shortest horizon
@@ -337,13 +350,15 @@ def quick_backtest(ticker, horizons=None, max_windows=None, min_train_size=None,
                 dm_result = significance.compare_models_dm(kronos_results[main_horizon], bench_hdf, h=main_horizon)
                 dm_result["vs_model"] = best_bench_name
 
-    text = _format_quick_backtest_text(ticker, metrics_df, portfolio, horizons, max_windows, dm_result)
+    text = _format_quick_backtest_text(ticker, metrics_df, portfolio, horizons, max_windows,
+                                        dm_result, regime_breakdown, main_horizon)
     return {"text": text, "metrics_df": metrics_df, "portfolio_metrics": portfolio,
             "image_path": image_path, "equity_curve_path": equity_curve_path,
-            "significance_vs_benchmark": dm_result}
+            "significance_vs_benchmark": dm_result, "regime_breakdown": regime_breakdown}
 
 
-def _format_quick_backtest_text(ticker, metrics_df, portfolio, horizons, max_windows, dm_result=None):
+def _format_quick_backtest_text(ticker, metrics_df, portfolio, horizons, max_windows,
+                                  dm_result=None, regime_breakdown=None, main_horizon=None):
     if metrics_df.empty:
         return (f"Couldn't run a backtest for {ticker} -- not enough history for "
                 f"{max_windows} walk-forward windows at these horizons. Try a "
@@ -376,6 +391,21 @@ def _format_quick_backtest_text(ticker, metrics_df, portfolio, horizons, max_win
 
     if dm_result:
         lines.append(f"Significance check (Kronos vs {dm_result.get('vs_model', '?')}): {dm_result['note']}")
+
+    if regime_breakdown:
+        h_label = main_horizon if main_horizon is not None else main_h
+        regime_parts = []
+        for label in ["bull", "bear", "sideways"]:
+            if label in regime_breakdown:
+                m = regime_breakdown[label]
+                n = m.get("n_predictions", 0)
+                acc = m.get("direction_accuracy", float("nan"))
+                rmse = m.get("rmse", float("nan"))
+                regime_parts.append(f"{label} {acc:.0f}% dir. acc. / RMSE {rmse:.2f} (n={n})")
+        if regime_parts:
+            lines.append(f"By market regime at {h_label}d horizon: " + "; ".join(regime_parts) +
+                          ". (Regimes are trailing-60-day trend labels, not forward-looking -- "
+                          "small n per regime with few windows, treat as directional not definitive.)")
 
     if portfolio:
         lines.append(

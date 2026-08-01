@@ -70,6 +70,8 @@ class StockAssistant:
                 result = self._why(context, tickers)
             elif intent == "risk":
                 result = self._risk(context, tickers)
+            elif intent == "detailed_forecast":
+                result = self._detailed_forecast(context, tickers)
             elif intent == "forecast":
                 result = self._forecast(context, tickers)
             else:
@@ -91,7 +93,9 @@ class StockAssistant:
         t = tickers[0] if tickers else None
         if intent == "forecast" and t:
             return [f"Why is {t} moving that way?", f"What risks for {t}?",
-                    f"Add {t} to my watchlist", f"Backtest {t}", f"Fundamentals of {t}"]
+                    f"Add {t} to my watchlist", f"Backtest {t}", f"Detailed forecast {t}"]
+        if intent == "detailed_forecast" and t:
+            return [f"Backtest {t}", f"Why is {t} moving that way?", f"Forecast {t}"]
         if intent == "why" and t:
             return [f"What risks for {t}?", f"Backtest {t}", f"Add {t} to my watchlist"]
         if intent == "risk" and t:
@@ -117,6 +121,34 @@ class StockAssistant:
             return []
         return [round(float(x), 2) for x in hist_df["close"].tail(SPARKLINE_POINTS).tolist()]
 
+    def _regime_note(self, ticker, hist_df):
+        """
+        Cheap, no extra network/Kronos calls -- classifies the current
+        trend/volatility regime from history already fetched, so a plain
+        "forecast AAPL" also surfaces "here's the market backdrop this
+        forecast was made in," and points at "backtest <ticker>" for the
+        actual historical accuracy-by-regime breakdown (that part does
+        need real backtesting, so it's opt-in, not automatic here).
+        """
+        try:
+            from backtesting.regimes import classify_regimes
+        except ImportError:
+            return None
+        try:
+            regime_df = classify_regimes(hist_df)
+            last = regime_df.iloc[-1]
+            trend, vol = last["trend_regime"], last["vol_regime"]
+            if trend == "unknown":
+                return None
+            trend_label = {"bull": "an uptrend (bull)", "bear": "a downtrend (bear)",
+                           "sideways": "a sideways/range-bound trend"}.get(trend, trend)
+            vol_label = {"high": "elevated", "low": "low"}.get(vol, vol)
+            return (f"Market context: {ticker} is currently in {trend_label}, with {vol_label} "
+                    f"volatility (trailing 60-day trend, 20-day volatility). Say \"backtest {ticker}\" "
+                    f"to see how Kronos has actually performed in similar past conditions.")
+        except Exception:
+            return None
+
     # ------------------------------------------------------------------
     # Intent handlers
     # ------------------------------------------------------------------
@@ -130,6 +162,7 @@ class StockAssistant:
             "- \"Fundamentals of AAPL\" / \"Analyst targets for TSLA\" / \"When does MSFT report earnings\"\n"
             "- \"Add TSLA to my watchlist\" / \"My watchlist\" / \"Correlation matrix\"\n"
             "- \"Backtest AAPL\" -- quick walk-forward accuracy + trading check\n"
+            "- \"Detailed forecast AAPL\" -- multiple sampled paths + mean + confidence band (slower)\n"
             "- Say \"beginner mode\" or \"advanced mode\" any time to change how I explain things."
         )
         return {"text": msg, "chart": None, "data": {}}
@@ -163,9 +196,10 @@ class StockAssistant:
         fc = forecaster.run_forecast(hist_df, pred_len=self.pred_len, n_runs=self.n_forecast_runs)
         news_items, news_summary = news.get_news(ticker)
         earnings_warning = fundamentals.earnings_within_horizon(ticker, self.pred_len)
+        regime_note = self._regime_note(ticker, hist_df)
         explanation = explain.build_explanation(
             ticker, ind_df, fc, news_summary,
-            beginner=context.beginner_mode, earnings_warning=earnings_warning,
+            beginner=context.beginner_mode, earnings_warning=earnings_warning, regime_note=regime_note,
         )
         fig = charts.build_forecast_chart(ticker, hist_df, ind_df, fc, news_items)
         image_path = charts.build_forecast_png(ticker, hist_df, fc)
@@ -180,6 +214,45 @@ class StockAssistant:
             "ticker": ticker, "forecast": fc["pred_df"].to_dict(orient="list"),
             "sparkline": self._sparkline(hist_df),
         }}
+
+    def _detailed_forecast(self, context, tickers):
+        """
+        The "spaghetti plot" version: several independent sampled paths,
+        their mean, and a 10-90th percentile band, plotted over the full
+        historical context -- see assistant/charts.py:build_detailed_forecast_png.
+        Meaningfully slower than a normal forecast (config.DETAILED_FORECAST_RUNS
+        separate Kronos calls instead of 1) -- opt-in via this specific
+        intent rather than the default forecast path.
+        """
+        if not tickers:
+            return {"text": "Which ticker would you like a detailed forecast for? "
+                             "e.g. \"detailed forecast AAPL\"", "chart": None, "data": {}}
+
+        from .config import DETAILED_FORECAST_RUNS
+        ticker = tickers[0]
+        hist_df = data_fetcher.fetch_history(ticker)
+        fc = forecaster.run_forecast(hist_df, pred_len=self.pred_len, n_runs=DETAILED_FORECAST_RUNS)
+        image_path = charts.build_detailed_forecast_png(ticker, hist_df, fc)
+
+        last_close = float(hist_df["close"].iloc[-1])
+        mean_end = float(fc["mean_df"]["close"].iloc[-1]) if fc.get("mean_df") is not None else float(fc["pred_df"]["close"].iloc[-1])
+        low_end = float(fc["low_df"]["close"].iloc[-1]) if fc.get("low_df") is not None else None
+        high_end = float(fc["high_df"]["close"].iloc[-1]) if fc.get("high_df") is not None else None
+        pct = (mean_end - last_close) / last_close * 100
+
+        text = (f"{ticker}: {DETAILED_FORECAST_RUNS} independently sampled forecast paths over "
+                f"{self.pred_len} trading days. Mean path ends at {mean_end:.2f} ({pct:+.2f}% from "
+                f"{last_close:.2f})")
+        if low_end is not None and high_end is not None:
+            text += f", with the 10th-90th percentile of paths spanning {low_end:.2f} to {high_end:.2f}."
+        else:
+            text += "."
+        text += (" Wider spread between paths means the model itself is less certain -- treat a "
+                  "narrow band with more confidence than a wide one.")
+
+        context.update_forecast([ticker], {"pct_change": round(pct, 2)}, text)
+        return {"text": text, "chart": None, "image_path": image_path,
+                "data": {"ticker": ticker, "sparkline": self._sparkline(hist_df)}}
 
     def _compare(self, tickers):
         if len(tickers) < 2:
@@ -236,9 +309,10 @@ class StockAssistant:
         fc = forecaster.run_forecast(hist_df, pred_len=self.pred_len, n_runs=self.n_forecast_runs)
         news_items, news_summary = news.get_news(ticker)
         earnings_warning = fundamentals.earnings_within_horizon(ticker, self.pred_len)
+        regime_note = self._regime_note(ticker, hist_df)
         explanation = explain.build_explanation(
             ticker, ind_df, fc, news_summary,
-            beginner=context.beginner_mode, earnings_warning=earnings_warning,
+            beginner=context.beginner_mode, earnings_warning=earnings_warning, regime_note=regime_note,
         )
         return {"text": explanation["text"], "chart": None,
                 "data": {"ticker": ticker, "sparkline": self._sparkline(hist_df)}}

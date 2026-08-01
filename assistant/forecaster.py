@@ -60,10 +60,16 @@ def run_forecast(hist_df, pred_len=None, n_runs=None, lookback=None, T=None, top
 
     Returns a dict:
         {
-          "pred_df": DataFrame[timestamps, open, high, low, close, volume, amount],
+          "pred_df": DataFrame[timestamps, open, high, low, close, volume, amount],  (median across runs)
+          "mean_df": DataFrame[timestamps, close] or None (mean across runs, if n_runs > 1),
           "low_df":  DataFrame or None (10th percentile close, if n_runs > 1),
           "high_df": DataFrame or None (90th percentile close, if n_runs > 1),
+          "all_runs": list of DataFrames, one per sampled path (always has
+                       at least 1; useful for a spaghetti-style plot),
           "lookback_used": int,
+          "n_runs": int,
+          "context_start": Timestamp of the first date actually fed to the model,
+          "forecast_start": Timestamp of the last known real date,
         }
     """
     pred_len = pred_len or DEFAULT_PRED_LEN
@@ -101,11 +107,12 @@ def run_forecast(hist_df, pred_len=None, n_runs=None, lookback=None, T=None, top
         runs.append(pred_df.reset_index(drop=True))
 
     main_pred = runs[0]
-    low_df = high_df = None
+    low_df = high_df = mean_df = None
 
     if len(runs) > 1:
         stacked_close = np.stack([r["close"].values for r in runs], axis=0)
         median_close = np.median(stacked_close, axis=0)
+        mean_close = np.mean(stacked_close, axis=0)
         low_close = np.percentile(stacked_close, 10, axis=0)
         high_close = np.percentile(stacked_close, 90, axis=0)
 
@@ -114,11 +121,16 @@ def run_forecast(hist_df, pred_len=None, n_runs=None, lookback=None, T=None, top
 
         low_df = pd.DataFrame({"timestamps": future_dates, "close": low_close})
         high_df = pd.DataFrame({"timestamps": future_dates, "close": high_close})
+        mean_df = pd.DataFrame({"timestamps": future_dates, "close": mean_close})
 
     return {
         "pred_df": main_pred,
+        "mean_df": mean_df,          # None if n_runs == 1 -- mean across all sampled paths
         "low_df": low_df,
         "high_df": high_df,
+        "all_runs": runs,            # every individual sampled path, for spaghetti-style plots
         "lookback_used": lookback,
         "n_runs": len(runs),
+        "context_start": x_timestamp.iloc[0],  # first date actually fed to the model
+        "forecast_start": last_date,           # last known real date (where forecasting begins)
     }

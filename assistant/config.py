@@ -44,6 +44,11 @@ DEFAULT_KRONOS_SAMPLE_COUNT = int(os.getenv("DEFAULT_KRONOS_SAMPLE_COUNT", "5"))
 # How many independent sampling passes to run through Kronos in order to
 # build a confidence band around the forecast. 1 = fast, no band.
 DEFAULT_SAMPLE_RUNS = int(os.getenv("DEFAULT_SAMPLE_RUNS", "1"))
+# How many independent sampled paths to plot for the "detailed forecast"
+# command/page (a spaghetti plot -- see assistant/charts.py:build_detailed_forecast_png).
+# Much slower than a normal forecast (this many separate Kronos predict()
+# calls) -- kept modest by default for CPU-only/limited-RAM machines.
+DETAILED_FORECAST_RUNS = int(os.getenv("DETAILED_FORECAST_RUNS", "8"))
 
 # ---------------------------------------------------------------------------
 # Data storage

@@ -24,6 +24,8 @@ INTENT_PATTERNS = [
     ("why", re.compile(r"^\s*why\b", re.I)),
     ("risk", re.compile(r"\brisk", re.I)),
     ("news", re.compile(r"\bnews\b", re.I)),
+    ("detailed_forecast", re.compile(r"\bdetailed forecast\b|\bsampled paths\b|\bshow paths\b|"
+                                      r"\bmultiple paths\b|\bforecast paths\b", re.I)),
     ("forecast", re.compile(r"\bforecast\b|\bpredict\b|\bprediction\b", re.I)),
     ("greeting", re.compile(r"^\s*(hi|hello|hey|start|help)\s*$", re.I)),
 ]

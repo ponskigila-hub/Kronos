@@ -63,6 +63,73 @@ def build_forecast_png(ticker, hist_df, forecast_result, save_path=None, display
     return save_path
 
 
+def build_detailed_forecast_png(ticker, hist_df, forecast_result, save_path=None, display_days=150):
+    """
+    Detailed "spaghetti plot" forecast chart: full historical close, a
+    marker for where the model's context window begins, a marker for
+    where the forecast starts, every individual sampled path (thin,
+    translucent), the mean forecast across all paths (bold), and a
+    10-90th percentile band. Matches the style of Kronos forecast
+    visualizations commonly used to sanity-check how much the sampled
+    paths actually agree with each other.
+
+    Only meaningfully different from build_forecast_png() when
+    forecast_result came from run_forecast(..., n_runs > 1) -- with
+    n_runs=1 there's only one path to plot and no band, so prefer
+    build_forecast_png() for the fast/default case. This one costs
+    n_runs x the Kronos inference time; call it deliberately (e.g. a
+    "detailed forecast" command), not as the default fast path.
+    """
+    pred_df = forecast_result["pred_df"]
+    all_runs = forecast_result.get("all_runs") or [pred_df]
+    low_df = forecast_result.get("low_df")
+    high_df = forecast_result.get("high_df")
+    mean_df = forecast_result.get("mean_df")
+    n_runs = forecast_result.get("n_runs", len(all_runs))
+    context_start = forecast_result.get("context_start")
+    forecast_start = forecast_result.get("forecast_start", hist_df["timestamps"].iloc[-1])
+
+    display_hist = hist_df.tail(display_days)
+
+    plt.figure(figsize=(15, 7.5))
+
+    plt.plot(display_hist["timestamps"], display_hist["close"],
+              color="#4c78a8", linewidth=1.4, label="Historical Close (Full Data)")
+
+    for i, run in enumerate(all_runs):
+        plt.plot(run["timestamps"], run["close"], color="#f5a623", alpha=0.35, linewidth=0.9,
+                  label="Forecast Paths" if i == 0 else None)
+
+    if mean_df is not None:
+        plt.plot(mean_df["timestamps"], mean_df["close"], color="#a91e1e",
+                  linewidth=2.2, label="Mean Forecast")
+    elif len(all_runs) == 1:
+        plt.plot(pred_df["timestamps"], pred_df["close"], color="#a91e1e",
+                  linewidth=2.2, label="Forecast")
+
+    if low_df is not None and high_df is not None:
+        plt.fill_between(pred_df["timestamps"], low_df["close"], high_df["close"],
+                          color="#f5a623", alpha=0.18, label="10-90th percentile")
+
+    if context_start is not None and context_start >= display_hist["timestamps"].iloc[0]:
+        plt.axvline(context_start, color="#2ca02c", linestyle=":", linewidth=1.3, label="Model Context Start")
+    plt.axvline(forecast_start, color="gray", linestyle=":", linewidth=1.3, label="Forecast Start")
+
+    plt.title(f"{ticker} Price Forecast (Kronos) -- {n_runs} sampled path{'s' if n_runs != 1 else ''}")
+    plt.xlabel("Date")
+    plt.ylabel("Price ($)")
+    plt.legend(loc="upper left", fontsize=9)
+    plt.grid(alpha=0.25)
+    plt.xticks(rotation=30)
+    plt.tight_layout()
+
+    if save_path is None:
+        save_path = os.path.join(CHARTS_DIR, f"{ticker}_detailed_forecast.png")
+    plt.savefig(save_path, dpi=150)
+    plt.close()
+    return save_path
+
+
 def build_comparison_png(ticker_dfs, save_path=None):
     """Static PNG version of the multi-ticker comparison chart (% change
     from the start of the period, same idea as build_comparison_chart)."""

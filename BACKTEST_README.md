@@ -110,9 +110,11 @@ small `--max-windows` values.
   from backtesting.hyperparam_search import grid_search
   results = grid_search(df, param_grid={"T": [0.6, 0.7, 0.8], "lookback": [200, 400]}, max_windows=10)
   ```
-- **Regime-split results** (`backtesting/regimes.py`, already built): check
-  `regime_metrics.json` per ticker -- a model can look fine on average while
-  being much worse specifically in bear markets or high-volatility periods.
+- **Regime-split results** (`backtesting/regimes.py`, already built): the
+  full `run_backtest.py` run saves per-ticker `regime_metrics.json`; the
+  in-chat `backtest AAPL` command now also prints a regime breakdown line
+  directly in its reply -- a model can look fine on average while being
+  much worse specifically in bear markets or high-volatility periods.
 - **Trading threshold**: the default `--threshold 0.0` acts on any signal,
   however small. Raising it to `0.01-0.02` (1-2%) generally trades less
   often but with more conviction.

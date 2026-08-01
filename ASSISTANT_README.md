@@ -76,6 +76,7 @@ you> compare NVDA and AMD
 you> add TSLA to my watchlist
 you> my watchlist
 you> backtest AAPL
+you> detailed forecast AAPL
 you> fundamentals of AAPL
 you> analyst targets for TSLA
 you> when does MSFT report earnings
@@ -128,6 +129,33 @@ not currently call into `assistant/`. Wiring it up to the new auto-fetch
 pipeline is a natural next step if you want a browser UI on top of this too.
 
 ## New chatbot features
+
+**Detailed forecast** -- "detailed forecast AAPL" runs `config.DETAILED_FORECAST_RUNS`
+(default 8) independent sampled Kronos paths and plots all of them together:
+full historical context, every individual sampled path (thin), the mean
+path (bold), and a 10-90th percentile band, with markers for where the
+model's context window starts and where the forecast begins
+(`assistant/charts.py:build_detailed_forecast_png`). This is the
+"spaghetti plot" style forecast visualization -- much slower than a normal
+forecast (8x the Kronos inference calls), so it's opt-in, not the default.
+Also available on the web app's Forecast page via a checkbox.
+
+**Market regime context** -- every plain "forecast AAPL" / "why is X
+declining" reply now also names the current market regime (bull/bear/
+sideways trend, high/low volatility, from a 60-day trailing trend and
+20-day rolling volatility) and points at `backtest <ticker>` for the real
+historical-accuracy-by-regime breakdown. Speaking of which:
+
+**Regime breakdown in backtests** -- `backtest AAPL` now reports Kronos's
+direction accuracy and RMSE split by bull/bear/sideways regime, not just
+the overall average (reuses `backtesting/regimes.py`, already built for
+the full `run_backtest.py` framework, now surfaced in the quick in-chat
+version too). A model can look fine on average while being notably worse
+in one specific regime -- this makes that visible without needing the full
+CLI report. With few walk-forward windows the per-regime sample sizes are
+small (flagged in the reply itself) -- treat it as directional, not
+definitive, until you run with more windows (`--max-windows 30`+ via the
+full CLI, or `BACKTEST_QUICK_MAX_WINDOWS` for the in-chat version).
 
 **Quick-reply chips** -- every reply now includes a `suggestions` list of
 plain follow-up messages ("Why is AAPL moving that way?", "Backtest AAPL").

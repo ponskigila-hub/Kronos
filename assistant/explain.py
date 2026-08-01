@@ -26,7 +26,7 @@ def _trend_label(pct_change):
 
 
 def build_explanation(ticker, ind_df, forecast_result, news_summary=None,
-                       beginner=False, earnings_warning=None):
+                       beginner=False, earnings_warning=None, regime_note=None):
     """
     ind_df: output of assistant.indicators.compute_indicators on the
             historical data (NOT the forecast).
@@ -37,6 +37,11 @@ def build_explanation(ticker, ind_df, forecast_result, news_summary=None,
     earnings_warning: a datetime.date if an earnings report falls within
               the forecast window (from assistant.fundamentals.earnings_within_horizon),
               or None. When set, a caution sentence is appended.
+    regime_note: a plain string describing the current market regime
+              (trend/volatility) and, if available, Kronos's historical
+              accuracy in that regime -- from
+              assistant.core_assistant's regime lookup. Appended verbatim
+              if set.
     """
     stats = summarize_latest(ind_df)
     sr = support_resistance(ind_df)
@@ -160,6 +165,9 @@ def build_explanation(ticker, ind_df, forecast_result, news_summary=None,
             f"that falls within this forecast window, and earnings reports often cause bigger, "
             f"harder-to-predict price moves than the model accounts for."
         )
+
+    if regime_note:
+        lines.append(regime_note)
 
     return {
         "text": " ".join(lines),

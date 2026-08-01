@@ -139,6 +139,7 @@ def forecast_ticker():
     ticker = (request.form.get("ticker") or "").strip().upper()
     pred_len = int(request.form.get("pred_len") or 30)
     lookback = int(request.form.get("lookback") or 400)
+    detailed = request.form.get("detailed") == "on"
 
     if not ticker:
         flash("Enter a ticker first.", "error")
@@ -147,16 +148,26 @@ def forecast_ticker():
     try:
         hist_df = data_fetcher.fetch_history(ticker, lookback_days=lookback)
         ind_df = indicators.compute_indicators(hist_df)
-        fc = forecaster_mod.run_forecast(hist_df, pred_len=pred_len)
-        image_path = charts.build_forecast_png(ticker, hist_df, fc)
+        if detailed:
+            from assistant.config import DETAILED_FORECAST_RUNS
+            fc = forecaster_mod.run_forecast(hist_df, pred_len=pred_len, n_runs=DETAILED_FORECAST_RUNS)
+            image_path = charts.build_detailed_forecast_png(ticker, hist_df, fc)
+        else:
+            fc = forecaster_mod.run_forecast(hist_df, pred_len=pred_len)
+            image_path = charts.build_forecast_png(ticker, hist_df, fc)
 
         last_close = float(hist_df["close"].iloc[-1])
-        forecast_close = float(fc["pred_df"]["close"].iloc[-1])
+        if detailed and fc.get("mean_df") is not None:
+            forecast_close = float(fc["mean_df"]["close"].iloc[-1])
+        else:
+            forecast_close = float(fc["pred_df"]["close"].iloc[-1])
         pct = (forecast_close - last_close) / last_close * 100
         result_text = (
             f"{ticker}: {last_close:.2f} -> {forecast_close:.2f} over {pred_len} trading days "
             f"({pct:+.2f}%). Lookback used: {fc['lookback_used']} days."
         )
+        if detailed:
+            result_text += f" ({fc['n_runs']} sampled paths shown.)"
         return render_template("forecast.html", active="forecast",
                                 result_text=result_text, result_ticker=ticker,
                                 image_url=_to_url(image_path))
