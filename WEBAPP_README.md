@@ -77,6 +77,39 @@ and `assistant_data/watchlist_entry_zones.json`, keyed by the same
 session-based `user_id` as the watchlist itself -- back them up along with
 `assistant_data/` if that matters to you.
 
+## "It's actually running" feedback
+
+Forecast, backtest, CSV upload, and the correlation matrix all trigger a
+real Kronos call that can take anywhere from a few seconds to a couple of
+minutes on CPU-only hardware -- previously the page just sat there with no
+feedback while that happened. Now a full-screen loading overlay (spinner +
+message, e.g. "Running forecast…") appears the moment you submit, and the
+submit button disables so you can't accidentally fire it twice
+(`webapp/static/js/loading.js`, wired up via a `data-loading-message`
+attribute on the relevant forms/links -- reusable for any future
+slow-running form). The watchlist page also shows a skeleton-loading
+shimmer on price/earnings while `/api/watchlist/details` is still
+fetching, and the chat's "thinking" state is an animated three-dot
+indicator instead of static text.
+
+## Watchlist data safety
+
+Your watchlist, notes, and entry zones live in `assistant_data/` and are
+**never touched by code updates** -- extracting a new zip over your project
+folder only replaces `.py`/`.html`/`.js`/`.css` files, never anything under
+`assistant_data/`. Three things back this up further:
+- `.gitignore` now excludes `assistant_data/` outright, so it can't end up
+  reset by a `git pull`/checkout if you're using version control.
+- Every write to the watchlist/notes/entry-zone JSON files is a
+  read-modify-write (`assistant/watchlist.py`, `assistant/watchlist_extras.py`)
+  -- there's no code path that overwrites the whole file wholesale.
+- A **Backup & restore** section on the Watchlist page lets you download a
+  portable JSON snapshot (tickers + notes + entry zones) and, if you ever
+  want to, restore it elsewhere. Import is strictly additive: it adds
+  tickers you don't already have and fills in notes/zones only for
+  tickers that don't already have one -- it can never overwrite or delete
+  anything currently saved.
+
 ## Design notes
 
 **UI polish pass**: subtle hover elevation on cards, smoother transitions

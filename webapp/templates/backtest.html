@@ -9,7 +9,7 @@
 </div>
 
 <div class="card">
-  <form method="post" action="{{ url_for('backtest') }}">
+  <form method="post" action="{{ url_for('backtest') }}" data-loading-message="Running walk-forward backtest — several Kronos calls, this can take a couple of minutes…">
     <div class="field-row">
       <div class="field">
         <label for="ticker">Ticker</label>

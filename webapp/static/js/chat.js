@@ -26,6 +26,18 @@
   }
 
   // -------------------------------------------------------------- messages
+  function addTypingIndicator() {
+    const wrap = document.createElement("div");
+    wrap.className = "msg msg-bot";
+    const bubble = document.createElement("div");
+    bubble.className = "msg-bubble";
+    bubble.innerHTML = '<span class="typing-dots"><span></span><span></span><span></span></span>';
+    wrap.appendChild(bubble);
+    log.appendChild(wrap);
+    log.scrollTop = log.scrollHeight;
+    return wrap;
+  }
+
   function addMessage(role, text, imageUrl, sparkline) {
     const wrap = document.createElement("div");
     wrap.className = "msg " + (role === "user" ? "msg-user" : "msg-bot");
@@ -67,7 +79,7 @@
   async function send(text) {
     if (!text.trim()) return;
     addMessage("user", text);
-    const thinking = addMessage("bot", "…thinking");
+    const thinking = addTypingIndicator();
 
     try {
       const resp = await fetch("/api/chat", {

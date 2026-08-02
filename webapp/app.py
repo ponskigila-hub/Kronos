@@ -18,7 +18,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from flask import (
     Flask, render_template, request, redirect, url_for, session,
-    jsonify, flash, send_from_directory, abort,
+    jsonify, flash, send_from_directory, abort, Response,
 )
 
 from assistant.core_assistant import StockAssistant
@@ -267,6 +267,67 @@ def watchlist_correlation():
     image_path = portfolio_analysis.build_correlation_heatmap(corr_df)
     return render_template("watchlist.html", active="watchlist", watchlist=wl,
                             corr_text=text, corr_image_url=_to_url(image_path))
+
+
+@app.route("/watchlist/export")
+def watchlist_export():
+    """
+    Download everything for this user's watchlist -- tickers, notes, and
+    entry zones -- as a single JSON file. Purely a backup/portability
+    feature; doesn't affect what's stored server-side.
+    """
+    import json
+    user_id = _user_id()
+    payload = {
+        "tickers": watchlist_store.get(user_id),
+        "notes": watchlist_extras.get_all_notes(user_id),
+        "entry_zones": watchlist_extras.get_all_entry_zones(user_id),
+    }
+    body = json.dumps(payload, indent=2)
+    return Response(
+        body, mimetype="application/json",
+        headers={"Content-Disposition": "attachment; filename=kronos_watchlist_backup.json"},
+    )
+
+
+@app.route("/watchlist/import", methods=["POST"])
+def watchlist_import():
+    """
+    Restore/merge a previously exported watchlist backup. Always additive:
+    tickers are added (not replacing the current list), and notes/entry
+    zones only fill in tickers that don't already have one -- this import
+    can never wipe out anything currently saved.
+    """
+    import json
+    file = request.files.get("file")
+    if not file or file.filename == "":
+        flash("Choose a backup JSON file first.", "error")
+        return redirect(url_for("watchlist"))
+
+    try:
+        payload = json.loads(file.read().decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        flash("That doesn't look like a valid backup file.", "error")
+        return redirect(url_for("watchlist"))
+
+    user_id = _user_id()
+    added = 0
+    for ticker in payload.get("tickers", []):
+        watchlist_store.add(user_id, ticker)
+        added += 1
+
+    existing_notes = watchlist_extras.get_all_notes(user_id)
+    for ticker, note in (payload.get("notes") or {}).items():
+        if ticker not in existing_notes:  # never overwrite a note you already have
+            watchlist_extras.set_note(user_id, ticker, note)
+
+    existing_zones = watchlist_extras.get_all_entry_zones(user_id)
+    for ticker, zone in (payload.get("entry_zones") or {}).items():
+        if ticker not in existing_zones and zone:  # never overwrite an existing zone
+            watchlist_extras.set_entry_zone(user_id, ticker, zone.get("low"), zone.get("high"))
+
+    flash(f"Imported {added} ticker(s) from backup (existing notes/zones were kept, not overwritten).", "ok")
+    return redirect(url_for("watchlist"))
 
 
 @app.route("/watchlist/add", methods=["POST"])

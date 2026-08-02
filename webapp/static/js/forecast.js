@@ -11,6 +11,18 @@
     });
   });
 
+  const detailedCheckbox = document.getElementById("detailed");
+  const tickerForm = document.getElementById("tab-ticker")?.querySelector("form");
+  if (detailedCheckbox && tickerForm) {
+    const updateLoadingMessage = () => {
+      tickerForm.dataset.loadingMessage = detailedCheckbox.checked
+        ? "Running detailed forecast — several sampled paths, this takes noticeably longer…"
+        : "Running forecast…";
+    };
+    detailedCheckbox.addEventListener("change", updateLoadingMessage);
+    updateLoadingMessage();
+  }
+
   const fileInput = document.getElementById("fileInput");
   const dropZone = document.getElementById("dropZone");
   const fileLabel = document.getElementById("fileLabel");

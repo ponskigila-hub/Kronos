@@ -19,10 +19,24 @@
 </div>
 
 {% if watchlist and watchlist|length >= 2 %}
-<div style="margin: 4px 0 20px;">
-  <a class="btn btn-ghost" href="{{ url_for('watchlist_correlation') }}">Correlation matrix</a>
+<div style="margin: 4px 0 20px; display:flex; gap:10px; flex-wrap:wrap;">
+  <a class="btn btn-ghost" href="{{ url_for('watchlist_correlation') }}" data-loading-message="Computing correlation matrix…">Correlation matrix</a>
 </div>
 {% endif %}
+
+<details class="backup-details">
+  <summary>Backup &amp; restore</summary>
+  <div class="card" style="margin-top:12px;">
+    <p class="page-desc" style="margin:0 0 14px;">Your watchlist, notes, and entry zones are saved locally in <code>assistant_data/</code> and are never touched by app updates. Export here anyway if you want a portable copy — importing only ever <em>adds</em> tickers and fills in missing notes/zones, it never overwrites or deletes anything you already have.</p>
+    <div style="display:flex; gap:24px; flex-wrap:wrap;">
+      <a class="btn btn-ghost" href="{{ url_for('watchlist_export') }}">Download backup (.json)</a>
+      <form method="post" action="{{ url_for('watchlist_import') }}" enctype="multipart/form-data" data-loading-message="Importing backup…" style="display:flex; gap:10px; align-items:center;">
+        <input type="file" name="file" accept=".json" required>
+        <button class="btn btn-ghost" type="submit">Import backup</button>
+      </form>
+    </div>
+  </div>
+</details>
 
 {% if corr_text %}
 <div class="card">
@@ -41,7 +55,7 @@
     <div class="wl-card-head">
       <div class="wl-ticker">{{ t }}</div>
       <div class="wl-price-block">
-        <span class="wl-price">…</span>
+        <span class="wl-price skeleton">--.--</span>
         <span class="wl-change"></span>
       </div>
     </div>
@@ -51,7 +65,7 @@
     </div>
     <div class="wl-row wl-earnings">
       <span class="wl-label">Next earnings</span>
-      <span class="wl-value wl-earnings-value">loading…</span>
+      <span class="wl-value wl-earnings-value skeleton">loading</span>
     </div>
     <div class="wl-row wl-zone-row">
       <span class="wl-label">Entry zone</span>

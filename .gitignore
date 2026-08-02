@@ -74,3 +74,12 @@ venv.bak/
 temp/
 tmp/
 .python-version
+
+# Kronos assistant runtime data -- watchlists, notes, entry zones,
+# conversation history, generated charts. NEVER commit or overwrite this;
+# it's the user's actual saved data, not project code. Back it up
+# separately if you care about it (see WEBAPP_README.md).
+assistant_data/
+
+# Local Python virtual environment, if created inside the project folder
+kronos_env/

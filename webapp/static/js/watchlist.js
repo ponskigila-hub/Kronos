@@ -34,6 +34,7 @@
     const changeEl = card.querySelector(".wl-change");
     const sessionEl = card.querySelector(".wl-session-badge");
     const asOfEl = card.querySelector(".wl-asof");
+    priceEl.classList.remove("skeleton");
 
     if (!priceInfo || priceInfo.price == null) {
       priceEl.textContent = "n/a";
@@ -80,6 +81,7 @@
 
   function applyEarnings(card, earnings) {
     const el = card.querySelector(".wl-earnings-value");
+    el.classList.remove("skeleton");
     if (!earnings || !earnings.date) {
       el.textContent = "no data";
       el.classList.remove("soon");
@@ -107,7 +109,9 @@
       });
     } catch (err) {
       cards.forEach((card) => {
+        card.querySelector(".wl-price").classList.remove("skeleton");
         card.querySelector(".wl-price").textContent = "error";
+        card.querySelector(".wl-earnings-value").classList.remove("skeleton");
         card.querySelector(".wl-earnings-value").textContent = "error";
       });
     }
