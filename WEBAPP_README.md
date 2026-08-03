@@ -113,23 +113,44 @@ folder only replaces `.py`/`.html`/`.js`/`.css` files, never anything under
 ## Design notes
 
 **UI polish pass**: subtle hover elevation on cards, smoother transitions
-throughout (nav, buttons, inputs, toggles), a dark custom scrollbar instead
+throughout (nav, buttons, inputs, toggles), a light custom scrollbar instead
 of the browser default, and a soft page fade-in on navigation. All
 respects `prefers-reduced-motion` -- animations (the clockface sweep, the
 market-open pulse dot, the page fade-in) turn off automatically if the
 user's OS has reduced-motion enabled.
 
-- **Direction**: a trading desk after hours -- ink-dark surfaces, one warm
-  gold accent (ticker tape / clock hands), teal for gains, soft red for
-  losses. `Fraunces` for display type (a serif with some personality,
-  nodding at "Kronos" being an old idea applied to new markets), `Inter` for
-  body copy, `IBM Plex Mono` for anything numeric -- tickers, prices,
-  metrics -- so data reads like a terminal printout.
+- **Direction**: corporate financial services -- the palette a wealth-management
+  or banking dashboard uses to read as stable and trustworthy: a deep
+  corporate blue (`#1e56c9`) as the single primary accent, a "wealthy"
+  forest green (`#0e7c56`) reserved specifically for gains/positive states,
+  a muted red (`#c0392b`) for losses/errors, and clean neutral grays/whites
+  everywhere else (`#f3f6fa` page background, white cards, `#16233f` for
+  body text -- a deep navy-charcoal rather than pure black, for warmth).
+  `Fraunces` stays for display type (a refined serif for brand moments --
+  the sidebar wordmark, hero headline, card titles -- the same kind of
+  serif-for-gravitas choice private banks and wealth managers use), `Inter`
+  for body copy, `IBM Plex Mono` for anything numeric -- tickers, prices,
+  metrics -- so data still reads like a terminal printout even inside an
+  otherwise clean corporate UI.
 - **Signature element**: the dashboard hero is a clock face built from 24
-  small candlesticks arranged in a circle, with a slowly sweeping gold
-  hand (90s per rotation, `prefers-reduced-motion` respected) -- Kronos was
-  the Greek personification of time, rendered here literally as market data.
-  A simplified version of the same mark is the sidebar logo.
+  small candlesticks arranged in a circle (green up-candles, red down,
+  matching the same convention used everywhere else in the app), with a
+  slowly sweeping blue hand (90s per rotation, `prefers-reduced-motion`
+  respected) -- Kronos was the Greek personification of time, rendered here
+  literally as market data. A simplified version of the same mark is the
+  sidebar/topbar logo.
+- **Responsive system**: three tiers -- desktop (>1024px, full two-column
+  layout with a fixed sidebar), tablet (768-1024px, narrower sidebar,
+  2-column grids collapse to fit), and mobile (<768px, sidebar becomes a
+  slide-in drawer triggered by a hamburger button in a sticky top bar, all
+  grids go single-column, chat height adapts to the smaller viewport). A
+  further tightening at <480px reduces padding/font sizes for small phones.
+  Headings use `clamp()` for fluid sizing between breakpoints rather than
+  jumping abruptly at each one.
+- **Mobile navigation**: tapping the hamburger slides the sidebar in as an
+  overlay (with a dimmed backdrop you can tap to dismiss, Escape-to-close,
+  and auto-close on navigation) rather than the old horizontal-scrolling
+  pill row -- a more standard, discoverable mobile pattern.
 - **Session model**: each browser gets a random `user_id` in a Flask
   session cookie, used for watchlist and chat-context continuity within
   that browser -- there's no login system. If you want multi-user auth,

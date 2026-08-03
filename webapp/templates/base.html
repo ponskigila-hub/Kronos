@@ -3,12 +3,24 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#16233f">
   <title>{% block title %}Kronos{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
+  <header class="topbar-mobile">
+    <a href="{{ url_for('index') }}" class="brand brand-mobile">
+      {% include "_brandmark.html" %}
+      <span class="brand-word">Kronos</span>
+    </a>
+    <button class="hamburger" id="navToggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="sidebar">
+      <span></span><span></span><span></span>
+    </button>
+  </header>
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
   <div class="shell">
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
       <a href="{{ url_for('index') }}" class="brand">
         {% include "_brandmark.html" %}
         <div>
@@ -44,6 +56,7 @@
   </div>
 
   <script src="{{ url_for('static', filename='js/loading.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/nav.js') }}"></script>
   <script src="{{ url_for('static', filename='js/app.js') }}"></script>
   {% block scripts %}{% endblock %}
 </body>
