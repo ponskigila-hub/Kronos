@@ -5,6 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#16233f">
   <title>{% block title %}Kronos{% endblock %}</title>
+  <script>
+    // Apply the saved/preferred theme before first paint to avoid a flash
+    // of the wrong color scheme. Kept tiny and inline (not an external
+    // file) so it runs synchronously before CSS/body render.
+    (function () {
+      try {
+        var t = localStorage.getItem('kronos-theme');
+        if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+      } catch (e) {}
+    })();
+  </script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
@@ -13,11 +25,18 @@
       {% include "_brandmark.html" %}
       <span class="brand-word">Kronos</span>
     </a>
-    <button class="hamburger" id="navToggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="sidebar">
-      <span></span><span></span><span></span>
-    </button>
+    <div style="display:flex; align-items:center; gap:10px;">
+      {% include "_theme_toggle.html" %}
+      <button class="hamburger" id="navToggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="sidebar">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
   </header>
   <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+  <div class="theme-toggle-float">
+    {% include "_theme_toggle.html" %}
+  </div>
 
   <div class="shell">
     <aside class="sidebar" id="sidebar">
@@ -55,6 +74,7 @@
     </main>
   </div>
 
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
   <script src="{{ url_for('static', filename='js/loading.js') }}"></script>
   <script src="{{ url_for('static', filename='js/nav.js') }}"></script>
   <script src="{{ url_for('static', filename='js/app.js') }}"></script>

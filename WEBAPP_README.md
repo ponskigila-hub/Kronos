@@ -110,6 +110,20 @@ folder only replaces `.py`/`.html`/`.js`/`.css` files, never anything under
   tickers that don't already have one -- it can never overwrite or delete
   anything currently saved.
 
+## Light / dark mode
+
+A sun/moon toggle sits in the top-right corner on every page (floating on
+desktop/tablet, inline in the mobile top bar). Defaults to the OS-level
+`prefers-color-scheme` on first visit, then remembers your explicit choice
+in `localStorage` (`theme.js`) -- and keeps following the OS preference
+live if you've never manually chosen a theme. Applied via a `data-theme`
+attribute on `<html>`; a tiny inline script in `<head>` (not an external
+file, so it runs before first paint) sets that attribute immediately on
+load to avoid a flash of the wrong theme. Both themes share the exact same
+blue/green/red financial-services identity -- dark mode isn't an inverted
+palette, it's the same colors re-tuned (brighter accent tones) so they
+still read clearly against a dark surface instead of a plain white one.
+
 ## Design notes
 
 **UI polish pass**: subtle hover elevation on cards, smoother transitions

@@ -33,6 +33,50 @@
   --shadow-sm: 0 2px 8px rgba(16, 24, 40, 0.06);
 
   --topbar-h: 60px;
+
+  /* previously hardcoded, now theme-aware */
+  --scrollbar-thumb: #c3cedf;
+  --scrollbar-thumb-hover: #a8b6cc;
+  --hover-border: #c3cedf;
+  --overlay-scrim: rgba(15, 23, 42, 0.6);
+  --flash-error-text: #8a2a1f;
+  --flash-ok-text: #0b5c3f;
+  --grad-1: rgba(30, 86, 201, 0.06);
+  --grad-2: rgba(14, 124, 86, 0.05);
+
+  color-scheme: light;
+}
+
+/* Dark mode -- toggled via the sun/moon button, top right. Same corporate
+   blue/green/red identity, re-tuned for a dark surface instead of just
+   inverting: brighter accent tones so they still read clearly against a
+   dark background, warmer near-black surfaces instead of pure black. */
+:root[data-theme="dark"] {
+  --ink-0: #0b1220;
+  --ink-1: #121b2e;
+  --ink-2: #1a2540;
+  --ink-3: #253253;
+  --line: #2b3855;
+  --bone: #e8edf7;
+  --bone-dim: #8b98b8;
+  --gold: #4c8dff;
+  --gold-dim: #6fa3ff;
+  --teal: #22c58f;
+  --red: #ef5350;
+
+  --shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.3);
+
+  --scrollbar-thumb: #2b3855;
+  --scrollbar-thumb-hover: #3a4a70;
+  --hover-border: #3a4a70;
+  --overlay-scrim: rgba(3, 6, 14, 0.72);
+  --flash-error-text: #ffb4a8;
+  --flash-ok-text: #8de8c4;
+  --grad-1: rgba(76, 141, 255, 0.10);
+  --grad-2: rgba(34, 197, 143, 0.07);
+
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -43,9 +87,9 @@ html { scroll-behavior: smooth; }
    place against a clean light UI */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #c3cedf; border-radius: 6px; border: 2px solid var(--ink-0); }
-::-webkit-scrollbar-thumb:hover { background: #a8b6cc; }
-* { scrollbar-color: #c3cedf transparent; scrollbar-width: thin; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 6px; border: 2px solid var(--ink-0); }
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
+* { scrollbar-color: var(--scrollbar-thumb) transparent; scrollbar-width: thin; }
 
 button, a, input, select, textarea, .card, .cta-card, .wl-card, .msg-bubble {
   transition: border-color 0.15s ease, background-color 0.15s ease,
@@ -59,19 +103,22 @@ main { animation: page-in 0.25s ease both; }
   main { animation: none; }
 }
 
-html { color-scheme: light; }
-
 body {
   margin: 0;
   background: var(--ink-0);
   background-image:
-    radial-gradient(circle at 85% -10%, rgba(30, 86, 201, 0.06), transparent 45%),
-    radial-gradient(circle at -5% 60%, rgba(14, 124, 86, 0.05), transparent 40%);
+    radial-gradient(circle at 85% -10%, var(--grad-1), transparent 45%),
+    radial-gradient(circle at -5% 60%, var(--grad-2), transparent 40%);
   color: var(--bone);
   font-family: var(--sans);
   font-size: 15px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body { transition: none; }
 }
 
 a { color: var(--gold); text-decoration: none; }
@@ -82,6 +129,35 @@ a:hover { text-decoration: underline; }
 :focus-visible {
   outline: 2px solid var(--gold);
   outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------- theme toggle */
+
+.theme-toggle {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  background: var(--ink-1);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  color: var(--bone-dim);
+  flex: none;
+}
+.theme-toggle:hover { border-color: var(--gold-dim); color: var(--gold); }
+.theme-toggle svg { width: 18px; height: 18px; }
+.theme-toggle .icon-moon { display: block; }
+.theme-toggle .icon-sun { display: none; }
+:root[data-theme="dark"] .theme-toggle .icon-moon { display: none; }
+:root[data-theme="dark"] .theme-toggle .icon-sun { display: block; }
+
+.theme-toggle-float {
+  position: fixed;
+  top: 20px; right: 28px;
+  z-index: 150;
+}
+@media (max-width: 768px) {
+  .theme-toggle-float { display: none; } /* the topbar's toggle takes over on mobile */
 }
 
 /* ---------------------------------------------------------------- layout */
@@ -233,7 +309,7 @@ h1.page-title {
   padding: 24px;
   box-shadow: var(--shadow-sm);
 }
-.card:hover { border-color: #c3cedf; }
+.card:hover { border-color: var(--hover-border); }
 
 .card + .card { margin-top: 20px; }
 
@@ -561,8 +637,8 @@ table.data-table th { color: var(--gold-dim); font-weight: 500; text-transform: 
   margin-bottom: 20px;
   border: 1px solid;
 }
-.flash-error { background: rgba(192, 57, 43, 0.08); border-color: var(--red); color: #8a2a1f; }
-.flash-ok { background: rgba(14, 124, 86, 0.08); border-color: var(--teal); color: #0b5c3f; }
+.flash-error { background: rgba(192, 57, 43, 0.08); border-color: var(--red); color: var(--flash-error-text); }
+.flash-ok { background: rgba(14, 124, 86, 0.08); border-color: var(--teal); color: var(--flash-ok-text); }
 
 .remove-link { color: var(--red); font-family: var(--sans); font-size: 12.5px; }
 
@@ -589,7 +665,7 @@ table.data-table th { color: var(--gold-dim); font-weight: 500; text-transform: 
   flex-direction: column;
   gap: 10px;
 }
-.wl-card:hover { border-color: var(--gold-dim); box-shadow: 0 8px 20px rgba(16,24,40,0.10); transform: translateY(-1px); }
+.wl-card:hover { border-color: var(--gold-dim); box-shadow: var(--shadow); transform: translateY(-1px); }
 
 .wl-card-head { display: flex; justify-content: space-between; align-items: baseline; }
 
@@ -730,7 +806,7 @@ table.data-table th { color: var(--gold-dim); font-weight: 500; text-transform: 
 
 .loading-overlay {
   position: fixed; inset: 0; z-index: 1000;
-  background: rgba(15, 23, 42, 0.6);
+  background: var(--overlay-scrim);
   display: flex; align-items: center; justify-content: center;
   opacity: 0; pointer-events: none;
   transition: opacity 0.2s ease;
