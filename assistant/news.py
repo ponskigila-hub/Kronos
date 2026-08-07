@@ -3,7 +3,10 @@ News-aware analysis (item #3).
 
 Default source: yfinance's built-in `Ticker.news`, which needs no API key
 at all. If FINNHUB_API_KEY / NEWSAPI_API_KEY are set in the environment,
-those are used as richer/backup sources.
+those are used as richer/backup sources, tried in this order:
+yfinance -> Finnhub -> NewsAPI. Each is only attempted if the previous one
+returned nothing, and each is a no-op (returns []) if its key isn't set --
+so this always degrades gracefully back to "no extra key needed".
 
 Sentiment is a small lexicon-based scorer -- no extra heavy ML dependency
 required. It's intentionally simple and transparent rather than a black box;
@@ -107,6 +110,54 @@ def _from_finnhub(ticker, limit=8):
     return items
 
 
+def _from_newsapi(ticker, limit=8):
+    if not NEWSAPI_API_KEY:
+        return []
+    try:
+        resp = requests.get(
+            "https://newsapi.org/v2/everything",
+            params={
+                "q": ticker,
+                "sortBy": "publishedAt",
+                "language": "en",
+                "pageSize": limit,
+                "apiKey": NEWSAPI_API_KEY,
+            },
+            timeout=8,
+        )
+        resp.raise_for_status()
+        raw = (resp.json() or {}).get("articles", [])
+    except Exception:
+        raw = []
+    items = []
+    for entry in raw[:limit]:
+        title = entry.get("title", "")
+        if not title:
+            continue
+        score, label = score_sentiment(title)
+        source = entry.get("source") or {}
+        items.append({
+            "title": title,
+            "publisher": source.get("name", "NewsAPI"),
+            "link": entry.get("url", ""),
+            "published": entry.get("publishedAt", ""),
+            "sentiment_score": score,
+            "sentiment_label": label,
+        })
+    return items
+
+
+def active_source():
+    """Which source get_news() would try first among the *optional* extras
+    (yfinance itself needs no key and always runs first). Used by the web
+    app to show an accurate "News source" status badge."""
+    if FINNHUB_API_KEY:
+        return "Finnhub (configured)"
+    if NEWSAPI_API_KEY:
+        return "NewsAPI (configured)"
+    return "Yahoo Finance only (no extra key set)"
+
+
 def get_news(ticker, limit=8):
     """
     Returns (news_items, aggregate_summary) where aggregate_summary is
@@ -115,6 +166,8 @@ def get_news(ticker, limit=8):
     items = _from_yfinance(ticker, limit=limit)
     if not items:
         items = _from_finnhub(ticker, limit=limit)
+    if not items:
+        items = _from_newsapi(ticker, limit=limit)
 
     if not items:
         return [], {"avg_score": 0.0, "label": "no data", "positive": 0, "negative": 0, "neutral": 0}

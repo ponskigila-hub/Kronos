@@ -25,6 +25,7 @@ from assistant.core_assistant import StockAssistant
 from assistant import watchlist as watchlist_store
 from assistant import data_fetcher, indicators, forecaster as forecaster_mod, charts, config as assistant_config
 from assistant import portfolio_analysis, fundamentals, watchlist_extras
+from assistant import news as news_mod, llm as llm_mod
 from assistant.data_fetcher import TickerNotFoundError
 from assistant.ticker_directory import search_tickers
 from assistant.conversation import get_context
@@ -34,6 +35,21 @@ app = Flask(__name__)
 app.secret_key = os.getenv("WEBAPP_SECRET_KEY", "kronos-dev-secret-change-me")
 
 bot = StockAssistant()
+
+
+@app.context_processor
+def inject_integration_status():
+    """Makes an `integrations` dict available in every template (sidebar
+    badges, etc.) without every route having to pass it explicitly. Reflects
+    the *actual* runtime state -- e.g. ai_wording_enabled only reports True
+    if the Anthropic client really initialized, not just if a key is set."""
+    return {
+        "integrations": {
+            "news_extra_configured": bool(assistant_config.FINNHUB_API_KEY or assistant_config.NEWSAPI_API_KEY),
+            "news_source_label": news_mod.active_source(),
+            "ai_wording_enabled": llm_mod.is_available(),
+        }
+    }
 
 # Charts/backtest images already save under assistant_data/{charts,backtests};
 # this route serves them directly instead of copying into static/.

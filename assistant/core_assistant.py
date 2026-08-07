@@ -6,7 +6,7 @@ requirement: "keep all business logic independent of Discord or WhatsApp".
 """
 from . import (
     data_fetcher, indicators, forecaster, news, explain, charts, watchlist,
-    fundamentals, portfolio_analysis,
+    fundamentals, portfolio_analysis, llm,
 )
 from .data_fetcher import TickerNotFoundError
 from .nlp import parse_intent
@@ -201,6 +201,9 @@ class StockAssistant:
             ticker, ind_df, fc, news_summary,
             beginner=context.beginner_mode, earnings_warning=earnings_warning, regime_note=regime_note,
         )
+        explanation["text"] = llm.polish_explanation(
+            explanation["text"], ticker=ticker, beginner=context.beginner_mode,
+        )
         fig = charts.build_forecast_chart(ticker, hist_df, ind_df, fc, news_items)
         image_path = charts.build_forecast_png(ticker, hist_df, fc)
 
@@ -313,6 +316,9 @@ class StockAssistant:
         explanation = explain.build_explanation(
             ticker, ind_df, fc, news_summary,
             beginner=context.beginner_mode, earnings_warning=earnings_warning, regime_note=regime_note,
+        )
+        explanation["text"] = llm.polish_explanation(
+            explanation["text"], ticker=ticker, beginner=context.beginner_mode,
         )
         return {"text": explanation["text"], "chart": None,
                 "data": {"ticker": ticker, "sparkline": self._sparkline(hist_df)}}

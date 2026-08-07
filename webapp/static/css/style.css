@@ -274,6 +274,19 @@ a:hover { text-decoration: underline; }
 
 .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--teal); margin-right: 6px; }
 
+.integrations-status { margin-top: 10px; display: flex; flex-direction: column; gap: 5px; }
+.integration-badge {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.02em;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.integration-badge .dot { margin-right: 0; }
+.integration-badge.on .dot { background: var(--teal); animation: pulse-dot 1.8s ease-in-out infinite; }
+.integration-badge.off .dot { background: var(--bone-dim); opacity: 0.6; }
+.integration-badge.off { color: var(--bone-dim); }
+@media (prefers-reduced-motion: reduce) {
+  .integration-badge.on .dot { animation: none; }
+}
+
 main {
   padding: 40px 48px 80px;
   max-width: 1080px;
