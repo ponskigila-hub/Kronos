@@ -143,6 +143,32 @@ def api_ticker_search():
 
 
 # ---------------------------------------------------------------------------
+# News -- ticker-specific headlines + sentiment (assistant/news.py)
+# ---------------------------------------------------------------------------
+@app.route("/news")
+def news():
+    ticker = (request.args.get("ticker") or "").strip().upper()
+    return render_template("news.html", active="news", ticker=ticker)
+
+
+@app.route("/api/news")
+def api_news():
+    ticker = (request.args.get("ticker") or "").strip().upper()
+    if not ticker:
+        return jsonify({"error": "Enter a ticker."}), 400
+    try:
+        items, summary = news_mod.get_news(ticker, limit=12)
+    except Exception:
+        return jsonify({"error": f"Couldn't fetch news for {ticker} right now."}), 502
+    return jsonify({
+        "ticker": ticker,
+        "items": items,
+        "summary": summary,
+        "source_label": news_mod.active_source(),
+    })
+
+
+# ---------------------------------------------------------------------------
 # Forecast -- ticker and CSV upload
 # ---------------------------------------------------------------------------
 @app.route("/forecast")

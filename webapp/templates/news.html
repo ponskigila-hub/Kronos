@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Kronos — News{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <p class="eyebrow">Headlines &amp; sentiment</p>
+  <h1 class="page-title">News</h1>
+  <p class="page-desc">Look up a ticker to see its latest headlines, scored positive / negative / neutral. Runs on {{ integrations.news_source_label }}.</p>
+</div>
+
+<div class="card">
+  <form id="newsForm" autocomplete="off">
+    <div class="field-row">
+      <div class="field ticker-input-wrap">
+        <label for="newsTicker">Ticker</label>
+        <input type="text" id="newsTicker" name="ticker" placeholder="AAPL, BTC-USD, MSFT…" value="{{ ticker }}" required>
+        <div class="ticker-suggest drop-down" id="newsTickerSuggest"></div>
+      </div>
+    </div>
+    <button class="btn" type="submit">Get news</button>
+  </form>
+</div>
+
+<div id="newsResults"></div>
+
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/news.js') }}"></script>
+{% endblock %}

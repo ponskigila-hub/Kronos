@@ -600,6 +600,7 @@ input:focus, select:focus { border-color: var(--gold-dim); }
   z-index: 10;
 }
 .ticker-suggest.open { display: block; }
+.ticker-suggest.drop-down { bottom: auto; top: calc(100% + 6px); }
 .ticker-suggest-item {
   padding: 9px 14px;
   cursor: pointer;
@@ -633,6 +634,39 @@ input:focus, select:focus { border-color: var(--gold-dim); }
 
 .chart-embed { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; margin-top: 18px; }
 .chart-embed img { width: 100%; display: block; }
+
+/* --------------------------------------------------------------- news tab */
+
+.news-summary {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 14px; margin-bottom: 14px;
+  background: var(--ink-2); border: 1px solid var(--line); border-radius: var(--radius);
+}
+.news-summary-label {
+  font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+  padding: 3px 8px; border-radius: 4px; font-weight: 500;
+}
+.news-summary-counts { font-family: var(--mono); font-size: 12px; color: var(--bone-dim); }
+
+.sent-badge {
+  font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em;
+  padding: 3px 8px; border-radius: 4px; white-space: nowrap; flex-shrink: 0; height: fit-content;
+}
+.sent-pos { background: rgba(14, 124, 86, 0.12); color: var(--teal); }
+.sent-neg { background: rgba(192, 57, 43, 0.12); color: var(--red); }
+.sent-neu { background: var(--ink-3); color: var(--bone-dim); }
+
+.news-list { display: flex; flex-direction: column; gap: 10px; }
+.news-item {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 14px;
+  padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--ink-1); text-decoration: none; transition: border-color 0.15s, background 0.15s;
+}
+a.news-item:hover { border-color: var(--hover-border); background: var(--ink-2); }
+.news-item-main { min-width: 0; }
+.news-item-title { color: var(--bone); font-size: 13.5px; line-height: 1.4; font-weight: 500; }
+.news-item-meta { color: var(--bone-dim); font-size: 11.5px; font-family: var(--mono); margin-top: 4px; }
+.news-source-note { color: var(--bone-dim); font-size: 11.5px; font-family: var(--mono); margin: 14px 0 0; }
 
 table.data-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12.5px; }
 table.data-table th, table.data-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
