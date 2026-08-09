@@ -26,6 +26,12 @@ from assistant import watchlist as watchlist_store
 from assistant import data_fetcher, indicators, forecaster as forecaster_mod, charts, config as assistant_config
 from assistant import portfolio_analysis, fundamentals, watchlist_extras
 from assistant import news as news_mod, llm as llm_mod
+from assistant import storage as storage_mod
+from assistant.screener import engine as screener_engine
+from assistant.screener import universe as screener_universe
+from assistant.screener import presets as screener_presets
+from assistant.screener import filters as screener_filters
+from assistant.config import SCREENER_CONFIG
 from assistant.data_fetcher import TickerNotFoundError
 from assistant.ticker_directory import search_tickers
 from assistant.conversation import get_context
@@ -169,6 +175,85 @@ def api_news():
 
 
 # ---------------------------------------------------------------------------
+# Stock Screener (assistant/screener/)
+# ---------------------------------------------------------------------------
+@app.route("/screener", methods=["GET"])
+def screener():
+    return render_template(
+        "screener.html", active="screener",
+        universes=screener_universe.UNIVERSES, presets=screener_presets.PRESETS,
+        metric_catalog=screener_filters.METRIC_CATALOG, config=SCREENER_CONFIG,
+    )
+
+
+@app.route("/screener/run", methods=["POST"])
+def screener_run():
+    universe_key = request.form.get("universe") or "sp500"
+    preset_key = request.form.get("preset") or "none"
+    custom_text = request.form.get("custom_tickers") or ""
+    enable_kronos = request.form.get("enable_kronos") == "on"
+    pred_len = int(request.form.get("pred_len") or 30)
+    min_dollar_volume = float(request.form.get("min_dollar_volume") or SCREENER_CONFIG["min_avg_dollar_volume"])
+    lookback_days = int(request.form.get("lookback_days") or SCREENER_CONFIG["lookback_days"])
+    preselection_count = int(request.form.get("preselection_count") or SCREENER_CONFIG["preselection_count"])
+    final_count = int(request.form.get("final_count") or SCREENER_CONFIG["final_count"])
+
+    csv_rows = None
+    if universe_key == "csv":
+        file = request.files.get("csv_file")
+        if not file or file.filename == "":
+            flash("Choose a CSV file with a ticker/symbol column first.", "error")
+            return redirect(url_for("screener"))
+        import csv
+        import io
+        try:
+            text = file.read().decode("utf-8-sig")
+            csv_rows = list(csv.DictReader(io.StringIO(text)))
+        except Exception as e:
+            flash(f"Couldn't read that CSV: {e}", "error")
+            return redirect(url_for("screener"))
+
+    custom_filters = []
+    raw_filters = request.form.get("custom_filters_json") or "[]"
+    try:
+        import json
+        for f in json.loads(raw_filters):
+            metric, op, val = f.get("metric"), f.get("op"), f.get("value")
+            if not metric or not op or val in (None, ""):
+                continue
+            val = float(val)
+            if metric in screener_filters.PERCENT_METRICS:
+                val = val / 100.0
+            custom_filters.append((metric, op, val))
+    except (ValueError, TypeError, AttributeError):
+        pass  # malformed filter rows are skipped, not a hard error -- the rest of the screen still runs
+
+    try:
+        result = screener_engine.run_screen(
+            universe_key=universe_key, user_id=_user_id(),
+            custom_text=custom_text, csv_rows=csv_rows,
+            preset_key=preset_key, custom_filters=custom_filters,
+            min_avg_dollar_volume=min_dollar_volume, lookback_days=lookback_days,
+            preselection_count=preselection_count, final_count=final_count,
+            enable_kronos=enable_kronos, pred_len=pred_len,
+        )
+    except Exception as e:
+        flash(f"Screen failed: {e}", "error")
+        return redirect(url_for("screener"))
+
+    if result.get("error"):
+        flash(result["error"], "error")
+        return redirect(url_for("screener"))
+
+    return render_template(
+        "screener.html", active="screener",
+        universes=screener_universe.UNIVERSES, presets=screener_presets.PRESETS,
+        metric_catalog=screener_filters.METRIC_CATALOG, config=SCREENER_CONFIG,
+        result=result,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Forecast -- ticker and CSV upload
 # ---------------------------------------------------------------------------
 @app.route("/forecast")
@@ -290,7 +375,30 @@ def backtest():
 @app.route("/watchlist")
 def watchlist():
     return render_template("watchlist.html", active="watchlist",
-                            watchlist=watchlist_store.get(_user_id()))
+                            watchlist=watchlist_store.get(_user_id()),
+                            auto_backups=storage_mod.list_backups(assistant_config.WATCHLIST_PATH))
+
+
+@app.route("/watchlist/backup/now", methods=["POST"])
+def watchlist_backup_now():
+    """Manual, on-demand snapshot on top of the automatic ones taken on
+    every edit and on server shutdown -- see assistant/storage.py."""
+    storage_mod.snapshot_all(tag="manual")
+    flash("Backup snapshot saved.", "ok")
+    return redirect(url_for("watchlist"))
+
+
+@app.route("/watchlist/backup/restore", methods=["POST"])
+def watchlist_backup_restore():
+    """Restore watchlists.json from one of its own rotating backups.
+    Notes/entry zones are untouched -- only the ticker list itself."""
+    backup_file = request.form.get("backup_file") or ""
+    try:
+        storage_mod.restore_backup(assistant_config.WATCHLIST_PATH, backup_file)
+        flash("Watchlist restored from backup.", "ok")
+    except Exception as e:
+        flash(f"Couldn't restore that backup: {e}", "error")
+    return redirect(url_for("watchlist"))
 
 
 @app.route("/watchlist/correlation")
@@ -308,7 +416,8 @@ def watchlist_correlation():
         text += f"\n(couldn't fetch: {', '.join(failed)})"
     image_path = portfolio_analysis.build_correlation_heatmap(corr_df)
     return render_template("watchlist.html", active="watchlist", watchlist=wl,
-                            corr_text=text, corr_image_url=_to_url(image_path))
+                            corr_text=text, corr_image_url=_to_url(image_path),
+                            auto_backups=storage_mod.list_backups(assistant_config.WATCHLIST_PATH))
 
 
 @app.route("/watchlist/export")

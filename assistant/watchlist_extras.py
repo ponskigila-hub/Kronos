@@ -8,29 +8,24 @@ exact same pattern as assistant/watchlist.py:
 
 Both are personal annotations, not analysis -- nothing here calls Kronos or
 does any calculation beyond the entry-zone in/out check.
+
+Persistence goes through assistant.storage (atomic writes + rotating
+backups with automatic recovery) -- see assistant/storage.py.
 """
-import json
-import os
 import threading
 
+from . import storage
 from .config import WATCHLIST_NOTES_PATH, WATCHLIST_ENTRY_ZONES_PATH
 
 _lock = threading.Lock()
 
 
 def _load(path):
-    if not os.path.exists(path):
-        return {}
-    with open(path, "r") as f:
-        try:
-            return json.load(f)
-        except json.JSONDecodeError:
-            return {}
+    return storage.load_json(path)
 
 
 def _save(path, data):
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2)
+    storage.save_json(path, data)
 
 
 # ---------------------------------------------------------------------------

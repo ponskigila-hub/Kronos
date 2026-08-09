@@ -101,3 +101,33 @@ DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN", "")
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")
 TWILIO_WHATSAPP_FROM = os.getenv("TWILIO_WHATSAPP_FROM", "")
+
+# ---------------------------------------------------------------------------
+# Stock Screener (assistant/screener/) -- ranks a universe of tickers on
+# trend/momentum/volatility/liquidity/risk/relative-strength, then optionally
+# runs Kronos on just the top candidates. Fully price/volume based, no API
+# key required. These are engineering defaults, not user secrets, so they
+# live here (not in .env) -- edit this dict directly to change them.
+# ---------------------------------------------------------------------------
+SCREENER_CACHE_DIR = os.path.join(DATA_DIR, "screener_cache")
+os.makedirs(SCREENER_CACHE_DIR, exist_ok=True)
+
+SCREENER_CONFIG = {
+    "min_history_days": 150,        # below this, a ticker is marked "insufficient history" rather than scored
+    "min_avg_dollar_volume": 1_000_000,  # 20D avg (close * volume); below this, flagged "low liquidity"
+    "benchmark": "SPY",             # used for relative strength + beta
+    "lookback_days": 400,           # how much history to pull per ticker
+    "preselection_count": 30,       # how many top-ranked-by-technicals candidates advance to the Kronos stage
+    "final_count": 10,              # how many the final ranked list shows
+    "max_workers": 8,               # concurrent download threads
+    "cache_ttl_minutes": 60,        # reuse downloaded OHLCV within this window instead of re-fetching
+    "weights": {                    # must sum to 1.0 when kronos is disabled these are re-normalized automatically
+        "trend": 0.25,
+        "momentum": 0.20,
+        "relative_strength": 0.15,
+        "volatility": 0.10,
+        "liquidity": 0.10,
+        "risk": 0.10,
+        "kronos": 0.10,
+    },
+}

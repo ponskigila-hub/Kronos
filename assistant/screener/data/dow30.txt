@@ -1,0 +1,36 @@
+# Dow Jones Industrial Average -- 30 constituents.
+# Static snapshot bundled for offline use. assistant/screener/universe.py
+# tries a live refresh from a public source first and falls back to this
+# file if that fails (no internet, source unreachable, parsing changes) --
+# see universe.py. Refresh this file occasionally; membership changes are
+# rare (a handful of times per year) but do happen.
+MMM
+AXP
+AMGN
+AMZN
+AAPL
+BA
+CAT
+CVX
+CSCO
+KO
+DIS
+GS
+HD
+HON
+IBM
+JNJ
+JPM
+MCD
+MRK
+MSFT
+NKE
+NVDA
+PG
+CRM
+SHW
+TRV
+UNH
+VZ
+V
+WMT

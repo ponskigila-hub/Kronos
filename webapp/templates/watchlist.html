@@ -27,14 +27,31 @@
 <details class="backup-details">
   <summary>Backup &amp; restore</summary>
   <div class="card" style="margin-top:12px;">
-    <p class="page-desc" style="margin:0 0 14px;">Your watchlist, notes, and entry zones are saved locally in <code>assistant_data/</code> and are never touched by app updates. Export here anyway if you want a portable copy — importing only ever <em>adds</em> tickers and fills in missing notes/zones, it never overwrites or deletes anything you already have.</p>
-    <div style="display:flex; gap:24px; flex-wrap:wrap;">
+    <p class="page-desc" style="margin:0 0 14px;">Your watchlist, notes, and entry zones are saved locally in <code>assistant_data/</code> and are never touched by app updates. Every change is written atomically (no corrupt file on a crash) and automatically snapshotted — including once whenever this server shuts down — so there's always a recent restore point below without you having to do anything.</p>
+    <div style="display:flex; gap:24px; flex-wrap:wrap; margin-bottom: {{ '20px' if auto_backups else '0' }};">
       <a class="btn btn-ghost" href="{{ url_for('watchlist_export') }}">Download backup (.json)</a>
       <form method="post" action="{{ url_for('watchlist_import') }}" enctype="multipart/form-data" data-loading-message="Importing backup…" style="display:flex; gap:10px; align-items:center;">
         <input type="file" name="file" accept=".json" required>
         <button class="btn btn-ghost" type="submit">Import backup</button>
       </form>
+      <form method="post" action="{{ url_for('watchlist_backup_now') }}" style="margin:0;">
+        <button class="btn btn-ghost" type="submit">Back up now</button>
+      </form>
     </div>
+    {% if auto_backups %}
+    <div class="page-desc" style="margin:0 0 8px; font-family: var(--mono); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em;">Automatic restore points (newest first)</div>
+    <div class="backup-list">
+      {% for b in auto_backups %}
+      <div class="backup-row">
+        <span class="backup-label">{{ b.label }}</span>
+        <form method="post" action="{{ url_for('watchlist_backup_restore') }}" onsubmit="return confirm('Restore your ticker list from this backup? Current tickers will be replaced with this snapshot.');">
+          <input type="hidden" name="backup_file" value="{{ b.file }}">
+          <button type="submit" class="btn btn-ghost btn-small">Restore</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
   </div>
 </details>
 

@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}Kronos — Screener{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <p class="eyebrow">Quantitative research</p>
+  <h1 class="page-title">Stock Screener</h1>
+  <p class="page-desc">Rank a universe of stocks on trend, momentum, volatility, liquidity, risk, and relative strength — then optionally send only the strongest setups to Kronos for a forecast. Quantitative signals, not financial advice.</p>
+</div>
+
+<form id="screenerForm" method="post" action="{{ url_for('screener_run') }}" enctype="multipart/form-data" data-loading-message="Scanning universe — this can take a while for large universes or with Kronos enabled…">
+  <div class="card">
+    <div class="card-title">Universe</div>
+    <div class="field-row">
+      <div class="field">
+        <label for="universe">Universe</label>
+        <select id="universe" name="universe">
+          {% for key, label in universes.items() %}
+          <option value="{{ key }}" {{ 'selected' if request.form.universe == key }}>{{ label }}</option>
+          {% endfor %}
+          <option value="custom" {{ 'selected' if request.form.universe == 'custom' }}>Custom list</option>
+          <option value="csv" {{ 'selected' if request.form.universe == 'csv' }}>CSV upload</option>
+        </select>
+      </div>
+    </div>
+    <div class="field" id="customTickersField" style="display:none;">
+      <label for="custom_tickers">Tickers (comma or newline separated)</label>
+      <textarea id="custom_tickers" name="custom_tickers" rows="3" placeholder="AAPL, MSFT, NVDA, ...">{{ request.form.custom_tickers if request.form.custom_tickers else '' }}</textarea>
+    </div>
+    <div class="field" id="csvUploadField" style="display:none;">
+      <label for="csv_file">CSV file (needs a "ticker" or "symbol" column)</label>
+      <input type="file" id="csv_file" name="csv_file" accept=".csv">
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Strategy</div>
+    <div class="field-row">
+      <div class="field">
+        <label for="preset">Preset</label>
+        <select id="preset" name="preset">
+          {% for key, p in presets.items() %}
+          <option value="{{ key }}" title="{{ p.description }}" {{ 'selected' if request.form.preset == key }}>{{ p.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <p class="page-desc" id="presetDesc" style="margin:0 0 14px;"></p>
+
+    <div class="filter-builder">
+      <div class="filter-builder-head">
+        <span class="card-title" style="margin:0;">Custom filters</span>
+        <button type="button" class="btn btn-ghost btn-small" id="addFilterRow">+ Add filter</button>
+      </div>
+      <div id="filterRows"></div>
+      <p class="page-desc" style="margin:8px 0 0;">All filters combine with AND. Percent-style metrics (returns, drawdown, distance from high/low) are entered as whole numbers — e.g. type <code>5</code> for 5%.</p>
+    </div>
+    <input type="hidden" name="custom_filters_json" id="customFiltersJson" value="[]">
+  </div>
+
+  <div class="card">
+    <div class="card-title">Universal filters &amp; scope</div>
+    <div class="field-row">
+      <div class="field">
+        <label for="min_dollar_volume">Minimum avg. dollar volume (20D)</label>
+        <input type="number" id="min_dollar_volume" name="min_dollar_volume" min="0" step="100000"
+               value="{{ request.form.min_dollar_volume if request.form.min_dollar_volume else config.min_avg_dollar_volume }}">
+      </div>
+      <div class="field">
+        <label for="lookback_days">History to pull (days)</label>
+        <input type="number" id="lookback_days" name="lookback_days" min="150" max="1500"
+               value="{{ request.form.lookback_days if request.form.lookback_days else config.lookback_days }}">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="preselection_count">Candidates to shortlist</label>
+        <input type="number" id="preselection_count" name="preselection_count" min="5" max="100"
+               value="{{ request.form.preselection_count if request.form.preselection_count else config.preselection_count }}">
+      </div>
+      <div class="field">
+        <label for="final_count">Top candidates to highlight</label>
+        <input type="number" id="final_count" name="final_count" min="3" max="50"
+               value="{{ request.form.final_count if request.form.final_count else config.final_count }}">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Kronos forecast</div>
+    <label class="checkbox-field">
+      <input type="checkbox" id="enable_kronos" name="enable_kronos" {{ 'checked' if request.form.get('enable_kronos') == 'on' }}>
+      Run Kronos on the shortlisted candidates (slower — one forecast per candidate, CPU-only can take a while)
+    </label>
+    <div class="field-row" id="krononsHorizonField" style="margin-top:12px;">
+      <div class="field">
+        <label for="pred_len">Forecast horizon (trading days)</label>
+        <input type="number" id="pred_len" name="pred_len" min="5" max="120"
+               value="{{ request.form.pred_len if request.form.pred_len else 30 }}">
+      </div>
+    </div>
+  </div>
+
+  <button class="btn" type="submit">Run screen</button>
+</form>
+
+{% if result %}
+<div class="card" style="margin-top:24px;">
+  <div class="card-title">Scan summary</div>
+  <div class="screener-summary">
+    <div class="screener-summary-item"><span class="num">{{ result.quality_summary.scanned }}</span><span>scanned</span></div>
+    <div class="screener-summary-item"><span class="num">{{ result.quality_summary.analyzed }}</span><span>analyzed</span></div>
+    <div class="screener-summary-item"><span class="num">{{ result.quality_summary.filtered_out }}</span><span>filtered out</span></div>
+    <div class="screener-summary-item"><span class="num">{{ result.quality_summary.low_liquidity }}</span><span>low liquidity</span></div>
+    <div class="screener-summary-item"><span class="num">{{ result.quality_summary.insufficient_history }}</span><span>insufficient history</span></div>
+    <div class="screener-summary-item"><span class="num">{{ result.quality_summary.download_failed }}</span><span>download failed</span></div>
+  </div>
+  <p class="page-desc" style="margin:12px 0 0;">
+    {{ result.quality_summary.ranked }} ticker(s) ranked in {{ result.elapsed_seconds }}s.
+    {% if result.kronos_ran %}Kronos ran on the top {{ result.config_used.preselection_count }} candidates ({{ result.config_used.pred_len }}-day horizon).{% else %}Kronos forecast stage was not run.{% endif %}
+    {% if result.skipped %}<a href="#skippedDetails" onclick="document.getElementById('skippedDetails').open=true;">See {{ result.skipped|length }} skipped ticker(s)</a>.{% endif %}
+  </p>
+</div>
+
+<div class="card">
+  <div class="card-title-row">
+    <div class="card-title" style="margin:0;">Top candidates</div>
+    <div style="display:flex; gap:10px;">
+      <input type="text" id="resultSearch" placeholder="Filter by ticker…" class="table-search">
+      <button type="button" class="btn btn-ghost btn-small" id="exportCsvBtn">Export CSV</button>
+    </div>
+  </div>
+  <div style="overflow-x:auto;">
+    <table class="data-table screener-table" id="screenerTable">
+      <thead>
+        <tr>
+          <th data-sort="rank">#</th>
+          <th data-sort="ticker">Ticker</th>
+          <th data-sort="price">Price</th>
+          <th data-sort="overall_score">Score</th>
+          <th data-sort="trend">Trend</th>
+          <th data-sort="momentum">Momentum</th>
+          <th data-sort="relative_strength">Rel. Strength</th>
+          <th data-sort="volatility">Volatility</th>
+          <th data-sort="liquidity">Liquidity</th>
+          <th data-sort="risk">Risk</th>
+          <th data-sort="kronos">Kronos Exp. Return</th>
+          <th data-sort="signal">Signal</th>
+        </tr>
+      </thead>
+      <tbody id="screenerTableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div id="screenerDetail"></div>
+
+{% if result.skipped %}
+<details class="backup-details" id="skippedDetails">
+  <summary>Skipped tickers ({{ result.skipped|length }})</summary>
+  <div class="card" style="margin-top:12px;">
+    <table class="data-table">
+      <thead><tr><th>Ticker</th><th>Reason</th><th>Detail</th></tr></thead>
+      <tbody>
+        {% for s in result.skipped %}
+        <tr><td>{{ s.ticker }}</td><td>{{ s.reason }}</td><td>{{ s.detail }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</details>
+{% endif %}
+
+<script type="application/json" id="screenerResultData">{{ result | tojson }}</script>
+{% endif %}
+
+{% endblock %}
+{% block scripts %}
+<script id="presetData" type="application/json">{{ presets | tojson }}</script>
+<script id="metricCatalogData" type="application/json">{{ metric_catalog | tojson }}</script>
+<script src="{{ url_for('static', filename='js/screener.js') }}"></script>
+{% endblock %}
