@@ -8,12 +8,13 @@
 1. [What's in this repo](#whats-in-this-repo)
 2. [Setup (step by step, all platforms)](#setup-step-by-step-all-platforms)
 3. [Running it](#running-it)
-4. [Troubleshooting](#troubleshooting)
-5. [How it works, end to end](#how-it-works-end-to-end)
-6. [File-by-file explanation](#file-by-file-explanation)
-7. [Feature map](#feature-map)
-8. [Known limitations](#known-limitations)
-9. [Kronos base model -- original documentation](#kronos-base-model----original-documentation)
+4. [Performance & GPU acceleration](#performance--gpu-acceleration)
+5. [Troubleshooting](#troubleshooting)
+6. [How it works, end to end](#how-it-works-end-to-end)
+7. [File-by-file explanation](#file-by-file-explanation)
+8. [Feature map](#feature-map)
+9. [Known limitations](#known-limitations)
+10. [Kronos base model -- original documentation](#kronos-base-model----original-documentation)
 
 ---
 
@@ -25,16 +26,19 @@ this repo adds an `assistant/` package and `integrations/` package that turn it 
 conversational AI stock analysis tool -- similar in spirit to apps like Alva AI, but
 built around Kronos as the forecasting engine.
 
-**Nothing in the original Kronos code was modified.** `model/`, `finetune/`,
-`finetune_csv/`, `examples/`, `webui/`, `yahoopredict.py`, and `csvpredict.py` are all
-untouched. Everything new lives in `assistant/`, `integrations/`, and `chat_cli.py`.
+**The original Kronos forecasting logic is unmodified.** Two files carry small,
+backwards-compatible tweaks purely for inference performance and GPU auto-detection
+-- `model/kronos.py` (the `KronosPredictor` class) and `webui/app.py` (the device
+default). See [Performance & GPU acceleration](#performance--gpu-acceleration) for
+details. `finetune/`, `finetune_csv/`, `examples/`, `yahoopredict.py`, and
+`csvpredict.py` are all untouched.
 
 ```
 Kronos-master/
-├── model/                    <- original Kronos model code (untouched)
+├── model/                    <- original Kronos model code (minor GPU/perf tweaks, see below)
 ├── finetune/, finetune_csv/  <- original finetuning pipelines (untouched)
 ├── examples/                 <- original example scripts (untouched)
-├── webui/                    <- original Flask web UI (untouched, still CSV-based)
+├── webui/                    <- original Flask web UI (device default now auto-detects GPU)
 ├── yahoopredict.py           <- original single-ticker script (untouched)
 ├── csvpredict.py             <- original CSV-based script (untouched)
 │
@@ -50,6 +54,12 @@ Kronos-master/
 ├── WEBAPP_README.md                         <- NEW: web app deep-dive
 └── DEPLOYMENT.md                              <- NEW: how to deploy the web app / bots
 ```
+
+> **Note on this copy of the repo:** the bundled virtualenvs (`kronos_env/`,
+> `.kronos/`), `.git/` history, `__pycache__`, and generated/runtime artifacts
+> (`backtest_results/`, `own_data/`, `assistant_data/`, `webui/prediction_results/`,
+> `last_chart.html`, etc.) have been stripped out to keep the archive small and
+> avoid shipping personal data. Re-run setup below to regenerate a virtualenv.
 
 ---
 
@@ -176,6 +186,46 @@ Open http://127.0.0.1:5050. See `WEBAPP_README.md` for a full walkthrough and de
 
 ---
 
+## Performance & GPU acceleration
+
+`KronosPredictor` (in `model/kronos.py`) auto-detects the best available device --
+you don't need to pass anything:
+
+```python
+predictor = KronosPredictor(model, tokenizer, max_context=512)
+# picks, in order: CUDA GPU -> Apple Silicon (MPS) -> CPU
+```
+
+Pass `device="cpu"`, `device="cuda:0"`, etc. explicitly if you want to override
+auto-detection.
+
+What happens automatically on a CUDA GPU:
+- **Mixed precision** (`torch.autocast`, bf16 where supported, else fp16) around
+  the forward passes -- usually the single biggest speedup for this kind of model.
+- **`cudnn.benchmark = True`** and **TF32 matmuls enabled**, since inference reuses
+  the same fixed input shapes repeatedly.
+- **`model.eval()` / `tokenizer.eval()`** are called on load so dropout etc. don't
+  run during inference.
+
+None of this changes forecast output in a meaningful way, and it's a no-op on
+CPU/MPS (you just get the eval-mode + auto-detect benefits there).
+
+**Web UI (`webui/app.py`):** the device dropdown defaults to **"Auto (use GPU if
+available)"**. Previously it defaulted to CPU even if a GPU was present -- if
+you're using an older copy of this repo, update the dropdown or pass
+`device="cuda:0"` explicitly when loading a model.
+
+**Verifying a GPU is actually being used:**
+```python
+print(predictor.device)  # e.g. "cuda:0"
+```
+If this prints `"cpu"` on a machine with an NVIDIA GPU, PyTorch's CPU-only build is
+likely installed -- `pip install torch` alone gives you that. Install the CUDA
+build for your platform from https://pytorch.org/get-started/locally/, then
+reinstall the rest of `requirements.txt`.
+
+---
+
 ## Troubleshooting
 
 | Problem | Fix |
@@ -186,6 +236,7 @@ Open http://127.0.0.1:5050. See `WEBAPP_README.md` for a full walkthrough and de
 | `$TICKER: possibly delisted; no price data found` | Ticker doesn't exist on Yahoo Finance, or you're offline. Try `AAPL` first. |
 | Chart PNG doesn't auto-open | It still saved to `assistant_data/charts/` -- open it manually. Auto-open silently no-ops on headless/server setups. |
 | `pip install` fails on `torch` | Ensure Python 3.10+ and enough disk space; you may need a platform-specific command from https://pytorch.org/get-started/locally/ |
+| Forecasts feel slow / GPU seems unused despite having one | Check `predictor.device` -- if it prints `cpu` on a GPU machine, you likely have the CPU-only PyTorch build installed. See [Performance & GPU acceleration](#performance--gpu-acceleration). |
 
 ---
 
@@ -463,8 +514,11 @@ folder, linked via `PUBLIC_BASE_URL` from your `.env`) if one exists.
 - **WhatsApp uses Twilio**, not Meta's official WhatsApp Business API directly --
   the realistic path for an individual developer; the official API requires
   business verification.
-- **`webui/app.py`** (the original Flask web UI) is unchanged and does not call
-  into `assistant/` yet -- it still works standalone for CSV/local-file predictions.
+- **`webui/app.py`** (the original Flask web UI) does not call into `assistant/`
+  yet -- it still works standalone for CSV/local-file predictions. Its device
+  selection now defaults to auto-detecting a GPU (see
+  [Performance & GPU acceleration](#performance--gpu-acceleration)), but the rest
+  of its behavior is unchanged.
 
 ---
 
@@ -546,12 +600,17 @@ model = Kronos.from_pretrained("NeoQuasar/Kronos-small")
 
 ##### 2. Instantiate the Predictor
 
-Create an instance of `KronosPredictor`, passing the model, tokenizer, and desired
-device.
+Create an instance of `KronosPredictor`, passing the model and tokenizer. Device
+is optional -- it auto-detects a CUDA GPU / Apple Silicon MPS / CPU, in that
+order, and turns on mixed precision automatically on CUDA (see
+[Performance & GPU acceleration](#performance--gpu-acceleration)).
 
 ```python
-# Initialize the predictor
+# Initialize the predictor (auto-detects device)
 predictor = KronosPredictor(model, tokenizer, max_context=512)
+
+# Or pin it explicitly:
+# predictor = KronosPredictor(model, tokenizer, device="cuda:0", max_context=512)
 ```
 
 ##### 3. Prepare Input Data
