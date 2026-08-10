@@ -26,12 +26,15 @@
 </div>
 
 {% if result_text %}
-<div class="card">
-  <div class="card-title">Result — {{ result_ticker }}</div>
-  <div class="result-text">{{ result_text }}</div>
+<div class="result-section">
+  <div class="result-header">
+    <h2>Backtest result</h2>
+    <span class="result-tag">{{ result_ticker }}</span>
+  </div>
   {% if image_url %}
-  <div class="chart-embed"><img src="{{ image_url }}" alt="Backtest direction summary for {{ result_ticker }}"></div>
+  <div class="chart-frame"><img src="{{ image_url }}" alt="Backtest direction summary for {{ result_ticker }}"></div>
   {% endif %}
+  <div class="result-text">{{ result_text }}</div>
 </div>
 {% endif %}
 

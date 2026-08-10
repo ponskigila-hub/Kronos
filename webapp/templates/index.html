@@ -5,36 +5,73 @@
 <section class="hero">
   <div>
     <h1>Time-series forecasting<br>for markets, <em>made conversational.</em></h1>
-    <p>Kronos reads price history the way a language model reads text. Ask it a question, upload your own data, or let it run a walk-forward backtest against itself — all from one desk.</p>
+    <p>Kronos reads price history the way a language model reads text. Ask it a question, screen the market for setups worth a closer look, or let it run a walk-forward backtest against itself — all from one desk.</p>
     <div class="hero-ctas">
       <a class="btn" href="{{ url_for('chat') }}">Start chatting</a>
-      <a class="btn btn-ghost" href="{{ url_for('forecast') }}">Run a forecast</a>
+      <a class="btn btn-ghost" href="{{ url_for('screener') }}">Screen the market</a>
     </div>
   </div>
   {% include "_clockface.html" %}
 </section>
 
-<div class="grid-3">
-  <a class="cta-card" href="{{ url_for('chat') }}">
-    <div class="cta-glyph">01 — CONVERSE</div>
-    <h3>Ask Kronos directly</h3>
-    <p>"Forecast AAPL", "why is it expected to decline", "compare NVDA and AMD" — plain language in, grounded explanation out.</p>
-  </a>
-  <a class="cta-card" href="{{ url_for('forecast') }}">
-    <div class="cta-glyph">02 — SUPPLY DATA</div>
-    <h3>Ticker or your own CSV</h3>
-    <p>Pull live history automatically by ticker, or upload your own OHLCV file for full manual control.</p>
-  </a>
-  <a class="cta-card" href="{{ url_for('backtest') }}">
-    <div class="cta-glyph">03 — VERIFY</div>
-    <h3>Walk-forward backtest</h3>
-    <p>Don't take the forecast on faith — check its historical accuracy against naive and statistical baselines first.</p>
-  </a>
+<div class="section" style="padding-top:28px;">
+  <div class="index-list">
+    <a class="index-row" href="{{ url_for('screener') }}">
+      <span class="index-num">01</span>
+      <div>
+        <h3>Screen the market</h3>
+        <p>Rank a universe of stocks on trend, momentum, volatility, liquidity, and risk — then send only the strongest setups to Kronos for a forecast.</p>
+      </div>
+      <span class="index-arrow">&rarr;</span>
+    </a>
+    <a class="index-row" href="{{ url_for('chat') }}">
+      <span class="index-num">02</span>
+      <div>
+        <h3>Ask Kronos directly</h3>
+        <p>"Forecast AAPL", "why is it expected to decline", "compare NVDA and AMD" — plain language in, grounded explanation out.</p>
+      </div>
+      <span class="index-arrow">&rarr;</span>
+    </a>
+    <a class="index-row" href="{{ url_for('forecast') }}">
+      <span class="index-num">03</span>
+      <div>
+        <h3>Ticker or your own CSV</h3>
+        <p>Pull live history automatically by ticker, or upload your own OHLCV file for full manual control.</p>
+      </div>
+      <span class="index-arrow">&rarr;</span>
+    </a>
+    <a class="index-row" href="{{ url_for('backtest') }}">
+      <span class="index-num">04</span>
+      <div>
+        <h3>Verify with a backtest</h3>
+        <p>Don't take the forecast on faith — check its historical accuracy against naive and statistical baselines first.</p>
+      </div>
+      <span class="index-arrow">&rarr;</span>
+    </a>
+    <a class="index-row" href="{{ url_for('news') }}">
+      <span class="index-num">05</span>
+      <div>
+        <h3>Track the headlines</h3>
+        <p>Look up a ticker to see its latest headlines, scored positive, negative, or neutral.</p>
+      </div>
+      <span class="index-arrow">&rarr;</span>
+    </a>
+  </div>
 </div>
 
-<div class="card" style="margin-top:20px;">
-  <div class="card-title">Your watchlist</div>
+<div class="section">
+  <div class="section-head">
+    <h2>Your watchlist</h2>
+    {% if watchlist %}<a class="section-link" href="{{ url_for('watchlist') }}">Manage watchlist &rarr;</a>{% endif %}
+  </div>
+
   {% if watchlist %}
+    <div class="kpi-row" style="margin-bottom:26px;">
+      <div>
+        <div class="kpi-value"><span class="kpi-accent">{{ watchlist|length }}</span></div>
+        <div class="kpi-label">{{ 'ticker' if watchlist|length == 1 else 'tickers' }} tracked</div>
+      </div>
+    </div>
     <table class="data-table">
       <thead><tr><th>Ticker</th><th></th></tr></thead>
       <tbody>

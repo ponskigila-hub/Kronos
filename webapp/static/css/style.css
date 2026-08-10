@@ -1,80 +1,90 @@
 /* ==========================================================================
    Kronos web app — design system
-   Direction: corporate financial services -- the kind of palette a
-   wealth-management or banking dashboard uses to read as stable and
-   trustworthy: a deep corporate blue as the primary accent, a "wealthy"
-   forest green reserved for gains, a muted red for losses, and clean
-   neutral grays/whites everywhere else. Display type keeps a refined
-   serif for brand moments (private-banking gravitas); body and data use
-   a clean grotesque and a monospace for anything numeric.
+   Direction: premium editorial-financial-intelligence, not a generic
+   corporate-banking dashboard. Warm, deep neutrals (paper/ink rather than
+   cool corporate blue-gray) carry the interface; a single brass/bronze
+   accent stands in for "Kronos" (time, precision, an old instrument) and
+   is used sparingly for brand moments, links, and primary actions. A
+   distinct violet accent is reserved only for AI-generated analysis, so
+   "Kronos Intelligence" content is always visually legible as a distinct
+   layer rather than blending into ordinary UI chrome. Green/red are
+   reserved strictly for financial gain/loss -- never used decoratively.
+   Display type keeps a refined serif for headings (editorial gravitas);
+   body/UI uses a clean grotesque, and all numeric/financial data renders
+   in monospace for that "terminal precision" read.
    ========================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,680&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
 :root {
-  --ink-0: #f3f6fa;   /* page background */
+  --ink-0: #f7f5f0;   /* page background -- warm paper, not cool gray */
   --ink-1: #ffffff;   /* card / surface background */
-  --ink-2: #eef2f8;   /* secondary surface -- inputs, code, chat bubbles */
-  --ink-3: #e1e8f1;   /* tertiary -- hover states, skeleton highlight */
-  --line: #dbe2ed;    /* borders */
-  --bone: #16233f;    /* primary text -- deep navy charcoal, not pure black */
-  --bone-dim: #5b6b84; /* muted text -- slate blue-gray */
-  --gold: #1e56c9;    /* primary accent -- corporate trust blue */
-  --gold-dim: #3b6fc4; /* secondary accent -- softer blue for labels/hovers */
-  --teal: #0e7c56;    /* "wealthy" green -- gains, positive, success */
-  --red: #c0392b;     /* muted corporate red -- losses, errors */
+  --ink-2: #f0ece2;   /* secondary surface -- inputs, code, chat bubbles */
+  --ink-3: #e6e0d2;   /* tertiary -- hover states, skeleton highlight */
+  --line: #ddd6c5;    /* borders */
+  --bone: #17140f;    /* primary text -- warm near-black ink, not pure black */
+  --bone-dim: #6b6354; /* muted text -- warm stone gray */
+  --gold: #9c6d1e;    /* primary accent -- brass/bronze, the Kronos accent */
+  --gold-dim: #b98a3a; /* secondary accent -- softer bronze for labels/hovers */
+  --teal: #147a52;    /* controlled green -- gains, positive, success ONLY */
+  --red: #b23b2e;     /* muted brick red -- losses, errors ONLY */
+  --ai: #5b4b95;      /* Kronos Intelligence accent -- AI-generated content only */
+  --ai-dim: #7a68b8;
 
   --serif: 'Fraunces', Georgia, serif;
   --sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --mono: 'IBM Plex Mono', 'SFMono-Regular', Menlo, monospace;
 
   --radius: 6px;
-  --shadow: 0 12px 32px rgba(16, 24, 40, 0.10);
-  --shadow-sm: 0 2px 8px rgba(16, 24, 40, 0.06);
+  --shadow: 0 16px 36px rgba(23, 20, 15, 0.10);
+  --shadow-sm: 0 2px 8px rgba(23, 20, 15, 0.05);
 
   --topbar-h: 60px;
 
   /* previously hardcoded, now theme-aware */
-  --scrollbar-thumb: #c3cedf;
-  --scrollbar-thumb-hover: #a8b6cc;
-  --hover-border: #c3cedf;
-  --overlay-scrim: rgba(15, 23, 42, 0.6);
+  --scrollbar-thumb: #d6cdb8;
+  --scrollbar-thumb-hover: #bfb397;
+  --hover-border: #c9bea2;
+  --overlay-scrim: rgba(23, 18, 10, 0.6);
   --flash-error-text: #8a2a1f;
   --flash-ok-text: #0b5c3f;
-  --grad-1: rgba(30, 86, 201, 0.06);
-  --grad-2: rgba(14, 124, 86, 0.05);
+  --grad-1: rgba(156, 109, 30, 0.06);
+  --grad-2: rgba(20, 122, 82, 0.05);
 
   color-scheme: light;
 }
 
-/* Dark mode -- toggled via the sun/moon button, top right. Same corporate
-   blue/green/red identity, re-tuned for a dark surface instead of just
-   inverting: brighter accent tones so they still read clearly against a
-   dark background, warmer near-black surfaces instead of pure black. */
+/* Dark mode -- toggled via the sun/moon button, top right. Same warm-ink /
+   brass / AI-violet identity, re-tuned for a dark surface instead of just
+   inverting: brighter accent tones so they still read clearly, warmer
+   near-black surfaces instead of pure black -- meant to read like a
+   professional financial terminal, not an inverted daytime screenshot. */
 :root[data-theme="dark"] {
-  --ink-0: #0b1220;
-  --ink-1: #121b2e;
-  --ink-2: #1a2540;
-  --ink-3: #253253;
-  --line: #2b3855;
-  --bone: #e8edf7;
-  --bone-dim: #8b98b8;
-  --gold: #4c8dff;
-  --gold-dim: #6fa3ff;
-  --teal: #22c58f;
-  --red: #ef5350;
+  --ink-0: #0c0b09;
+  --ink-1: #161310;
+  --ink-2: #201c16;
+  --ink-3: #2b261d;
+  --line: #362f24;
+  --bone: #f3efe4;
+  --bone-dim: #a89c85;
+  --gold: #d9a94b;
+  --gold-dim: #e8c079;
+  --teal: #34c98d;
+  --red: #e2695a;
+  --ai: #9c8ce0;
+  --ai-dim: #b6a8ec;
 
-  --shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
-  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.3);
+  --shadow: 0 16px 36px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.32);
 
-  --scrollbar-thumb: #2b3855;
-  --scrollbar-thumb-hover: #3a4a70;
-  --hover-border: #3a4a70;
-  --overlay-scrim: rgba(3, 6, 14, 0.72);
+  --scrollbar-thumb: #362f24;
+  --scrollbar-thumb-hover: #47402f;
+  --hover-border: #47402f;
+  --overlay-scrim: rgba(6, 5, 3, 0.72);
   --flash-error-text: #ffb4a8;
   --flash-ok-text: #8de8c4;
-  --grad-1: rgba(76, 141, 255, 0.10);
-  --grad-2: rgba(34, 197, 143, 0.07);
+  --grad-1: rgba(217, 169, 75, 0.09);
+  --grad-2: rgba(52, 201, 141, 0.06);
 
   color-scheme: dark;
 }
@@ -255,7 +265,7 @@ a:hover { text-decoration: underline; }
 
 .nav a.active {
   color: var(--gold);
-  background: rgba(30, 86, 201, 0.08);
+  background: color-mix(in srgb, var(--gold) 10%, transparent);
   border-left-color: var(--gold);
   font-weight: 500;
 }
@@ -300,18 +310,20 @@ main {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--gold);
-  margin: 0 0 8px;
+  margin: 0 0 10px;
 }
 
 h1.page-title {
   font-family: var(--serif);
-  font-weight: 500;
-  font-size: clamp(24px, 4vw, 32px);
-  margin: 0 0 8px;
+  font-weight: 560;
+  font-size: clamp(28px, 4.6vw, 40px);
+  line-height: 1.08;
+  letter-spacing: -0.01em;
+  margin: 0 0 10px;
   color: var(--bone);
 }
 
-.page-desc { color: var(--bone-dim); max-width: 60ch; margin: 0; }
+.page-desc { color: var(--bone-dim); max-width: 60ch; margin: 0; font-size: 15px; }
 
 /* ----------------------------------------------------------------- cards */
 
@@ -532,7 +544,7 @@ input:focus, select:focus { border-color: var(--gold-dim); }
   line-height: 1.55;
 }
 .msg-user .msg-bubble { background: var(--gold); color: var(--ink-0); font-weight: 500; }
-.msg-bot .msg-bubble { background: var(--ink-2); border: 1px solid var(--line); color: var(--bone); font-family: var(--mono); font-size: 13px; }
+.msg-bot .msg-bubble { background: var(--ink-2); border: 1px solid var(--line); border-left: 2px solid var(--ai); color: var(--bone); font-family: var(--mono); font-size: 13px; }
 
 .msg-bot img { max-width: 100%; border-radius: var(--radius); margin-top: 10px; border: 1px solid var(--line); }
 
@@ -621,15 +633,31 @@ input:focus, select:focus { border-color: var(--gold-dim); }
 
 /* --------------------------------------------------------------- results */
 
+.result-section { margin-top: 44px; padding-top: 36px; border-top: 1px solid var(--line); }
+.result-header { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; }
+.result-header h2 {
+  font-family: var(--serif); font-weight: 560; font-size: clamp(21px, 2.8vw, 28px);
+  letter-spacing: -0.01em; margin: 0; color: var(--bone);
+}
+.result-header .result-tag { font-family: var(--mono); font-size: 12px; color: var(--gold); letter-spacing: 0.04em; }
+
+.chart-frame {
+  border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden;
+  background: var(--ink-1); box-shadow: var(--shadow-sm);
+}
+.chart-frame img { width: 100%; display: block; }
+
 .result-text {
   font-family: var(--mono);
   font-size: 13px;
   white-space: pre-wrap;
   color: var(--bone);
-  background: var(--ink-2);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 16px;
+  background: transparent;
+  border: none;
+  border-left: 2px solid var(--line);
+  border-radius: 0;
+  padding: 4px 0 4px 18px;
+  margin-top: 24px;
 }
 
 .chart-embed { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; margin-top: 18px; }
@@ -805,23 +833,24 @@ table.data-table th { color: var(--gold-dim); font-weight: 500; text-transform: 
   grid-template-columns: 1fr 220px;
   gap: 40px;
   align-items: center;
-  padding: 12px 0 44px;
-  margin-bottom: 12px;
+  padding: 8px 0 48px;
+  margin-bottom: 8px;
   border-bottom: 1px solid var(--line);
 }
 
 .hero h1 {
   font-family: var(--serif);
-  font-weight: 500;
-  font-size: clamp(26px, 4.4vw, 44px);
-  line-height: 1.12;
-  margin: 0 0 16px;
+  font-weight: 560;
+  font-size: clamp(32px, 5.6vw, 58px);
+  line-height: 1.04;
+  letter-spacing: -0.015em;
+  margin: 0 0 18px;
   color: var(--bone);
 }
 
 .hero h1 em { color: var(--gold); font-style: normal; }
 
-.hero p { color: var(--bone-dim); max-width: 52ch; margin: 0 0 22px; font-size: 15px; }
+.hero p { color: var(--bone-dim); max-width: 54ch; margin: 0 0 26px; font-size: 16px; }
 
 .hero-ctas { display: flex; gap: 12px; flex-wrap: wrap; }
 
@@ -958,6 +987,13 @@ textarea:focus { border-color: var(--gold-dim); }
   margin-bottom: 14px;
 }
 
+.field-group { padding: 26px 0; border-bottom: 1px solid var(--line); }
+.field-group:first-child { padding-top: 4px; }
+.field-group-title {
+  font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--gold-dim); margin: 0 0 16px;
+}
+
 .table-search {
   width: auto; min-width: 160px; padding: 7px 10px; font-size: 12.5px;
 }
@@ -1018,3 +1054,50 @@ textarea:focus { border-color: var(--gold-dim); }
 .metric-mini-table td { padding: 3px 0; }
 .metric-mini-table td:first-child { color: var(--bone-dim); }
 .metric-mini-table td:last-child { text-align: right; color: var(--bone); }
+
+/* --------------------------------------------------------- editorial layout
+   Open, divider-based sections for the dashboard/index experience --
+   used instead of boxed cards where the content is a single navigational
+   idea rather than a meaningful data grouping (see design-system notes:
+   cards only where they group real data; otherwise typography + dividers). */
+
+.section { padding: 36px 0; border-bottom: 1px solid var(--line); }
+.section:last-child { border-bottom: none; }
+.section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 22px; flex-wrap: wrap; }
+.section-head h2 {
+  font-family: var(--serif); font-weight: 560; font-size: clamp(20px, 2.6vw, 26px);
+  letter-spacing: -0.01em; margin: 0; color: var(--bone);
+}
+.section-head .section-link { font-family: var(--mono); font-size: 12px; color: var(--gold); text-decoration: none; white-space: nowrap; }
+.section-head .section-link:hover { text-decoration: underline; }
+
+.index-list { display: flex; flex-direction: column; }
+.index-row {
+  display: grid; grid-template-columns: 48px 1fr 22px; align-items: start; gap: 20px;
+  padding: 22px 4px; border-top: 1px solid var(--line);
+  text-decoration: none; transition: padding-left 0.2s ease, background 0.15s ease;
+}
+.index-list .index-row:last-child { border-bottom: 1px solid var(--line); }
+.index-row:hover { padding-left: 10px; background: color-mix(in srgb, var(--gold) 4%, transparent); text-decoration: none; }
+.index-num { font-family: var(--mono); font-size: 12px; color: var(--gold); letter-spacing: 0.06em; padding-top: 4px; }
+.index-row h3 { font-family: var(--serif); font-weight: 560; font-size: 19px; margin: 0 0 6px; color: var(--bone); }
+.index-row p { margin: 0; color: var(--bone-dim); font-size: 14px; max-width: 62ch; }
+.index-arrow { font-family: var(--mono); color: var(--bone-dim); font-size: 16px; padding-top: 4px; transition: transform 0.2s ease, color 0.2s ease; }
+.index-row:hover .index-arrow { color: var(--gold); transform: translateX(3px); }
+
+/* Typography-only KPI -- a stat without a box around it (design-system
+   note: a number + label can read more premium than the same thing
+   wrapped in a card). */
+.kpi-row { display: flex; gap: 40px; flex-wrap: wrap; }
+.kpi-value { font-family: var(--mono); font-size: 34px; font-weight: 500; color: var(--bone); line-height: 1; }
+.kpi-value .kpi-accent { color: var(--gold); }
+.kpi-label { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--bone-dim); margin-top: 8px; }
+
+.open-table-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 16px; }
+
+@media (max-width: 640px) {
+  .index-row { grid-template-columns: 30px 1fr; }
+  .index-arrow { display: none; }
+  .kpi-row { gap: 26px; }
+  .kpi-value { font-size: 28px; }
+}
