@@ -1,3 +1,4 @@
+import contextlib
 import numpy as np
 import pandas as pd
 import torch
@@ -481,7 +482,7 @@ def calc_time_stamps(x_timestamp):
 
 class KronosPredictor:
 
-    def __init__(self, model, tokenizer, device=None, max_context=512, clip=5):
+    def __init__(self, model, tokenizer, device=None, max_context=512, clip=5, use_amp=None):
         self.tokenizer = tokenizer
         self.model = model
         self.max_context = max_context
@@ -501,18 +502,46 @@ class KronosPredictor:
                 device = "cpu"
         
         self.device = device
+        self.device_type = torch.device(self.device).type
+
+        # Autocast (mixed precision) speeds up matmul-heavy inference substantially
+        # on CUDA GPUs (and is a no-op / safely disabled elsewhere). Users can force
+        # it on/off explicitly via use_amp; otherwise it defaults to on for CUDA only.
+        self.use_amp = (self.device_type == "cuda") if use_amp is None else use_amp
+        self.amp_dtype = torch.bfloat16 if (self.use_amp and torch.cuda.is_bf16_supported()) else torch.float16
+
+        if self.device_type == "cuda":
+            # Let cuDNN pick the fastest kernels for our (repeated, fixed-shape) inference calls.
+            torch.backends.cudnn.benchmark = True
+            # Allow TF32 matmuls on Ampere+ GPUs for a free throughput boost with negligible accuracy loss.
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
 
         self.tokenizer = self.tokenizer.to(self.device)
         self.model = self.model.to(self.device)
+        # eval() disables dropout and puts batchnorm/layernorm in inference mode; it also
+        # avoids wasted work from training-only codepaths, which matters for GPU throughput.
+        self.tokenizer.eval()
+        self.model.eval()
 
     def generate(self, x, x_stamp, y_stamp, pred_len, T, top_k, top_p, sample_count, verbose):
 
-        x_tensor = torch.from_numpy(np.array(x).astype(np.float32)).to(self.device)
-        x_stamp_tensor = torch.from_numpy(np.array(x_stamp).astype(np.float32)).to(self.device)
-        y_stamp_tensor = torch.from_numpy(np.array(y_stamp).astype(np.float32)).to(self.device)
+        x_tensor = torch.from_numpy(np.array(x).astype(np.float32)).to(self.device, non_blocking=True)
+        x_stamp_tensor = torch.from_numpy(np.array(x_stamp).astype(np.float32)).to(self.device, non_blocking=True)
+        y_stamp_tensor = torch.from_numpy(np.array(y_stamp).astype(np.float32)).to(self.device, non_blocking=True)
 
-        preds = auto_regressive_inference(self.tokenizer, self.model, x_tensor, x_stamp_tensor, y_stamp_tensor, self.max_context, pred_len,
-                                          self.clip, T, top_k, top_p, sample_count, verbose)
+        # Only CUDA/CPU autocast is guaranteed available across torch versions; on any other
+        # device (e.g. older MPS builds) we just skip mixed precision and run in full precision.
+        autocast_ctx = (
+            torch.autocast(device_type=self.device_type, dtype=self.amp_dtype, enabled=self.use_amp)
+            if self.device_type in ("cuda", "cpu") and self.use_amp
+            else contextlib.nullcontext()
+        )
+        with autocast_ctx:
+            preds = auto_regressive_inference(self.tokenizer, self.model, x_tensor, x_stamp_tensor, y_stamp_tensor, self.max_context, pred_len,
+                                              self.clip, T, top_k, top_p, sample_count, verbose)
+        # auto_regressive_inference already returns a numpy float array (post tokenizer.decode
+        # + cpu().numpy()), so no further tensor ops (e.g. .float()) are needed/valid here.
         preds = preds[:, -pred_len:, :]
         return preds
 

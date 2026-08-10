@@ -462,11 +462,12 @@
                 <div class="form-group">
                     <label for="device-select">Select Device:</label>
                     <select id="device-select">
-                        <option value="cpu">CPU</option>
-                        <option value="cuda">CUDA (NVIDIA GPU)</option>
+                        <option value="auto" selected>Auto (use GPU if available)</option>
+                        <option value="cuda:0">CUDA (NVIDIA GPU)</option>
                         <option value="mps">MPS (Apple Silicon)</option>
+                        <option value="cpu">CPU</option>
                     </select>
-                    <small class="form-text">Select the device to run the model on</small>
+                    <small class="form-text">"Auto" picks the fastest available device (GPU first); CPU is much slower for inference</small>
                 </div>
 
                 <!-- Model Status -->

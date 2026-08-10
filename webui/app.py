@@ -634,7 +634,11 @@ def load_model():
         
         data = request.get_json()
         model_key = data.get('model_key', 'kronos-small')
-        device = data.get('device', 'cpu')
+        # Default to 'auto' so the model uses a GPU automatically when one is available,
+        # instead of silently defaulting to the much slower CPU path.
+        device = data.get('device', 'auto')
+        # KronosPredictor auto-detects the best device (CUDA > MPS > CPU) when device=None.
+        predictor_device = None if device == 'auto' else device
         
         if model_key not in AVAILABLE_MODELS:
             return jsonify({'error': f'Unsupported model: {model_key}'}), 400
@@ -646,11 +650,11 @@ def load_model():
         model = Kronos.from_pretrained(model_config['model_id'])
         
         # Create predictor
-        predictor = KronosPredictor(model, tokenizer, device=device, max_context=model_config['context_length'])
+        predictor = KronosPredictor(model, tokenizer, device=predictor_device, max_context=model_config['context_length'])
         
         return jsonify({
             'success': True,
-            'message': f'Model loaded successfully: {model_config["name"]} ({model_config["params"]}) on {device}',
+            'message': f'Model loaded successfully: {model_config["name"]} ({model_config["params"]}) on {predictor.device}',
             'model_info': {
                 'name': model_config['name'],
                 'params': model_config['params'],
