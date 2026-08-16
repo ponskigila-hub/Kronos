@@ -3,45 +3,44 @@ Optional LLM polish layer.
 
 Everything in assistant/nlp.py (intent parsing) and assistant/explain.py
 (explanation text) already works fully offline/rule-based. This module is
-purely cosmetic on top of that: when assistant.config.ANTHROPIC_API_KEY is
-set, it asks Claude to rewrite the already-correct, rule-based explanation
-into smoother, more natural prose -- WITHOUT changing any of the underlying
-numbers or facts (those still come entirely from explain.py).
+purely cosmetic on top of that: when assistant.config.GEMINI_API_KEY is
+set, it asks Google Gemini to rewrite the already-correct, rule-based
+explanation into smoother, more natural prose -- WITHOUT changing any of
+the underlying numbers or facts (those still come entirely from
+explain.py).
 
-If the key is missing, the `anthropic` package isn't installed, the API
-call fails, or anything else goes wrong, every function here falls back to
-returning the original text unchanged. This module must never raise --
-callers use it as a drop-in "make this nicer if possible" step.
+If the key is missing, the `google-genai` package isn't installed, the
+API call fails, or anything else goes wrong, every function here falls
+back to returning the original text unchanged. This module must never
+raise -- callers use it as a drop-in "make this nicer if possible" step.
 """
 import logging
 
-from .config import ANTHROPIC_API_KEY
+from .config import GEMINI_API_KEY, GEMINI_MODEL
 
 logger = logging.getLogger(__name__)
-
-_MODEL = "claude-sonnet-4-6"
 
 _client = None
 _client_unavailable = False
 
 
 def _get_client():
-    """Lazily build (and cache) the Anthropic client. Cheap to call
+    """Lazily build (and cache) the Gemini client. Cheap to call
     repeatedly -- only actually does work once."""
     global _client, _client_unavailable
     if _client is not None or _client_unavailable:
         return _client
-    if not ANTHROPIC_API_KEY:
+    if not GEMINI_API_KEY:
         _client_unavailable = True
         return None
     try:
-        import anthropic
-        _client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        from google import genai
+        _client = genai.Client(api_key=GEMINI_API_KEY)
     except Exception:
         logger.warning(
-            "ANTHROPIC_API_KEY is set but the Anthropic client could not be "
-            "initialized (is the 'anthropic' package installed?). Falling "
-            "back to rule-based wording.",
+            "GEMINI_API_KEY is set but the Gemini client could not be "
+            "initialized (is the 'google-genai' package installed?). "
+            "Falling back to rule-based wording.",
             exc_info=True,
         )
         _client_unavailable = True
@@ -83,15 +82,12 @@ def polish_explanation(text, ticker=None, beginner=False):
         f"Ticker: {ticker or 'N/A'}\n\nNote:\n{text}"
     )
     try:
-        resp = client.messages.create(
-            model=_MODEL,
-            max_tokens=700,
-            messages=[{"role": "user", "content": prompt}],
+        resp = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
         )
-        polished = "".join(
-            block.text for block in resp.content if getattr(block, "type", None) == "text"
-        ).strip()
+        polished = (resp.text or "").strip()
         return polished or text
     except Exception:
-        logger.warning("Anthropic polish call failed; using rule-based wording.", exc_info=True)
+        logger.warning("Gemini polish call failed; using rule-based wording.", exc_info=True)
         return text

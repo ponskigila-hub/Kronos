@@ -1,8 +1,8 @@
 """
 Lightweight, dependency-free intent parser (item #2 groundwork). Works
-without any LLM/API key. If assistant.config.ANTHROPIC_API_KEY is set,
+without any LLM/API key. If assistant.config.GEMINI_API_KEY is set,
 assistant.core_assistant can optionally route ambiguous messages through
-Claude for smarter parsing -- but every intent below works offline.
+Gemini for smarter parsing -- but every intent below works offline.
 """
 import re
 

@@ -1,7 +1,7 @@
 """
 Turns raw numbers into a human-readable explanation (item #4: Explainable
 Forecasts). This is rule-based (no LLM required), so it always works
-offline/without an API key. If assistant.config.ANTHROPIC_API_KEY is set,
+offline/without an API key. If assistant.config.GEMINI_API_KEY is set,
 assistant.core_assistant can optionally ask an LLM to smooth the wording,
 but the reasoning/content itself always comes from these grounded facts.
 

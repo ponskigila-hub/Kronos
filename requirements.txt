@@ -19,7 +19,7 @@ flask-cors>=4.0.0
 discord.py>=2.3.0          # Discord bot integration (item #9, optional)
 twilio>=9.0.0               # WhatsApp bot integration via Twilio (item #9, optional)
 kaleido>=0.2.1              # export Plotly charts to PNG for Discord/WhatsApp (optional)
-anthropic>=0.40.0           # optional -- polishes explanation wording if ANTHROPIC_API_KEY is set (assistant/llm.py)
+google-genai>=0.3.0         # optional -- polishes explanation wording if GEMINI_API_KEY is set (assistant/llm.py)
 lxml>=5.0.0                  # parses live S&P500/NASDAQ-100/Dow30 constituent tables (assistant/screener/universe.py); falls back to a bundled snapshot if unavailable
 
 # --- Added for the Backtesting Framework (backtesting/) ---

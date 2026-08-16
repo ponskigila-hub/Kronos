@@ -216,7 +216,7 @@ bots already used for follow-up context.
 - **NLP intent parsing is rule-based** (regex + keyword matching), not an
   LLM. It handles the command styles from the original brief well, but
   won't handle arbitrarily-phrased free-form chit-chat. If you set
-  `ANTHROPIC_API_KEY`, that's a hook you can extend `assistant/nlp.py` with
+  `GEMINI_API_KEY`, that's a hook you can extend `assistant/nlp.py` with
   to route ambiguous messages through an LLM -- not wired up by default so
   the assistant works with zero API keys.
 - **WhatsApp uses Twilio**, not Meta's official WhatsApp Business API

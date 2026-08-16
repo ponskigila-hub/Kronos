@@ -5,6 +5,8 @@
   const suggestionsBar = document.getElementById("suggestions");
   const modeToggle = document.getElementById("modeToggle");
   const tickerSuggest = document.getElementById("tickerSuggest");
+  const sendBtn = form.querySelector('button[type="submit"]');
+  const chatWrap = document.querySelector(".chat-wrap");
 
   // ---------------------------------------------------------------- sparkline
   function sparklineSvg(points) {
@@ -25,10 +27,34 @@
     </svg>`;
   }
 
+  // ------------------------------------------------------- scroll-to-bottom
+  let scrollBtn = null;
+  if (chatWrap) {
+    scrollBtn = document.createElement("button");
+    scrollBtn.type = "button";
+    scrollBtn.className = "chat-scroll-btn";
+    scrollBtn.innerHTML =
+      '<svg viewBox="0 0 12 12" fill="none"><path d="M2 4.5L6 8.5L10 4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>New messages</span>';
+    chatWrap.appendChild(scrollBtn);
+    scrollBtn.addEventListener("click", () => {
+      log.scrollTo({ top: log.scrollHeight, behavior: "smooth" });
+    });
+    log.addEventListener("scroll", updateScrollBtn);
+  }
+
+  function isNearBottom() {
+    return log.scrollHeight - log.scrollTop - log.clientHeight < 80;
+  }
+
+  function updateScrollBtn() {
+    if (!scrollBtn) return;
+    scrollBtn.classList.toggle("visible", !isNearBottom());
+  }
+
   // -------------------------------------------------------------- messages
   function addTypingIndicator() {
     const wrap = document.createElement("div");
-    wrap.className = "msg msg-bot";
+    wrap.className = "msg msg-bot msg-animate";
     const bubble = document.createElement("div");
     bubble.className = "msg-bubble";
     bubble.innerHTML = '<span class="typing-dots"><span></span><span></span><span></span></span>';
@@ -38,9 +64,33 @@
     return wrap;
   }
 
+  function addCopyButton(wrap, text) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "msg-copy-btn";
+    btn.title = "Copy reply";
+    btn.setAttribute("aria-label", "Copy reply");
+    btn.innerHTML =
+      '<svg viewBox="0 0 16 16" fill="none"><rect x="5.5" y="5.5" width="8" height="8" rx="1.3" stroke="currentColor" stroke-width="1.3"/><path d="M3.2 10.2V3.7a1 1 0 0 1 1-1h6.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>';
+    btn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(text);
+        btn.classList.add("copied");
+        btn.innerHTML =
+          '<svg viewBox="0 0 16 16" fill="none"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        setTimeout(() => {
+          btn.classList.remove("copied");
+          btn.innerHTML =
+            '<svg viewBox="0 0 16 16" fill="none"><rect x="5.5" y="5.5" width="8" height="8" rx="1.3" stroke="currentColor" stroke-width="1.3"/><path d="M3.2 10.2V3.7a1 1 0 0 1 1-1h6.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>';
+        }, 1400);
+      } catch (err) { /* clipboard unavailable -- fail silently */ }
+    });
+    wrap.appendChild(btn);
+  }
+
   function addMessage(role, text, imageUrl, sparkline) {
     const wrap = document.createElement("div");
-    wrap.className = "msg " + (role === "user" ? "msg-user" : "msg-bot");
+    wrap.className = "msg " + (role === "user" ? "msg-user" : "msg-bot") + " msg-animate";
     const bubble = document.createElement("div");
     bubble.className = "msg-bubble";
     bubble.textContent = text;
@@ -59,26 +109,41 @@
       img.alt = "chart";
       wrap.appendChild(img);
     }
+    if (role !== "user" && text) {
+      addCopyButton(wrap, text);
+    }
     log.appendChild(wrap);
-    log.scrollTop = log.scrollHeight;
+    if (isNearBottom() || role === "user") {
+      log.scrollTop = log.scrollHeight;
+    }
+    updateScrollBtn();
     return wrap;
   }
 
   function setSuggestions(chips) {
     suggestionsBar.innerHTML = "";
-    (chips && chips.length ? chips : []).forEach((text) => {
+    (chips && chips.length ? chips : []).forEach((text, i) => {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "suggestion-chip";
       btn.textContent = text;
+      btn.style.animationDelay = (i * 40) + "ms";
       btn.addEventListener("click", () => send(text));
       suggestionsBar.appendChild(btn);
     });
   }
 
+  function setSending(isSending) {
+    if (!sendBtn) return;
+    sendBtn.disabled = isSending;
+    sendBtn.classList.toggle("sending", isSending);
+    input.disabled = isSending;
+  }
+
   async function send(text) {
     if (!text.trim()) return;
     addMessage("user", text);
+    setSending(true);
     const thinking = addTypingIndicator();
 
     try {
@@ -94,6 +159,9 @@
     } catch (err) {
       thinking.remove();
       addMessage("bot", "Connection error — is the server still running?");
+    } finally {
+      setSending(false);
+      input.focus();
     }
   }
 

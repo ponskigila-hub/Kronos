@@ -508,7 +508,7 @@ folder, linked via `PUBLIC_BASE_URL` from your `.env`) if one exists.
   (Nx inference time), so it defaults to 1 (no band) unless you raise it.
 - **NLP intent parsing is rule-based** (regex + keywords), not an LLM. It handles
   the command styles from the original brief well but won't understand arbitrarily
-  free-form chit-chat. `ANTHROPIC_API_KEY` in `.env` is a hook for extending
+  free-form chit-chat. `GEMINI_API_KEY` in `.env` is a hook for extending
   `assistant/nlp.py` with LLM-based parsing later -- not wired up by default so the
   assistant works with zero API keys.
 - **WhatsApp uses Twilio**, not Meta's official WhatsApp Business API directly --

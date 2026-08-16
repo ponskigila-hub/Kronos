@@ -27,6 +27,7 @@
     </a>
 
     <nav class="nav" id="nav">
+      <span class="nav-indicator" id="navIndicator" aria-hidden="true"></span>
       <a href="{{ url_for('index') }}" class="{{ 'active' if active == 'home' }}">Dashboard</a>
       <a href="{{ url_for('chat') }}" class="{{ 'active' if active == 'chat' }}">Chat</a>
       <a href="{{ url_for('forecast') }}" class="{{ 'active' if active == 'forecast' }}">Forecast</a>
@@ -65,7 +66,7 @@
           <span class="dot"></span>News: {{ 'extra source configured' if integrations.news_extra_configured else 'Yahoo Finance only' }}
         </span>
         <span class="integration-badge {{ 'on' if integrations.ai_wording_enabled else 'off' }}"
-              title="{{ 'Explanations are polished by Claude before showing.' if integrations.ai_wording_enabled else 'Explanations are rule-based (set ANTHROPIC_API_KEY to enable AI wording).' }}">
+              title="{{ 'Explanations are polished by Gemini before showing.' if integrations.ai_wording_enabled else 'Explanations are rule-based (set GEMINI_API_KEY to enable AI wording).' }}">
           <span class="dot"></span>AI wording: {{ 'enhanced' if integrations.ai_wording_enabled else 'rule-based' }}
         </span>
       </div>

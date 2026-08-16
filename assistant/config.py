@@ -92,7 +92,8 @@ NEWSAPI_API_KEY = os.getenv("NEWSAPI_API_KEY", "")
 # understanding and explanations more fluent. Everything works without it
 # via the rule-based assistant/nlp.py + assistant/explain.py.
 # ---------------------------------------------------------------------------
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
 
 # ---------------------------------------------------------------------------
 # Messaging platform integrations (assistant/integrations/*)
