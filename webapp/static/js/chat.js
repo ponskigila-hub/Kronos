@@ -96,6 +96,10 @@
     bubble.textContent = text;
     wrap.appendChild(bubble);
 
+    if (role !== "user") {
+      bubble.classList.add("bot-bubble");
+    }
+
     if (sparkline && sparkline.length > 1) {
       const sWrap = document.createElement("div");
       sWrap.className = "sparkline-wrap";
@@ -122,7 +126,14 @@
 
   function setSuggestions(chips) {
     suggestionsBar.innerHTML = "";
-    (chips && chips.length ? chips : []).forEach((text, i) => {
+    const options = chips && chips.length ? chips : [
+      "What can you do?",
+      "Forecast AAPL",
+      "Compare NVDA and AMD",
+      "Screen the market",
+      "My watchlist",
+    ];
+    options.forEach((text, i) => {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "suggestion-chip";

@@ -24,6 +24,8 @@ class ConversationContext:
         self.last_tickers = []
         self.last_forecast = None      # small serializable summary, not the full DataFrame
         self.last_explanation = None
+        self.last_intent = None
+        self.last_topic = None
         self.history = []              # list of {"role": "user"/"assistant", "text": ...}
         self.beginner_mode = False     # explanation register -- see assistant.nlp.detect_mode
         self._path = os.path.join(CONVERSATION_DIR, f"{self.user_id}.json")
@@ -37,6 +39,8 @@ class ConversationContext:
                 self.last_tickers = data.get("last_tickers", [])
                 self.last_forecast = data.get("last_forecast")
                 self.last_explanation = data.get("last_explanation")
+                self.last_intent = data.get("last_intent")
+                self.last_topic = data.get("last_topic")
                 self.history = data.get("history", [])[-20:]
                 self.beginner_mode = data.get("beginner_mode", False)
             except (json.JSONDecodeError, OSError):
@@ -49,6 +53,8 @@ class ConversationContext:
                     "last_tickers": self.last_tickers,
                     "last_forecast": self.last_forecast,
                     "last_explanation": self.last_explanation,
+                    "last_intent": self.last_intent,
+                    "last_topic": self.last_topic,
                     "history": self.history[-20:],
                     "beginner_mode": self.beginner_mode,
                 }, f, indent=2, default=str)
@@ -62,6 +68,12 @@ class ConversationContext:
         self.last_tickers = tickers
         self.last_forecast = forecast_summary
         self.last_explanation = explanation_text
+        self.last_topic = tickers[0] if tickers else self.last_topic
+        self.last_intent = "forecast"
+
+    def remember_topic(self, intent, topic=None):
+        self.last_intent = intent
+        self.last_topic = topic or self.last_topic
 
 
 _contexts = {}

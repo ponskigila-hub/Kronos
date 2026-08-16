@@ -129,13 +129,92 @@ def polish_explanation(text, ticker=None, beginner=False):
         return text
 
 
+def _offline_general_reply(text, beginner=False):
+    """Helpful, app-aware fallback for general chat when no Gemini key is available."""
+    lower = (text or "").strip().lower()
+    if not lower:
+        return None
+
+    if any(p in lower for p in [
+        "what can you do",
+        "what can you help with",
+        "what are you able to do",
+        "what can this assistant do",
+        "what is this app",
+        "what is this tool",
+        "tell me what you can do",
+        "tell me what this assistant can do",
+    ]):
+        return (
+            "I can help with stock forecasting, watchlists, comparisons, fundamentals, analyst targets, risk checks, and quick backtests. If you want a market view, ask something like \"Forecast AAPL\", \"Compare NVDA and AMD\", \"Screen the market\", or \"What risks should I watch for TSLA\"."
+        )
+
+    if any(p in lower for p in [
+        "what stocks do you recommend",
+        "what do you recommend",
+        "what looks good right now",
+        "what should i buy",
+        "what should i do",
+        "which stock should i buy",
+        "which stock should i watch",
+    ]):
+        return (
+            "I don’t hand-pick individual stocks from personal opinion, but I can help you evaluate the market. The best route in this app is to ask for a forecast, compare tickers, or run the screener for ranked ideas and then check fundamentals and risk before deciding."
+        )
+
+    if any(p in lower for p in [
+        "how does this app work",
+        "how does kronos work",
+        "how does it work",
+        "what is kronos",
+        "what is this assistant",
+    ]):
+        return (
+            "This app pulls market data, runs Kronos forecasting models, checks indicators and news, and turns the output into plain-English analysis. You can ask for a forecast, compare tickers, review fundamentals, check risk, or backtest a stock when you want a more quantitative view."
+        )
+
+    if any(p in lower for p in [
+        "can you help me",
+        "help me",
+    ]):
+        return "Absolutely. I can forecast a ticker, explain a chart, compare symbols, check risk, look at fundamentals, or help you build a simple watchlist."
+
+    if beginner:
+        return (
+            "I’m here to help with simple stock questions. You can ask me to forecast a ticker, compare two stocks, explain risks, or show your watchlist, and I’ll use Kronos when you want a model-based market view."
+        )
+
+    return (
+        "I can help with stock forecasts, risk checks, watchlists, fundamentals, analyst targets, and market comparisons. Ask me a normal question like \"What can you do?\" or a market request like \"Forecast AAPL and explain the move\"."
+    )
+
+
+def _has_app_coverage(reply):
+    if not reply:
+        return False
+    lowered = reply.lower()
+    return any(token in lowered for token in [
+        "forecast",
+        "screen",
+        "watchlist",
+        "backtest",
+        "compare",
+        "fundamentals",
+        "analyst",
+        "news",
+        "risk",
+        "ticker",
+        "portfolio",
+        "market scan",
+    ])
+
+
 def general_chat(text, history=None, beginner=False):
     """
     Free-form conversational fallback for messages the rule-based intent
     parser (assistant/nlp.py) doesn't recognize -- no command keyword, no
-    ticker to default to a forecast. Returns None (never raises) if the
-    Gemini layer isn't available or the call fails, so callers can fall
-    back to the static "I didn't quite catch that" message.
+    ticker to default to a forecast. Returns a helpful app-aware answer
+    even when no Gemini key is configured, so the chat stays interactive.
 
     `history`: optional list of {"role": "user"/"assistant", "text": ...}
     dicts (assistant.conversation.ConversationContext.history) for
@@ -144,9 +223,11 @@ def general_chat(text, history=None, beginner=False):
     """
     if not text:
         return None
+
+    offline_reply = _offline_general_reply(text, beginner=beginner)
     client = _get_client()
     if client is None:
-        return None
+        return offline_reply
 
     from google.genai import types
 
@@ -172,7 +253,9 @@ def general_chat(text, history=None, beginner=False):
             ),
         )
         reply = (resp.text or "").strip()
-        return reply or None
+        if not reply or not _has_app_coverage(reply):
+            return offline_reply
+        return reply
     except Exception:
         logger.warning("Gemini general_chat call failed; using static fallback.", exc_info=True)
-        return None
+        return offline_reply

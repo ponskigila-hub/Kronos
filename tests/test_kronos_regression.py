@@ -7,6 +7,8 @@ import pytest
 import torch
 from tqdm import tqdm
 
+from assistant.core_assistant import StockAssistant
+from assistant.nlp import parse_intent
 from model import Kronos, KronosPredictor, KronosTokenizer
 
 TEST_DATA_ROOT = Path(__file__).parent / "data"
@@ -32,6 +34,32 @@ TOKENIZER_REVISION = "0e0117387f39004a9016484a186a908917e22426"
 MAX_CTX_LEN = 512
 SEED = 123
 DEVICE = "cpu"
+
+
+def test_general_question_intent_and_guidance():
+    for text in [
+        "What can you do for me?",
+        "How does this app work?",
+        "What stocks do you recommend?",
+        "Tell me what this assistant can help with.",
+        "What do you think about the market?",
+    ]:
+        parsed = parse_intent(text)
+        assert parsed["intent"] == "general", f"Expected general intent for: {text!r} got {parsed['intent']}"
+
+    response = StockAssistant().handle_message("user-123", "what can you do?")
+    text = response["text"]
+    assert "Forecast" in text or "watchlist" in text.lower() or "compare" in text.lower()
+
+    context = type("Ctx", (), {"last_tickers": ["AAPL"], "history": [], "beginner_mode": False})()
+    parsed_general = parse_intent("what do you think about the market?", context=context)
+    assert parsed_general["intent"] == "general"
+    assert parsed_general["tickers"] == []
+
+    parsed_followup = parse_intent("why is it moving?", context=context)
+    assert parsed_followup["intent"] == "why"
+    assert parsed_followup["tickers"] == ["AAPL"]
+
 
 def set_seed(seed: int) -> None:
     random.seed(seed)

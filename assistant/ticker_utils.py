@@ -113,7 +113,8 @@ def extract_tickers(text, max_tickers=5):
         "mode", "simple", "plain", "expert", "beginner", "advanced",
         "target", "rating", "ratings", "cap", "when", "does", "eps",
         "fundamentals", "earnings", "analyst", "correlation", "diversify",
-        "ratio", "report", "reports", "use", "switch", "of", "the",
+        "ratio", "report", "reports", "use", "switch", "app", "work",
+        "works", "how", "the",
     }
     for tok in tokens:
         if tok.lower() in stopwords:

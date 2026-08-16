@@ -84,6 +84,10 @@ class StockAssistant:
             result = {"text": f"⚠️ Something went wrong: {e}", "chart": None, "data": {}}
 
         result.setdefault("suggestions", self._suggestions(intent, tickers))
+        if tickers:
+            context.remember_topic(intent, tickers[0])
+        elif intent != "unknown":
+            context.remember_topic(intent)
         context.remember_turn(text, result["text"])
         context.save()
         return result
@@ -111,15 +115,17 @@ class StockAssistant:
         if intent in ("earnings", "analyst") and t:
             return [f"Forecast {t}", f"Fundamentals of {t}"]
         if intent == "compare":
-            return ["Correlation matrix for my watchlist"]
+            return ["Correlation matrix for my watchlist", "Screen the market", "Compare another pair"]
         if intent == "watchlist_show":
-            return ["Correlation matrix for my watchlist", "Backtest my watchlist"]
+            return ["Correlation matrix for my watchlist", "Backtest my watchlist", "Forecast AAPL"]
         if intent == "watchlist_add" and t:
-            return ["My watchlist", f"Forecast {t}"]
+            return ["My watchlist", f"Forecast {t}", f"Add {t} to my watchlist"]
         if intent == "greeting":
-            return ["Forecast AAPL", "My watchlist", "Compare NVDA and AMD"]
+            return ["Forecast AAPL", "My watchlist", "Compare NVDA and AMD", "Screen the market"]
+        if intent == "general":
+            return ["Forecast AAPL", "Compare NVDA and AMD", "Screen the market", "My watchlist"]
         if intent == "unknown":
-            return ["Screen the market", "Forecast AAPL", "My watchlist"]
+            return ["Screen the market", "Forecast AAPL", "My watchlist", "What can you do?"]
         return []
 
     def _sparkline(self, hist_df):
@@ -489,10 +495,9 @@ class StockAssistant:
             return self._forecast(context, tickers)
 
         # No recognized command, no ticker -- genuinely open-ended, e.g.
-        # "what stocks do you recommend?" or "how does this work?". Try
-        # Gemini (grounded in what the app can actually do, see
-        # assistant/llm.py's _SYSTEM_PROMPT) before falling back to the
-        # static hint message.
+        # "what stocks do you recommend?" or "how does this work?". The
+        # general-chat layer in assistant/llm.py now has an app-aware static
+        # fallback even when the user has no Gemini API key configured.
         reply = llm.general_chat(text, history=context.history, beginner=context.beginner_mode)
         if reply:
             return {"text": reply, "chart": None, "data": {}}

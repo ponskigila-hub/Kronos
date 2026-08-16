@@ -34,6 +34,16 @@ INTENT_PATTERNS = [
     ("detailed_forecast", re.compile(r"\bdetailed forecast\b|\bsampled paths\b|\bshow paths\b|"
                                       r"\bmultiple paths\b|\bforecast paths\b", re.I)),
     ("forecast", re.compile(r"\bforecast\b|\bpredict\b|\bprediction\b", re.I)),
+    ("general", re.compile(
+        r"\b(what can you do|what can you help with|what are you able to do|what can this assistant do|"
+        r"how does this app work|how does kronos work|how does it work|what stocks do you recommend|"
+        r"what do you recommend|what looks good right now|what should i buy|what should i do|"
+        r"what do you think|what do you think about|how is the market|how are the markets|"
+        r"can you help me|help me|what is this tool|what is this app|tell me about this app|"
+        r"tell me what (this )?(assistant|app|tool) can help with|tell me what you can do|"
+        r"tell me what this assistant can do)\b|\bhelp with\b",
+        re.I,
+    )),
     ("greeting", re.compile(r"^\s*(hi|hello|hey|start|help)\s*$", re.I)),
 ]
 
@@ -69,9 +79,12 @@ def parse_intent(text, context=None):
 
     tickers = extract_tickers(text)
 
-    # Follow-up resolution: if no ticker was mentioned but we have context,
-    # reuse the last one(s) discussed.
-    if not tickers and context is not None and context.last_tickers:
+    # Follow-up resolution: only reuse last ticker for explicit follow-up intents
+    # (e.g. "why is it moving?", "compare with Microsoft"). Plain conversational
+    # questions such as "what do you think?" and "how does this app work?"
+    # should stay general and not trigger a forecast out of the blue.
+    followup_intents = {"why", "compare", "risk", "news", "history", "fundamentals", "analyst", "earnings", "opinion", "watchlist_show"}
+    if not tickers and intent in followup_intents and context is not None and context.last_tickers:
         tickers = list(context.last_tickers)
     elif intent == "compare" and len(tickers) == 1 and context is not None and context.last_tickers:
         # "compare with Microsoft" -> combine new ticker with last one
@@ -82,5 +95,10 @@ def parse_intent(text, context=None):
     if intent == "unknown" and tickers:
         # Bare ticker mention defaults to a forecast request.
         intent = "forecast"
+
+    if intent == "general" and not tickers:
+        # Conversational questions should stay conversational even if there was a
+        # previous forecast in context; the user has to ask for a market action.
+        pass
 
     return {"intent": intent, "tickers": tickers, "raw": text, "mode": detect_mode(text)}

@@ -35,7 +35,7 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV="C:\College Full\Random\Kronos-master\kronos_env"
+VIRTUAL_ENV="C:\College Full\Projects\Kronos-master\kronos_env"
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"
