@@ -140,6 +140,52 @@
     input.disabled = isSending;
   }
 
+  // ------------------------------------------------------------ job polling
+  // A chat reply runs server-side in a background thread (see
+  // webapp/app.py: /api/chat/send + _run_chat_job) so it keeps computing
+  // even if the user navigates to another page mid-reply. This polls for
+  // the result rather than awaiting one long-lived request/response.
+  const POLL_INTERVAL_MS = 1100;
+  let activePoll = null;
+
+  function stopPolling() {
+    if (activePoll) {
+      clearTimeout(activePoll);
+      activePoll = null;
+    }
+  }
+
+  function pollJob(jobId, thinkingEl) {
+    stopPolling();
+    const tick = async () => {
+      try {
+        const resp = await fetch("/api/chat/job/" + encodeURIComponent(jobId));
+        if (resp.status === 404) {
+          thinkingEl.remove();
+          setSending(false);
+          return; // job expired/unknown -- give up quietly
+        }
+        const data = await resp.json();
+        if (data.status === "pending") {
+          activePoll = setTimeout(tick, POLL_INTERVAL_MS);
+          return;
+        }
+        thinkingEl.remove();
+        if (data.status === "error") {
+          addMessage("bot", data.text || "⚠️ Something went wrong.");
+        } else {
+          addMessage("bot", data.text || "(no response)", data.image_url, data.sparkline);
+          setSuggestions(data.suggestions);
+        }
+        setSending(false);
+        input.focus();
+      } catch (err) {
+        activePoll = setTimeout(tick, POLL_INTERVAL_MS * 1.5);
+      }
+    };
+    tick();
+  }
+
   async function send(text) {
     if (!text.trim()) return;
     addMessage("user", text);
@@ -147,21 +193,18 @@
     const thinking = addTypingIndicator();
 
     try {
-      const resp = await fetch("/api/chat", {
+      const resp = await fetch("/api/chat/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text }),
       });
       const data = await resp.json();
-      thinking.remove();
-      addMessage("bot", data.text || "(no response)", data.image_url, data.sparkline);
-      setSuggestions(data.suggestions);
+      if (!data.job_id) throw new Error("no job id");
+      pollJob(data.job_id, thinking);
     } catch (err) {
       thinking.remove();
       addMessage("bot", "Connection error — is the server still running?");
-    } finally {
       setSending(false);
-      input.focus();
     }
   }
 
@@ -210,6 +253,19 @@
         );
       }
     } catch (err) { /* fine to start with an empty log */ }
+
+    // Resume watching a reply that was still computing when this page was
+    // last left (e.g. the user switched to Screener mid-forecast) -- the
+    // background job kept running server-side the whole time.
+    try {
+      const resp = await fetch("/api/chat/pending");
+      const data = await resp.json();
+      if (data.job_id) {
+        if (data.message) addMessage("user", data.message);
+        setSending(true);
+        pollJob(data.job_id, addTypingIndicator());
+      }
+    } catch (err) { /* no pending job -- normal case */ }
   }
   loadHistory();
 

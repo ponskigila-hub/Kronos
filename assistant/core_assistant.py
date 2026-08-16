@@ -77,7 +77,7 @@ class StockAssistant:
             elif intent == "forecast":
                 result = self._forecast(context, tickers)
             else:
-                result = self._fallback(tickers)
+                result = self._fallback(context, text, tickers)
         except TickerNotFoundError as e:
             result = {"text": f"⚠️ {e}", "chart": None, "data": {}}
         except Exception as e:  # keep the bot alive on unexpected errors
@@ -118,6 +118,8 @@ class StockAssistant:
             return ["My watchlist", f"Forecast {t}"]
         if intent == "greeting":
             return ["Forecast AAPL", "My watchlist", "Compare NVDA and AMD"]
+        if intent == "unknown":
+            return ["Screen the market", "Forecast AAPL", "My watchlist"]
         return []
 
     def _sparkline(self, hist_df):
@@ -478,8 +480,23 @@ class StockAssistant:
                      "chart": None, "data": {"watchlist": []}}
         return {"text": f"Your watchlist: {', '.join(lst)}", "chart": None, "data": {"watchlist": lst}}
 
-    def _fallback(self, tickers):
+    def _fallback(self, context, text, tickers):
         if tickers:
-            return self._forecast(get_context("_scratch"), tickers)
+            # Defensive fallback only -- assistant.nlp already forces an
+            # "unknown" message with a ticker into the "forecast" intent
+            # before it ever reaches here, so this branch shouldn't
+            # normally trigger.
+            return self._forecast(context, tickers)
+
+        # No recognized command, no ticker -- genuinely open-ended, e.g.
+        # "what stocks do you recommend?" or "how does this work?". Try
+        # Gemini (grounded in what the app can actually do, see
+        # assistant/llm.py's _SYSTEM_PROMPT) before falling back to the
+        # static hint message.
+        reply = llm.general_chat(text, history=context.history, beginner=context.beginner_mode)
+        if reply:
+            return {"text": reply, "chart": None, "data": {}}
+
         return {"text": "I didn't quite catch that. Try \"Forecast AAPL\", \"Compare NVDA and AMD\", "
-                         "or \"My watchlist\".", "chart": None, "data": {}}
+                         "\"My watchlist\", or \"Screen the market\" for ranked ideas.",
+                 "chart": None, "data": {}}

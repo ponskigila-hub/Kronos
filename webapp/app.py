@@ -12,6 +12,8 @@ Then open http://127.0.0.1:5050
 """
 import os
 import sys
+import threading
+import time
 import uuid
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -41,6 +43,53 @@ app = Flask(__name__)
 app.secret_key = os.getenv("WEBAPP_SECRET_KEY", "kronos-dev-secret-change-me")
 
 bot = StockAssistant()
+
+# ---------------------------------------------------------------------------
+# Background chat jobs
+# ---------------------------------------------------------------------------
+# A chat reply (a real Kronos forecast run, in particular) can take a while.
+# Rather than tying that work to the lifetime of one HTTP request -- which
+# dies the moment the browser navigates to another page/tab -- a message is
+# handed to a background thread immediately, and the browser polls for the
+# result. That means the reply keeps computing (and lands in the persisted
+# conversation history) even if the person leaves the Chat page entirely;
+# returning to /chat later picks the same job back up via /api/chat/pending.
+#
+# In-memory only (fine for a single-process local app -- restarting the
+# server drops any job still in flight, same as any other in-memory state
+# here). Requires the dev server to run with threaded=True (see bottom of
+# this file) so a poll request isn't blocked behind the worker thread.
+_chat_jobs = {}       # job_id -> {"user_id", "status", "message", "result"|"error", "created"}
+_pending_by_user = {}  # user_id -> job_id, cleared once the job is delivered
+_jobs_lock = threading.Lock()
+_JOB_TTL_SECONDS = 30 * 60  # done/error jobs older than this are swept on next start
+
+
+def _sweep_old_jobs():
+    cutoff = time.time() - _JOB_TTL_SECONDS
+    stale = [jid for jid, j in _chat_jobs.items() if j["status"] != "pending" and j["created"] < cutoff]
+    for jid in stale:
+        _chat_jobs.pop(jid, None)
+
+
+def _run_chat_job(job_id, user_id, text):
+    try:
+        result = bot.handle_message(user_id, text)
+        with _jobs_lock:
+            job = _chat_jobs.get(job_id)
+            if job is not None:
+                job["status"] = "done"
+                job["result"] = result
+    except Exception as e:  # keep the worker thread from dying silently
+        with _jobs_lock:
+            job = _chat_jobs.get(job_id)
+            if job is not None:
+                job["status"] = "error"
+                job["error"] = str(e)
+    finally:
+        with _jobs_lock:
+            if _pending_by_user.get(user_id) == job_id:
+                del _pending_by_user[user_id]
 
 
 @app.context_processor
@@ -118,14 +167,13 @@ def api_chat_history():
 
 @app.route("/api/chat", methods=["POST"])
 def api_chat():
+    """Synchronous path -- kept for the mode-toggle switch (instant, no
+    Kronos call involved). Actual chat messages go through
+    /api/chat/send + /api/chat/job/<id> instead (see below) so a slow
+    reply survives the user navigating to another page."""
     payload = request.get_json(silent=True) or {}
     text = (payload.get("message") or "").strip()
 
-    # A mode toggle from the UI switch arrives as an explicit field rather
-    # than parsed from the message text -- feed it through the same
-    # "set_mode"-style text so core_assistant's normal path handles it.
-    # Resolved before the empty-text check below, since a pure mode-toggle
-    # request has no "message" at all.
     if not text and payload.get("mode") in ("beginner", "advanced"):
         text = f"use {payload['mode']} mode"
 
@@ -139,6 +187,73 @@ def api_chat():
         "suggestions": result.get("suggestions", []),
         "sparkline": (result.get("data") or {}).get("sparkline", []),
     })
+
+
+@app.route("/api/chat/send", methods=["POST"])
+def api_chat_send():
+    """Kicks off a chat reply in a background thread and returns
+    immediately with a job id -- the actual work (and its eventual
+    result) lives independently of this request, so it isn't cancelled
+    by the browser navigating away. Poll /api/chat/job/<job_id> for the
+    result."""
+    payload = request.get_json(silent=True) or {}
+    text = (payload.get("message") or "").strip()
+    if not text:
+        return jsonify({"error": "empty message"}), 400
+
+    user_id = _user_id()
+    job_id = uuid.uuid4().hex
+    with _jobs_lock:
+        _sweep_old_jobs()
+        _chat_jobs[job_id] = {
+            "user_id": user_id, "status": "pending",
+            "message": text, "created": time.time(),
+        }
+        _pending_by_user[user_id] = job_id
+
+    threading.Thread(target=_run_chat_job, args=(job_id, user_id, text), daemon=True).start()
+    return jsonify({"job_id": job_id})
+
+
+@app.route("/api/chat/job/<job_id>")
+def api_chat_job(job_id):
+    with _jobs_lock:
+        job = _chat_jobs.get(job_id)
+        if job is None:
+            return jsonify({"status": "not_found"}), 404
+        if job["user_id"] != _user_id():
+            abort(403)
+        status = job["status"]
+        result = job.get("result")
+
+    if status == "pending":
+        return jsonify({"status": "pending"})
+    if status == "error":
+        return jsonify({"status": "error", "text": "⚠️ Something went wrong on the last message."})
+
+    # "done" -- convert the file path to a servable URL here (needs an
+    # active request context, unlike the background thread it was
+    # computed in).
+    return jsonify({
+        "status": "done",
+        "text": result.get("text", ""),
+        "image_url": _to_url(result.get("image_path")),
+        "suggestions": result.get("suggestions", []),
+        "sparkline": (result.get("data") or {}).get("sparkline", []),
+    })
+
+
+@app.route("/api/chat/pending")
+def api_chat_pending():
+    """Checked when the Chat page loads -- if the user sent a message,
+    switched tabs, and came back before it finished, this lets the page
+    re-show the pending user bubble + typing indicator and resume
+    polling, instead of the reply silently landing while no one's
+    watching."""
+    with _jobs_lock:
+        job_id = _pending_by_user.get(_user_id())
+        message = _chat_jobs.get(job_id, {}).get("message") if job_id else None
+    return jsonify({"job_id": job_id, "message": message})
 
 
 @app.route("/api/tickers/search")
@@ -597,4 +712,9 @@ if __name__ == "__main__":
         print("Running Flask's built-in dev server. For anything beyond your own "
               "machine, set WEBAPP_DEBUG=false and run behind a real WSGI server "
               "(gunicorn/waitress) -- see DEPLOYMENT.md.")
-    app.run(host="0.0.0.0", port=port, debug=debug, use_reloader=use_reloader)
+    # threaded=True is required, not just nice-to-have: chat replies run in a
+    # background thread (see _run_chat_job above) so they survive the user
+    # navigating away from /chat, and the polling requests that check on
+    # them need to be served concurrently with whatever else is happening,
+    # not queued behind a single-threaded dev server.
+    app.run(host="0.0.0.0", port=port, debug=debug, use_reloader=use_reloader, threaded=True)
