@@ -93,7 +93,7 @@ NEWSAPI_API_KEY = os.getenv("NEWSAPI_API_KEY", "")
 # via the rule-based assistant/nlp.py + assistant/explain.py.
 # ---------------------------------------------------------------------------
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 # ---------------------------------------------------------------------------
 # Messaging platform integrations (assistant/integrations/*)

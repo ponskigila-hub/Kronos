@@ -54,6 +54,8 @@ class StockAssistant:
                 result = self._backtest(tickers)
             elif intent == "fundamentals":
                 result = self._fundamentals(tickers)
+            elif intent == "opinion":
+                result = self._opinion(context, tickers)
             elif intent == "earnings":
                 result = self._earnings(tickers)
             elif intent == "analyst":
@@ -104,6 +106,8 @@ class StockAssistant:
             return [f"Forecast {t}", f"Why is {t} moving that way?"]
         if intent == "fundamentals" and t:
             return [f"Earnings date for {t}", f"Analyst targets for {t}", f"Forecast {t}"]
+        if intent == "opinion" and t:
+            return [f"Fundamentals of {t}", f"What risks for {t}?", f"Backtest {t}"]
         if intent in ("earnings", "analyst") and t:
             return [f"Forecast {t}", f"Fundamentals of {t}"]
         if intent == "compare":
@@ -158,6 +162,7 @@ class StockAssistant:
             "- \"Forecast AAPL\" or \"Predict Tesla for 14 days\"\n"
             "- \"Compare NVDA and AMD\"\n"
             "- \"Why is Apple expected to decline?\"\n"
+            "- \"Is TSLA a good buy?\" or \"Should I buy NVDA?\" -- forecast + fundamentals + analyst view, synthesized\n"
             "- \"What risks should I watch for Bitcoin?\"\n"
             "- \"Fundamentals of AAPL\" / \"Analyst targets for TSLA\" / \"When does MSFT report earnings\"\n"
             "- \"Add TSLA to my watchlist\" / \"My watchlist\" / \"Correlation matrix\"\n"
@@ -342,6 +347,75 @@ class StockAssistant:
         data = fundamentals.get_fundamentals(ticker)
         text = fundamentals.format_fundamentals_text(data)
         return {"text": text, "chart": None, "data": {"ticker": ticker, "fundamentals": data}}
+
+    def _opinion(self, context, tickers):
+        """
+        Handles "is X a good buy?" / "should I buy X" style questions.
+        These used to silently fall through to a plain forecast (a bare
+        ticker mention with no recognized keyword defaults there) -- this
+        gives an actual synthesized answer instead: forecast direction +
+        valuation snapshot + analyst consensus, explicitly framed as data
+        rather than personal financial advice.
+        """
+        if not tickers:
+            return {"text": "Which ticker are you weighing up? e.g. \"Is AAPL a good buy?\"",
+                     "chart": None, "data": {}}
+        ticker = tickers[0]
+        hist_df = data_fetcher.fetch_history(ticker)
+        ind_df = indicators.compute_indicators(hist_df)
+        fc = forecaster.run_forecast(hist_df, pred_len=self.pred_len, n_runs=self.n_forecast_runs)
+        news_items, news_summary = news.get_news(ticker)
+        earnings_warning = fundamentals.earnings_within_horizon(ticker, self.pred_len)
+        regime_note = self._regime_note(ticker, hist_df)
+        explanation = explain.build_explanation(
+            ticker, ind_df, fc, news_summary,
+            beginner=context.beginner_mode, earnings_warning=earnings_warning, regime_note=regime_note,
+        )
+
+        try:
+            fund_data = fundamentals.get_fundamentals(ticker)
+        except ValueError:
+            fund_data = None
+        try:
+            analyst_data = fundamentals.get_analyst_targets(ticker)
+        except ValueError:
+            analyst_data = None
+
+        lines = [f"Here's what the data says about {ticker} -- not a recommendation, just a read of the signals:", ""]
+        lines.append(f"Kronos forecast: {explanation['trend']} trend, {explanation['pct_change']:+.2f}% "
+                      f"over the next {self.pred_len} trading days.")
+        if fund_data and fund_data.get("pe_ratio"):
+            lines.append(f"Valuation: trailing P/E {fund_data['pe_ratio']:.1f}"
+                          + (f", forward P/E {fund_data['forward_pe']:.1f}" if fund_data.get("forward_pe") else "")
+                          + (f", beta {fund_data['beta']:.2f}" if fund_data.get("beta") else "") + ".")
+        if analyst_data and analyst_data.get("target_mean"):
+            upside = None
+            if analyst_data.get("current_price"):
+                upside = (analyst_data["target_mean"] - analyst_data["current_price"]) / analyst_data["current_price"] * 100
+            rating = analyst_data.get("recommendation")
+            line = f"Analyst consensus: mean target {analyst_data['target_mean']:.2f}"
+            if upside is not None:
+                line += f" ({upside:+.1f}% from current price)"
+            if rating:
+                line += f", rated \"{rating.replace('_', ' ')}\""
+            lines.append(line + f" across {analyst_data.get('num_analysts') or '?'} analysts.")
+        if earnings_warning:
+            lines.append(f"Heads up: {ticker} reports earnings around {earnings_warning}, "
+                          f"inside this forecast window -- expect added volatility.")
+
+        lines.append("")
+        lines.append("Whether that adds up to a \"good buy\" depends on your own timeframe, risk tolerance, "
+                      "and portfolio -- I can't make that call for you. Ask me to back-test it, dig into risks, "
+                      "or pull full fundamentals if you want to look closer.")
+        text = "\n".join(lines)
+        text = llm.polish_explanation(text, ticker=ticker, beginner=context.beginner_mode)
+
+        context.update_forecast(
+            [ticker], {"pct_change": explanation["pct_change"], "trend": explanation["trend"]}, text,
+        )
+        return {"text": text, "chart": None, "data": {
+            "ticker": ticker, "sparkline": self._sparkline(hist_df),
+        }}
 
     def _earnings(self, tickers):
         if not tickers:

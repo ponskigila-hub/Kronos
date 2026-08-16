@@ -17,6 +17,13 @@ INTENT_PATTERNS = [
     ("earnings", re.compile(r"\bearnings\b|\breport(s)? date\b|\bwhen.*report\b", re.I)),
     ("analyst", re.compile(r"\banalyst|\bprice target|\brating\b|\bconsensus\b", re.I)),
     ("fundamentals", re.compile(r"\bfundamental|\bp/?e ratio\b|\bmarket cap\b|\bvaluation\b|\beps\b|\brevenue\b", re.I)),
+    ("opinion", re.compile(
+        r"\bshould i (buy|sell|invest)\b|"
+        r"\bworth (buying|it|an? investment)\b|"
+        r"\b(good|bad|solid|safe|smart|decent)\s+(buy|investment|pick|stock|entry)\b|"
+        r"\bbuy or sell\b|\bbuy,?\s*hold,?\s*(or\s*)?sell\b|"
+        r"\bis it (a )?(good |bad )?buy\b|\bwould you buy\b|"
+        r"\bthumbs up\b|\bshould i get in\b", re.I)),
     ("set_mode", re.compile(r"\b(beginner|simple|plain|advanced|expert|technical)\s+mode\b|"
                              r"\buse\s+(beginner|simple|plain|advanced|expert|technical)\b", re.I)),
     ("compare", re.compile(r"\bcompare\b|\bvs\.?\b|\bversus\b", re.I)),
