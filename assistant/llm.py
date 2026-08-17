@@ -179,6 +179,15 @@ def _offline_general_reply(text, beginner=False):
     ]):
         return "Absolutely. I can forecast a ticker, explain a chart, compare symbols, check risk, look at fundamentals, or help you build a simple watchlist."
 
+    if any(p in lower for p in [
+        "how are you", "how's it going", "hows it going", "how do you do",
+        "what's up", "whats up", "how are things", "you good", "you ok", "you okay",
+    ]):
+        return (
+            "Doing well, thanks for asking! Ready whenever you are -- ask me to forecast a "
+            "ticker, compare a couple of stocks, or screen the market for ideas."
+        )
+
     if beginner:
         return (
             "I’m here to help with simple stock questions. You can ask me to forecast a ticker, compare two stocks, explain risks, or show your watchlist, and I’ll use Kronos when you want a model-based market view."
@@ -187,26 +196,6 @@ def _offline_general_reply(text, beginner=False):
     return (
         "I can help with stock forecasts, risk checks, watchlists, fundamentals, analyst targets, and market comparisons. Ask me a normal question like \"What can you do?\" or a market request like \"Forecast AAPL and explain the move\"."
     )
-
-
-def _has_app_coverage(reply):
-    if not reply:
-        return False
-    lowered = reply.lower()
-    return any(token in lowered for token in [
-        "forecast",
-        "screen",
-        "watchlist",
-        "backtest",
-        "compare",
-        "fundamentals",
-        "analyst",
-        "news",
-        "risk",
-        "ticker",
-        "portfolio",
-        "market scan",
-    ])
 
 
 def general_chat(text, history=None, beginner=False):
@@ -253,9 +242,14 @@ def general_chat(text, history=None, beginner=False):
             ),
         )
         reply = (resp.text or "").strip()
-        if not reply or not _has_app_coverage(reply):
-            return offline_reply
-        return reply
+        # Trust the model's reply as-is -- the system prompt already forbids
+        # personal stock picks and steers app-related questions toward real
+        # features. An earlier version additionally required the reply to
+        # contain one of a fixed set of finance keywords before accepting
+        # it, which silently discarded perfectly good answers to ordinary
+        # small talk ("how are you doing?") and replaced them with the
+        # generic canned fallback -- worse than just answering plainly.
+        return reply or offline_reply
     except Exception:
         logger.warning("Gemini general_chat call failed; using static fallback.", exc_info=True)
         return offline_reply
