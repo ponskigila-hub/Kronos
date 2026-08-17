@@ -13,6 +13,8 @@ required. It's intentionally simple and transparent rather than a black box;
 good enough to say "mostly positive / mixed / mostly negative" about a
 headline batch, which is what the explanation layer needs.
 """
+import time
+
 import requests
 
 from .config import FINNHUB_API_KEY, NEWSAPI_API_KEY
@@ -32,6 +34,12 @@ NEGATIVE_WORDS = {
     "recall", "layoff", "layoffs", "warning", "sell", "concerns", "risk",
     "risks", "fraud", "delay", "delays",
 }
+
+# Same rationale as assistant/data_fetcher.py's history cache -- a fetched
+# headline batch + sentiment score is identical whether it's read from
+# _forecast, _why, or _risk a minute apart, so avoid re-fetching per handler.
+_NEWS_CACHE_TTL = 180
+_news_cache = {}  # (ticker, limit) -> (fetched_at, (items, summary))
 
 
 def score_sentiment(text):
@@ -163,6 +171,11 @@ def get_news(ticker, limit=8):
     Returns (news_items, aggregate_summary) where aggregate_summary is
     {"avg_score": float, "label": str, "positive": n, "negative": n, "neutral": n}
     """
+    cache_key = (ticker.upper(), limit)
+    cached = _news_cache.get(cache_key)
+    if cached and (time.time() - cached[0]) < _NEWS_CACHE_TTL:
+        return cached[1]
+
     items = _from_yfinance(ticker, limit=limit)
     if not items:
         items = _from_finnhub(ticker, limit=limit)
@@ -170,7 +183,9 @@ def get_news(ticker, limit=8):
         items = _from_newsapi(ticker, limit=limit)
 
     if not items:
-        return [], {"avg_score": 0.0, "label": "no data", "positive": 0, "negative": 0, "neutral": 0}
+        result = ([], {"avg_score": 0.0, "label": "no data", "positive": 0, "negative": 0, "neutral": 0})
+        _news_cache[cache_key] = (time.time(), result)
+        return result
 
     pos = sum(1 for i in items if i["sentiment_label"] == "positive")
     neg = sum(1 for i in items if i["sentiment_label"] == "negative")
@@ -183,4 +198,6 @@ def get_news(ticker, limit=8):
     else:
         label = "mixed / neutral"
 
-    return items, {"avg_score": avg, "label": label, "positive": pos, "negative": neg, "neutral": neu}
+    result = (items, {"avg_score": avg, "label": label, "positive": pos, "negative": neg, "neutral": neu})
+    _news_cache[cache_key] = (time.time(), result)
+    return result

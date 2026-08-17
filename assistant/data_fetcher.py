@@ -4,6 +4,8 @@ once, for AAPL only, with no validation). This module is the default data
 pipeline: given a ticker, it downloads, cleans, and reshapes history into
 the exact schema Kronos expects.
 """
+import time
+
 import pandas as pd
 import yfinance as yf
 
@@ -11,6 +13,16 @@ from .ticker_utils import validate_ticker
 from .config import DEFAULT_LOOKBACK_DAYS
 
 KRONOS_COLUMNS = ["open", "high", "low", "close", "volume", "amount"]
+
+# Short-lived cache for fetch_history(). A single chat turn on a ticker
+# routinely triggers several handlers in a row that each want the same
+# history (forecast -> "why is it moving" -> "what risks" -> "backtest"),
+# and re-downloading identical daily OHLCV from Yahoo every time was pure
+# wasted latency. 3 minutes is long enough to cover a back-and-forth about
+# one ticker but short enough that intraday price moves during market
+# hours still show up on the next fresh ask.
+_HISTORY_CACHE_TTL = 180
+_history_cache = {}  # (symbol, lookback_days, interval) -> (fetched_at, df)
 
 
 class TickerNotFoundError(Exception):
@@ -33,6 +45,11 @@ def fetch_history(ticker, lookback_days=None, interval="1d"):
         )
 
     lookback_days = lookback_days or DEFAULT_LOOKBACK_DAYS
+    cache_key = (symbol, lookback_days, interval)
+    cached = _history_cache.get(cache_key)
+    if cached and (time.time() - cached[0]) < _HISTORY_CACHE_TTL:
+        return cached[1].copy()
+
     # Pull extra calendar days to survive weekends/holidays and still end up
     # with `lookback_days` trading rows.
     period_days = int(lookback_days * 1.6) + 10
@@ -76,7 +93,9 @@ def fetch_history(ticker, lookback_days=None, interval="1d"):
     if len(df) > lookback_days:
         df = df.iloc[-lookback_days:].reset_index(drop=True)
 
-    return df[["timestamps"] + KRONOS_COLUMNS].reset_index(drop=True)
+    result = df[["timestamps"] + KRONOS_COLUMNS].reset_index(drop=True)
+    _history_cache[cache_key] = (time.time(), result)
+    return result.copy()
 
 
 def fetch_multi(tickers, lookback_days=None, interval="1d"):

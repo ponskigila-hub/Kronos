@@ -79,6 +79,23 @@ def parse_intent(text, context=None):
 
     tickers = extract_tickers(text)
 
+    # These intents trigger on a single common word (\brisk, \bnews\b,
+    # \bhistory\b, \bcorrelat...) which is great for a quick follow-up
+    # ("any risks?", "news?") but was also silently hijacking longer,
+    # genuinely open-ended questions that just happen to contain the word
+    # ("what's the historical relationship between rates and risk assets in
+    # general") -- especially once combined with the followup-ticker reuse
+    # below, which would then attach an unrelated previous ticker to a
+    # question that was never about it. If there's no ticker in the message
+    # itself and it's not short/command-like, let it fall through to
+    # "unknown" -> general_chat instead, where Gemini can actually judge
+    # what was meant instead of a keyword match forcing a specific ticker
+    # command.
+    AMBIGUOUS_WHEN_LONG = {"risk", "news", "history", "correlation", "fundamentals", "analyst", "earnings"}
+    SHORT_COMMAND_WORD_LIMIT = 6
+    if intent in AMBIGUOUS_WHEN_LONG and not tickers and len(text.split()) > SHORT_COMMAND_WORD_LIMIT:
+        intent = "unknown"
+
     # Follow-up resolution: only reuse last ticker for explicit follow-up intents
     # (e.g. "why is it moving?", "compare with Microsoft"). Plain conversational
     # questions such as "what do you think?" and "how does this app work?"

@@ -11,6 +11,7 @@ from . import (
 from .data_fetcher import TickerNotFoundError
 from .nlp import parse_intent
 from .conversation import get_context
+import concurrent.futures
 
 SPARKLINE_POINTS = 14
 
@@ -204,11 +205,16 @@ class StockAssistant:
                      "chart": None, "data": {}}
 
         ticker = tickers[0]
-        hist_df = data_fetcher.fetch_history(ticker)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+            hist_future = pool.submit(data_fetcher.fetch_history, ticker)
+            news_future = pool.submit(news.get_news, ticker)
+            earnings_future = pool.submit(fundamentals.earnings_within_horizon, ticker, self.pred_len)
+            hist_df = hist_future.result()
+            news_items, news_summary = news_future.result()
+            earnings_warning = earnings_future.result()
+
         ind_df = indicators.compute_indicators(hist_df)
         fc = forecaster.run_forecast(hist_df, pred_len=self.pred_len, n_runs=self.n_forecast_runs)
-        news_items, news_summary = news.get_news(ticker)
-        earnings_warning = fundamentals.earnings_within_horizon(ticker, self.pred_len)
         regime_note = self._regime_note(ticker, hist_df)
         explanation = explain.build_explanation(
             ticker, ind_df, fc, news_summary,
@@ -369,25 +375,39 @@ class StockAssistant:
             return {"text": "Which ticker are you weighing up? e.g. \"Is AAPL a good buy?\"",
                      "chart": None, "data": {}}
         ticker = tickers[0]
-        hist_df = data_fetcher.fetch_history(ticker)
+
+        # These four network calls are independent of each other -- firing
+        # them concurrently instead of one-after-another cuts the wall-clock
+        # wait roughly to the slowest single call instead of the sum of all
+        # four (each is typically 0.3-1.5s against Yahoo Finance).
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+            hist_future = pool.submit(data_fetcher.fetch_history, ticker)
+            news_future = pool.submit(news.get_news, ticker)
+            earnings_future = pool.submit(fundamentals.earnings_within_horizon, ticker, self.pred_len)
+            fund_future = pool.submit(fundamentals.get_fundamentals, ticker)
+            analyst_future = pool.submit(fundamentals.get_analyst_targets, ticker)
+
+            hist_df = hist_future.result()
+            news_items, news_summary = news_future.result()
+            earnings_warning = earnings_future.result()
+            try:
+                fund_data = fund_future.result()
+            except ValueError:
+                fund_data = None
+            try:
+                analyst_data = analyst_future.result()
+            except ValueError:
+                analyst_data = None
+
+        # Forecast is CPU-bound (the actual Kronos model call) and depends
+        # on hist_df, so it stays sequential after the fetches above.
         ind_df = indicators.compute_indicators(hist_df)
         fc = forecaster.run_forecast(hist_df, pred_len=self.pred_len, n_runs=self.n_forecast_runs)
-        news_items, news_summary = news.get_news(ticker)
-        earnings_warning = fundamentals.earnings_within_horizon(ticker, self.pred_len)
         regime_note = self._regime_note(ticker, hist_df)
         explanation = explain.build_explanation(
             ticker, ind_df, fc, news_summary,
             beginner=context.beginner_mode, earnings_warning=earnings_warning, regime_note=regime_note,
         )
-
-        try:
-            fund_data = fundamentals.get_fundamentals(ticker)
-        except ValueError:
-            fund_data = None
-        try:
-            analyst_data = fundamentals.get_analyst_targets(ticker)
-        except ValueError:
-            analyst_data = None
 
         lines = [f"Here's what the data says about {ticker} -- not a recommendation, just a read of the signals:", ""]
         lines.append(f"Kronos forecast: {explanation['trend']} trend, {explanation['pct_change']:+.2f}% "

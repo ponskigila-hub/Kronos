@@ -156,7 +156,7 @@
   // webapp/app.py: /api/chat/send + _run_chat_job) so it keeps computing
   // even if the user navigates to another page mid-reply. This polls for
   // the result rather than awaiting one long-lived request/response.
-  const POLL_INTERVAL_MS = 1100;
+  const POLL_INTERVAL_MS = 600;
   let activePoll = null;
 
   function stopPolling() {
