@@ -20,6 +20,47 @@ from plotly.subplots import make_subplots
 from .config import CHARTS_DIR
 
 
+class LazyFigure:
+    """
+    Defers building an expensive Plotly figure (multi-subplot candlestick +
+    indicators + volume + news markers -- see build_forecast_chart) until
+    something actually uses it.
+
+    Why: `result["chart"]` from StockAssistant.handle_message() is only
+    ever read by chat_cli.py (always) and, as a same-image fallback, by the
+    Discord/WhatsApp adapters when a PNG couldn't be produced (in practice
+    never, since a PNG is always built first). The web app's JSON API
+    (webapp/app.py) never touches it at all. Building the full interactive
+    figure on every single forecast/why/history/comparison call was pure
+    wasted work for the web app and for Discord/WhatsApp in the normal
+    case -- this makes that cost pay-per-use instead of pay-always, with no
+    change in behavior for any caller (a LazyFigure behaves like the real
+    Plotly Figure for every operation callers actually perform on it:
+    truthiness, `.write_html`, `.write_image`, `.show`, attribute access).
+    """
+    __slots__ = ("_build_fn", "_args", "_kwargs", "_figure")
+
+    def __init__(self, build_fn, *args, **kwargs):
+        self._build_fn = build_fn
+        self._args = args
+        self._kwargs = kwargs
+        self._figure = None
+
+    def _resolve(self):
+        if self._figure is None:
+            self._figure = self._build_fn(*self._args, **self._kwargs)
+        return self._figure
+
+    def __getattr__(self, name):
+        return getattr(self._resolve(), name)
+
+    def __bool__(self):
+        # A LazyFigure always represents "a chart is available" -- callers
+        # use `result.get("chart") is not None` to check for presence, so
+        # this only matters if something explicitly does `if fig:`.
+        return True
+
+
 def build_forecast_png(ticker, hist_df, forecast_result, save_path=None, display_days=150):
     """
     Static PNG version of the forecast chart, styled like the original

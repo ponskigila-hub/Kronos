@@ -19,14 +19,42 @@ back to a safe default (unchanged text / None). This module must never
 raise -- callers use it as a drop-in "make this nicer / try to answer
 this" step.
 """
+import concurrent.futures
 import logging
 
-from .config import GEMINI_API_KEY, GEMINI_MODEL
+from .config import (
+    GEMINI_API_KEY, GEMINI_MODEL,
+    LLM_POLISH_TIMEOUT_SECONDS, LLM_CHAT_TIMEOUT_SECONDS,
+)
 
 logger = logging.getLogger(__name__)
 
 _client = None
 _client_unavailable = False
+
+# A single small worker pool shared by every timeout-bounded LLM call in
+# this module. Using a pool (rather than spinning up a thread per call)
+# keeps this cheap even under concurrent chat requests; daemon threads so
+# a call abandoned at its timeout doesn't block process shutdown.
+_executor = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="llm-call")
+
+
+def _call_with_timeout(fn, timeout_seconds, *, default):
+    """
+    Run `fn()` but never block the caller for longer than `timeout_seconds`.
+    On timeout OR any exception, returns `default` instead of raising --
+    every function in this module must degrade gracefully, never surface a
+    slow/broken LLM call as a slow/broken forecast.
+    """
+    future = _executor.submit(fn)
+    try:
+        return future.result(timeout=timeout_seconds)
+    except concurrent.futures.TimeoutError:
+        logger.warning("LLM call exceeded %.1fs timeout; using fallback.", timeout_seconds)
+        return default
+    except Exception:
+        logger.warning("LLM call failed; using fallback.", exc_info=True)
+        return default
 
 # Grounds general_chat() in what this specific app can do, so "what stocks
 # do you recommend" gets pointed at the screener (a real, data-backed
@@ -122,16 +150,14 @@ def polish_explanation(text, ticker=None, beginner=False):
         "commentary.\n\n"
         f"Ticker: {ticker or 'N/A'}\n\nNote:\n{text}"
     )
-    try:
+    def _do_call():
         resp = client.models.generate_content(
             model=GEMINI_MODEL,
             contents=prompt,
         )
-        polished = (resp.text or "").strip()
-        return polished or text
-    except Exception:
-        logger.warning("Gemini polish call failed; using rule-based wording.", exc_info=True)
-        return text
+        return (resp.text or "").strip() or text
+
+    return _call_with_timeout(_do_call, LLM_POLISH_TIMEOUT_SECONDS, default=text)
 
 
 def _offline_general_reply(text, beginner=False):
@@ -237,7 +263,7 @@ def general_chat(text, history=None, beginner=False):
     if beginner:
         system_prompt += "\nThe user is in beginner mode -- keep language jargon-light."
 
-    try:
+    def _do_call():
         resp = client.models.generate_content(
             model=GEMINI_MODEL,
             contents=contents,
@@ -255,6 +281,5 @@ def general_chat(text, history=None, beginner=False):
         # small talk ("how are you doing?") and replaced them with the
         # generic canned fallback -- worse than just answering plainly.
         return reply or offline_reply
-    except Exception:
-        logger.warning("Gemini general_chat call failed; using static fallback.", exc_info=True)
-        return offline_reply
+
+    return _call_with_timeout(_do_call, LLM_CHAT_TIMEOUT_SECONDS, default=offline_reply)

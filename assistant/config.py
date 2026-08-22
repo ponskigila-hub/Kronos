@@ -50,6 +50,19 @@ DEFAULT_SAMPLE_RUNS = int(os.getenv("DEFAULT_SAMPLE_RUNS", "1"))
 # calls) -- kept modest by default for CPU-only/limited-RAM machines.
 DETAILED_FORECAST_RUNS = int(os.getenv("DETAILED_FORECAST_RUNS", "8"))
 
+# How long a Kronos forecast stays cached (keyed on a content hash of the
+# exact history window + parameters fed to the model -- see
+# assistant/forecast_cache.py) before it's treated as stale and recomputed.
+# Daily-bar data only changes once a new session closes, so a value in the
+# minutes-to-tens-of-minutes range avoids re-running inference for repeated
+# or follow-up questions about the same ticker without ever serving a
+# meaningfully outdated forecast.
+FORECAST_CACHE_TTL_SECONDS = int(os.getenv("FORECAST_CACHE_TTL_SECONDS", "900"))
+# Hard cap on distinct cached forecasts kept in memory at once (LRU
+# eviction beyond this) so a long-running process touching many tickers
+# can't grow this unboundedly.
+FORECAST_CACHE_MAX_ENTRIES = int(os.getenv("FORECAST_CACHE_MAX_ENTRIES", "256"))
+
 # ---------------------------------------------------------------------------
 # Data storage
 # ---------------------------------------------------------------------------
@@ -86,6 +99,19 @@ BACKTEST_QUICK_STEP_SIZE = int(os.getenv("BACKTEST_QUICK_STEP_SIZE", "30"))
 FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "")
 ALPHAVANTAGE_API_KEY = os.getenv("ALPHAVANTAGE_API_KEY", "")
 NEWSAPI_API_KEY = os.getenv("NEWSAPI_API_KEY", "")
+TWELVEDATA_API_KEY = os.getenv("TWELVEDATA_API_KEY", "")
+
+# Which MarketDataProvider (assistant/providers/) supplies OHLCV history.
+# "yfinance" needs no key and remains the default so the app works
+# out of the box exactly as before. See PROVIDERS.md for the comparison
+# behind this choice and how to add another provider.
+MARKET_DATA_PROVIDER = os.getenv("MARKET_DATA_PROVIDER", "yfinance")
+# Optional: a second provider to try if the primary one raises
+# ProviderDataError (symbol not found there, or the API is down). Left
+# empty by default -- fall back only if you've deliberately set this,
+# since silently trying a second paid API on every miss isn't something
+# a solo-dev deployment should do without opting in.
+MARKET_DATA_FALLBACK_PROVIDER = os.getenv("MARKET_DATA_FALLBACK_PROVIDER", "")
 
 # ---------------------------------------------------------------------------
 # Optional LLM key used ONLY to make the assistant's natural-language
@@ -94,6 +120,28 @@ NEWSAPI_API_KEY = os.getenv("NEWSAPI_API_KEY", "")
 # ---------------------------------------------------------------------------
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+# Hard ceiling on how long the purely-cosmetic wording polish step
+# (assistant.llm.polish_explanation) is allowed to block a forecast reply.
+# This step only rewrites text that's already fully correct -- it should
+# never be the reason a forecast takes noticeably longer to come back, so
+# a slow/stalled Gemini call is abandoned in favor of the unpolished
+# rule-based text rather than making the user wait on it.
+LLM_POLISH_TIMEOUT_SECONDS = float(os.getenv("LLM_POLISH_TIMEOUT_SECONDS", "4"))
+# Looser ceiling for general_chat(), since there the LLM reply IS the
+# content being waited for (not an optional polish on top of something
+# already usable) -- still bounded so a stalled call can't hang a request
+# forever.
+LLM_CHAT_TIMEOUT_SECONDS = float(os.getenv("LLM_CHAT_TIMEOUT_SECONDS", "15"))
+# The tool-calling copilot layer (assistant/copilot.py) can make several
+# sequential model calls plus real tool executions (a forecast, a mini
+# backtest, ...) in one turn, so it gets a looser ceiling than a single
+# chat completion. Still bounded -- a stuck loop must never hang a chat
+# reply indefinitely.
+COPILOT_TIMEOUT_SECONDS = float(os.getenv("COPILOT_TIMEOUT_SECONDS", "25"))
+# Hard cap on how many tool-selection rounds the model gets in one turn.
+# 3 comfortably covers "forecast + indicators + performance" in one
+# question without letting a confused model loop indefinitely.
+COPILOT_MAX_TOOL_ROUNDS = int(os.getenv("COPILOT_MAX_TOOL_ROUNDS", "3"))
 
 # ---------------------------------------------------------------------------
 # Messaging platform integrations (assistant/integrations/*)

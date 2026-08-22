@@ -6,7 +6,7 @@ requirement: "keep all business logic independent of Discord or WhatsApp".
 """
 from . import (
     data_fetcher, indicators, forecaster, news, explain, charts, watchlist,
-    fundamentals, portfolio_analysis, llm,
+    fundamentals, portfolio_analysis, llm, copilot,
 )
 from .data_fetcher import TickerNotFoundError
 from .nlp import parse_intent
@@ -223,7 +223,7 @@ class StockAssistant:
         explanation["text"] = llm.polish_explanation(
             explanation["text"], ticker=ticker, beginner=context.beginner_mode,
         )
-        fig = charts.build_forecast_chart(ticker, hist_df, ind_df, fc, news_items)
+        fig = charts.LazyFigure(charts.build_forecast_chart, ticker, hist_df, ind_df, fc, news_items)
         image_path = charts.build_forecast_png(ticker, hist_df, fc)
 
         context.update_forecast(
@@ -288,7 +288,7 @@ class StockAssistant:
         if len(dfs) < 2:
             return {"text": f"I need at least two valid tickers to compare.{note}", "chart": None, "data": {}}
 
-        fig = charts.build_comparison_chart(dfs)
+        fig = charts.LazyFigure(charts.build_comparison_chart, dfs)
         image_path = charts.build_comparison_png(dfs)
         summaries = []
         for t, df in dfs.items():
@@ -304,7 +304,7 @@ class StockAssistant:
         hist_df = data_fetcher.fetch_history(ticker)
         ind_df = indicators.compute_indicators(hist_df)
         fc = forecaster.run_forecast(hist_df, pred_len=1, n_runs=1)  # minimal, chart focuses on history
-        fig = charts.build_forecast_chart(ticker, hist_df, ind_df, fc)
+        fig = charts.LazyFigure(charts.build_forecast_chart, ticker, hist_df, ind_df, fc)
         image_path = charts.build_forecast_png(ticker, hist_df, fc)
         return {"text": f"Here's {ticker}'s recent price history.", "chart": fig,
                 "image_path": image_path, "data": {"ticker": ticker, "sparkline": self._sparkline(hist_df)}}
@@ -514,10 +514,25 @@ class StockAssistant:
             # normally trigger.
             return self._forecast(context, tickers)
 
-        # No recognized command, no ticker -- genuinely open-ended, e.g.
-        # "what stocks do you recommend?" or "how does this work?". The
-        # general-chat layer in assistant/llm.py now has an app-aware static
-        # fallback even when the user has no Gemini API key configured.
+        # No recognized command, no ticker in THIS message -- genuinely
+        # open-ended or compound, e.g. "what could invalidate that
+        # forecast?" or "how does this app work?". If there's a ticker
+        # from earlier in the conversation, try the tool-calling copilot
+        # first (assistant/copilot.py) -- it can pull real forecast/
+        # indicator/news/backtest numbers before answering, instead of
+        # guessing. Falls straight back to the old static general_chat()
+        # if there's no relevant context, no API key, or anything about
+        # the copilot call fails -- this is a pure addition, not a
+        # replacement for the existing behavior.
+        context_tickers = list(context.last_tickers) if context.last_tickers else []
+        if context_tickers:
+            copilot_reply = copilot.answer(
+                text, context_tickers=context_tickers,
+                history=context.history, beginner=context.beginner_mode,
+            )
+            if copilot_reply:
+                return {"text": copilot_reply, "chart": None, "data": {"tickers": context_tickers}}
+
         reply = llm.general_chat(text, history=context.history, beginner=context.beginner_mode)
         if reply:
             return {"text": reply, "chart": None, "data": {}}

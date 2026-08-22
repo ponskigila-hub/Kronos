@@ -13,6 +13,7 @@ import pandas as pd
 
 from .model_loader import get_predictor
 from .config import DEFAULT_PRED_LEN, DEFAULT_SAMPLE_RUNS, DEFAULT_KRONOS_SAMPLE_COUNT, DEFAULT_KRONOS_T
+from . import forecast_cache
 
 FEATURE_COLS = ["open", "high", "low", "close", "volume", "amount"]
 OHLC_COLS = ["open", "high", "low", "close"]
@@ -88,6 +89,14 @@ def run_forecast(hist_df, pred_len=None, n_runs=None, lookback=None, T=None, top
     future_dates = _future_dates(last_date, pred_len)
     y_timestamp = pd.Series(future_dates)
 
+    cache_key = forecast_cache.make_key(
+        x_df, x_timestamp, pred_len, n_runs, lookback, T, top_p,
+        sample_count, anchor_to_last_close,
+    )
+    cached = forecast_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     runs = []
     for i in range(max(1, n_runs)):
         pred_df = predictor.predict(
@@ -123,7 +132,7 @@ def run_forecast(hist_df, pred_len=None, n_runs=None, lookback=None, T=None, top
         high_df = pd.DataFrame({"timestamps": future_dates, "close": high_close})
         mean_df = pd.DataFrame({"timestamps": future_dates, "close": mean_close})
 
-    return {
+    result = {
         "pred_df": main_pred,
         "mean_df": mean_df,          # None if n_runs == 1 -- mean across all sampled paths
         "low_df": low_df,
@@ -134,3 +143,5 @@ def run_forecast(hist_df, pred_len=None, n_runs=None, lookback=None, T=None, top
         "context_start": x_timestamp.iloc[0],  # first date actually fed to the model
         "forecast_start": last_date,           # last known real date (where forecasting begins)
     }
+    forecast_cache.set(cache_key, result)
+    return result

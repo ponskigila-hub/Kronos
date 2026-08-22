@@ -1,26 +1,33 @@
 """
 Replaces the old "download a CSV by hand" step (yahoopredict.py did this
 once, for AAPL only, with no validation). This module is the default data
-pipeline: given a ticker, it downloads, cleans, and reshapes history into
+pipeline: given a ticker, it validates, downloads (via a swappable
+MarketDataProvider -- see assistant/providers/), and caches history into
 the exact schema Kronos expects.
+
+fetch_history / fetch_multi / TickerNotFoundError keep the exact same
+signatures and behavior they had before the provider abstraction existed
+-- every caller in this project (core_assistant, forecaster docstring,
+portfolio_analysis, screener, webapp) uses only these three names, so
+none of them needed to change.
 """
 import time
 
-import pandas as pd
-import yfinance as yf
-
 from .ticker_utils import validate_ticker
 from .config import DEFAULT_LOOKBACK_DAYS
+from .providers import get_history_with_fallback, ProviderDataError
 
 KRONOS_COLUMNS = ["open", "high", "low", "close", "volume", "amount"]
 
 # Short-lived cache for fetch_history(). A single chat turn on a ticker
 # routinely triggers several handlers in a row that each want the same
 # history (forecast -> "why is it moving" -> "what risks" -> "backtest"),
-# and re-downloading identical daily OHLCV from Yahoo every time was pure
-# wasted latency. 3 minutes is long enough to cover a back-and-forth about
-# one ticker but short enough that intraday price moves during market
-# hours still show up on the next fresh ask.
+# and re-fetching identical daily OHLCV every time was pure wasted
+# latency. 3 minutes is long enough to cover a back-and-forth about one
+# ticker but short enough that intraday price moves during market hours
+# still show up on the next fresh ask. This cache lives here (not inside
+# each provider) because it's provider-agnostic: the normalized output is
+# identical regardless of which provider produced it.
 _HISTORY_CACHE_TTL = 180
 _history_cache = {}  # (symbol, lookback_days, interval) -> (fetched_at, df)
 
@@ -31,12 +38,14 @@ class TickerNotFoundError(Exception):
 
 def fetch_history(ticker, lookback_days=None, interval="1d"):
     """
-    Download and clean historical OHLCV data for a single ticker, returning
-    a DataFrame in Kronos's expected format:
+    Fetch and clean historical OHLCV data for a single ticker via the
+    configured MarketDataProvider, returning a DataFrame in Kronos's
+    expected format:
         columns: open, high, low, close, volume, amount
         plus a 'timestamps' column (datetime64)
 
-    Raises TickerNotFoundError if the symbol doesn't exist / has no data.
+    Raises TickerNotFoundError if the symbol doesn't exist / no provider
+    (including the fallback, if configured) has data for it.
     """
     is_valid, symbol = validate_ticker(ticker)
     if not is_valid:
@@ -50,50 +59,12 @@ def fetch_history(ticker, lookback_days=None, interval="1d"):
     if cached and (time.time() - cached[0]) < _HISTORY_CACHE_TTL:
         return cached[1].copy()
 
-    # Pull extra calendar days to survive weekends/holidays and still end up
-    # with `lookback_days` trading rows.
-    period_days = int(lookback_days * 1.6) + 10
+    try:
+        df, provider_used = get_history_with_fallback(symbol, lookback_days, interval)
+    except ProviderDataError as e:
+        raise TickerNotFoundError(str(e))
 
-    df = yf.download(
-        symbol,
-        period=f"{period_days}d",
-        interval=interval,
-        auto_adjust=False,
-        progress=False,
-    )
-
-    if df is None or df.empty:
-        raise TickerNotFoundError(f"No historical data returned for '{symbol}'.")
-
-    # yfinance sometimes returns a MultiIndex on columns (esp. for multi-ticker
-    # calls, but occasionally on single-ticker calls in newer versions too).
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.get_level_values(0)
-
-    df = df.rename(columns={
-        "Open": "open", "High": "high", "Low": "low",
-        "Close": "close", "Volume": "volume",
-    })
-
-    # Handle missing values instead of silently failing: forward-fill small
-    # gaps (e.g. a single missing print), then drop any rows that are still
-    # incomplete (e.g. leading NaNs before the asset existed).
-    df[["open", "high", "low", "close", "volume"]] = (
-        df[["open", "high", "low", "close", "volume"]].ffill()
-    )
-    df = df.dropna(subset=["open", "high", "low", "close"])
-
-    df["amount"] = df["volume"] * df[["open", "high", "low", "close"]].mean(axis=1)
-
-    df = df.reset_index()
-    date_col = "Date" if "Date" in df.columns else "Datetime"
-    df = df.rename(columns={date_col: "timestamps"})
-    df["timestamps"] = pd.to_datetime(df["timestamps"])
-
-    if len(df) > lookback_days:
-        df = df.iloc[-lookback_days:].reset_index(drop=True)
-
-    result = df[["timestamps"] + KRONOS_COLUMNS].reset_index(drop=True)
+    result = df  # already normalized (timestamps, open, high, low, close, volume, amount)
     _history_cache[cache_key] = (time.time(), result)
     return result.copy()
 
@@ -109,3 +80,4 @@ def fetch_multi(tickers, lookback_days=None, interval="1d"):
         except TickerNotFoundError:
             failures.append(t)
     return results, failures
+

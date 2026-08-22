@@ -21,6 +21,10 @@
     el.classList.add("visible");
   }
 
+  function hideLoading() {
+    if (overlay) overlay.classList.remove("visible");
+  }
+
   // Any form with data-loading-message="..." gets the overlay + a
   // disabled submit button automatically on submit. This is a real
   // full-page POST (not AJAX) -- the overlay just covers the wait until
@@ -50,5 +54,5 @@
     if (e.persisted && overlay) overlay.classList.remove("visible");
   });
 
-  window.KronosLoading = { show: showLoading };
+  window.KronosLoading = { show: showLoading, hide: hideLoading };
 })();

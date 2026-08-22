@@ -15,7 +15,7 @@
   </div>
 
   <div class="tab-panel active" id="tab-ticker">
-    <form method="post" action="{{ url_for('forecast_ticker') }}" data-loading-message="Running forecast…">
+    <form method="post" action="{{ url_for('forecast_ticker') }}" data-loading-message="Running forecast…" data-skip-loading="true" id="tickerForm">
       <div class="field-row">
         <div class="field">
           <label for="ticker">Ticker</label>
@@ -39,7 +39,7 @@
   </div>
 
   <div class="tab-panel" id="tab-csv">
-    <form method="post" action="{{ url_for('forecast_csv') }}" enctype="multipart/form-data" data-loading-message="Processing your CSV and running forecast…">
+    <form method="post" action="{{ url_for('forecast_csv') }}" enctype="multipart/form-data" data-loading-message="Processing your CSV and running forecast…" data-skip-loading="true" id="csvForm">
       <label class="file-drop" id="dropZone">
         <input type="file" name="file" id="fileInput" accept=".csv" required>
         <span id="fileLabel">Drop a CSV here or click to browse<br><small>Needs a date/timestamp column + open, high, low, close, volume</small></span>
@@ -60,15 +60,27 @@
 </div>
 
 {% if result_text %}
-<div class="result-section">
+<div class="result-section" id="resultSection">
   <div class="result-header">
     <h2>Forecast result</h2>
-    <span class="result-tag">{{ result_ticker }}</span>
+    <span class="result-tag" id="resultTag">{{ result_ticker }}</span>
   </div>
   {% if image_url %}
-  <div class="chart-frame"><img src="{{ image_url }}" alt="Forecast chart for {{ result_ticker }}"></div>
+  <div class="chart-frame" id="chartFrame"><img src="{{ image_url }}" alt="Forecast chart for {{ result_ticker }}"></div>
   {% endif %}
-  <div class="result-text">{{ result_text }}</div>
+  <div class="result-text" id="resultText">{{ result_text }}</div>
+</div>
+{% else %}
+<!-- Populated by forecast.js once a background job completes -- see
+     /forecast/ticker and /forecast/csv, which now return a job id
+     instead of blocking the request for the full Kronos inference time. -->
+<div class="result-section" id="resultSection" style="display:none;">
+  <div class="result-header">
+    <h2>Forecast result</h2>
+    <span class="result-tag" id="resultTag"></span>
+  </div>
+  <div class="chart-frame" id="chartFrame" style="display:none;"></div>
+  <div class="result-text" id="resultText"></div>
 </div>
 {% endif %}
 

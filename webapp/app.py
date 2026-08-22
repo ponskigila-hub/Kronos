@@ -92,6 +92,95 @@ def _run_chat_job(job_id, user_id, text):
                 del _pending_by_user[user_id]
 
 
+# ---------------------------------------------------------------------------
+# Background forecast jobs (the manual "/forecast" page's ticker + CSV
+# forms). This used to be a plain synchronous POST -- the request (and the
+# one worker thread handling it) sat blocked for the entire Kronos
+# inference time, and a slow/CPU-only forecast looked identical to a hung
+# server. It now follows exactly the same background-thread-plus-polling
+# pattern already used for chat above, so the page can show real progress
+# instead of a spinner glued to a frozen request.
+# ---------------------------------------------------------------------------
+_forecast_jobs = {}
+_forecast_jobs_lock = threading.Lock()
+
+
+def _sweep_old_forecast_jobs():
+    cutoff = time.time() - _JOB_TTL_SECONDS
+    stale = [jid for jid, j in _forecast_jobs.items() if j["status"] != "pending" and j["created"] < cutoff]
+    for jid in stale:
+        _forecast_jobs.pop(jid, None)
+
+
+def _finish_forecast_job(job_id, *, status, result=None, error=None):
+    with _forecast_jobs_lock:
+        job = _forecast_jobs.get(job_id)
+        if job is not None:
+            job["status"] = status
+            if result is not None:
+                job["result"] = result
+            if error is not None:
+                job["error"] = error
+
+
+def _run_forecast_ticker_job(job_id, ticker, pred_len, lookback, detailed):
+    try:
+        hist_df = data_fetcher.fetch_history(ticker, lookback_days=lookback)
+        if detailed:
+            from assistant.config import DETAILED_FORECAST_RUNS
+            fc = forecaster_mod.run_forecast(hist_df, pred_len=pred_len, n_runs=DETAILED_FORECAST_RUNS)
+            image_path = charts.build_detailed_forecast_png(ticker, hist_df, fc)
+        else:
+            fc = forecaster_mod.run_forecast(hist_df, pred_len=pred_len)
+            image_path = charts.build_forecast_png(ticker, hist_df, fc)
+
+        last_close = float(hist_df["close"].iloc[-1])
+        if detailed and fc.get("mean_df") is not None:
+            forecast_close = float(fc["mean_df"]["close"].iloc[-1])
+        else:
+            forecast_close = float(fc["pred_df"]["close"].iloc[-1])
+        pct = (forecast_close - last_close) / last_close * 100
+        result_text = (
+            f"{ticker}: {last_close:.2f} -> {forecast_close:.2f} over {pred_len} trading days "
+            f"({pct:+.2f}%). Lookback used: {fc['lookback_used']} days."
+        )
+        if detailed:
+            result_text += f" ({fc['n_runs']} sampled paths shown.)"
+        _finish_forecast_job(job_id, status="done", result={
+            "text": result_text, "ticker": ticker, "image_path": image_path,
+        })
+    except TickerNotFoundError as e:
+        _finish_forecast_job(job_id, status="error", error=str(e))
+    except Exception as e:
+        _finish_forecast_job(job_id, status="error", error=f"Forecast failed: {e}")
+
+
+def _run_forecast_csv_job(job_id, file_bytes, label, pred_len):
+    try:
+        import io
+        import pandas as pd
+        raw_df = pd.read_csv(io.BytesIO(file_bytes))
+        hist_df = CSVLoader().normalize(raw_df)
+        if len(hist_df) < 30:
+            raise ValueError("Need at least 30 rows of history to forecast anything useful.")
+
+        fc = forecaster_mod.run_forecast(hist_df, pred_len=pred_len)
+        image_path = charts.build_forecast_png(label, hist_df, fc)
+
+        last_close = float(hist_df["close"].iloc[-1])
+        forecast_close = float(fc["pred_df"]["close"].iloc[-1])
+        pct = (forecast_close - last_close) / last_close * 100
+        result_text = (
+            f"{label}: {last_close:.2f} -> {forecast_close:.2f} over {pred_len} trading days "
+            f"({pct:+.2f}%). Rows read from CSV: {len(hist_df)}, lookback used: {fc['lookback_used']} days."
+        )
+        _finish_forecast_job(job_id, status="done", result={
+            "text": result_text, "ticker": label, "image_path": image_path,
+        })
+    except Exception as e:
+        _finish_forecast_job(job_id, status="error", error=f"Couldn't process that CSV: {e}")
+
+
 @app.context_processor
 def inject_integration_status():
     """Makes an `integrations` dict available in every template (sidebar
@@ -378,83 +467,80 @@ def forecast():
 
 @app.route("/forecast/ticker", methods=["POST"])
 def forecast_ticker():
+    """
+    Kicks off a ticker forecast in a background thread and returns
+    immediately with a job id (JSON) instead of blocking this request for
+    the full Kronos inference time -- see forecast.js for the polling
+    loop against /forecast/job/<id>. Mirrors /api/chat/send's pattern.
+    """
     ticker = (request.form.get("ticker") or "").strip().upper()
     pred_len = int(request.form.get("pred_len") or 30)
     lookback = int(request.form.get("lookback") or 400)
     detailed = request.form.get("detailed") == "on"
 
     if not ticker:
-        flash("Enter a ticker first.", "error")
-        return redirect(url_for("forecast"))
+        return jsonify({"error": "Enter a ticker first."}), 400
 
-    try:
-        hist_df = data_fetcher.fetch_history(ticker, lookback_days=lookback)
-        ind_df = indicators.compute_indicators(hist_df)
-        if detailed:
-            from assistant.config import DETAILED_FORECAST_RUNS
-            fc = forecaster_mod.run_forecast(hist_df, pred_len=pred_len, n_runs=DETAILED_FORECAST_RUNS)
-            image_path = charts.build_detailed_forecast_png(ticker, hist_df, fc)
-        else:
-            fc = forecaster_mod.run_forecast(hist_df, pred_len=pred_len)
-            image_path = charts.build_forecast_png(ticker, hist_df, fc)
-
-        last_close = float(hist_df["close"].iloc[-1])
-        if detailed and fc.get("mean_df") is not None:
-            forecast_close = float(fc["mean_df"]["close"].iloc[-1])
-        else:
-            forecast_close = float(fc["pred_df"]["close"].iloc[-1])
-        pct = (forecast_close - last_close) / last_close * 100
-        result_text = (
-            f"{ticker}: {last_close:.2f} -> {forecast_close:.2f} over {pred_len} trading days "
-            f"({pct:+.2f}%). Lookback used: {fc['lookback_used']} days."
-        )
-        if detailed:
-            result_text += f" ({fc['n_runs']} sampled paths shown.)"
-        return render_template("forecast.html", active="forecast",
-                                result_text=result_text, result_ticker=ticker,
-                                image_url=_to_url(image_path))
-    except TickerNotFoundError as e:
-        flash(str(e), "error")
-        return redirect(url_for("forecast"))
-    except Exception as e:
-        flash(f"Forecast failed: {e}", "error")
-        return redirect(url_for("forecast"))
+    job_id = uuid.uuid4().hex
+    with _forecast_jobs_lock:
+        _sweep_old_forecast_jobs()
+        _forecast_jobs[job_id] = {"status": "pending", "created": time.time()}
+    threading.Thread(
+        target=_run_forecast_ticker_job,
+        args=(job_id, ticker, pred_len, lookback, detailed),
+        daemon=True,
+    ).start()
+    return jsonify({"job_id": job_id})
 
 
 @app.route("/forecast/csv", methods=["POST"])
 def forecast_csv():
+    """Same background-job treatment as forecast_ticker, for CSV uploads."""
     file = request.files.get("file")
     label = (request.form.get("name") or "UPLOAD").strip().upper() or "UPLOAD"
     pred_len = int(request.form.get("pred_len") or 30)
 
     if not file or file.filename == "":
-        flash("Choose a CSV file first.", "error")
-        return redirect(url_for("forecast"))
+        return jsonify({"error": "Choose a CSV file first."}), 400
 
-    try:
-        import pandas as pd
-        raw_df = pd.read_csv(file)
-        hist_df = CSVLoader().normalize(raw_df)
-        if len(hist_df) < 30:
-            raise ValueError("Need at least 30 rows of history to forecast anything useful.")
+    file_bytes = file.read()  # must read now -- the file handle won't survive past this request
 
-        ind_df = indicators.compute_indicators(hist_df)
-        fc = forecaster_mod.run_forecast(hist_df, pred_len=pred_len)
-        image_path = charts.build_forecast_png(label, hist_df, fc)
+    job_id = uuid.uuid4().hex
+    with _forecast_jobs_lock:
+        _sweep_old_forecast_jobs()
+        _forecast_jobs[job_id] = {"status": "pending", "created": time.time()}
+    threading.Thread(
+        target=_run_forecast_csv_job,
+        args=(job_id, file_bytes, label, pred_len),
+        daemon=True,
+    ).start()
+    return jsonify({"job_id": job_id})
 
-        last_close = float(hist_df["close"].iloc[-1])
-        forecast_close = float(fc["pred_df"]["close"].iloc[-1])
-        pct = (forecast_close - last_close) / last_close * 100
-        result_text = (
-            f"{label}: {last_close:.2f} -> {forecast_close:.2f} over {pred_len} trading days "
-            f"({pct:+.2f}%). Rows read from CSV: {len(hist_df)}, lookback used: {fc['lookback_used']} days."
-        )
-        return render_template("forecast.html", active="forecast",
-                                result_text=result_text, result_ticker=label,
-                                image_url=_to_url(image_path))
-    except Exception as e:
-        flash(f"Couldn't process that CSV: {e}", "error")
-        return redirect(url_for("forecast"))
+
+@app.route("/forecast/job/<job_id>")
+def forecast_job(job_id):
+    with _forecast_jobs_lock:
+        job = _forecast_jobs.get(job_id)
+        if job is None:
+            return jsonify({"status": "not_found"}), 404
+        status = job["status"]
+        result = job.get("result")
+        error = job.get("error")
+
+    if status == "pending":
+        return jsonify({"status": "pending"})
+    if status == "error":
+        return jsonify({"status": "error", "message": error or "Something went wrong."})
+
+    # "done" -- convert the file path to a servable URL here (needs an
+    # active request context, unlike the background thread it was
+    # computed in -- same reasoning as /api/chat/job/<id> above).
+    return jsonify({
+        "status": "done",
+        "text": result["text"],
+        "ticker": result["ticker"],
+        "image_url": _to_url(result.get("image_path")),
+    })
 
 
 # ---------------------------------------------------------------------------
