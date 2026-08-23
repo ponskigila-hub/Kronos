@@ -326,11 +326,23 @@ class StockAssistant:
         if not ticker:
             return {"text": "Why about which ticker? Ask me to forecast one first, e.g. \"Forecast TSLA\".",
                      "chart": None, "data": {}}
-        hist_df = data_fetcher.fetch_history(ticker)
+
+        # hist_df, news, and the earnings-date check are independent of
+        # each other -- same reasoning as _forecast/_opinion above, just
+        # applied here too (this path used to fetch all three one after
+        # another even though nothing here needs the others' results
+        # first).
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+            hist_future = pool.submit(data_fetcher.fetch_history, ticker)
+            news_future = pool.submit(news.get_news, ticker)
+            earnings_future = pool.submit(fundamentals.earnings_within_horizon, ticker, self.pred_len)
+
+            hist_df = hist_future.result()
+            news_items, news_summary = news_future.result()
+            earnings_warning = earnings_future.result()
+
         ind_df = indicators.compute_indicators(hist_df)
         fc = forecaster.run_forecast(hist_df, pred_len=self.pred_len, n_runs=self.n_forecast_runs)
-        news_items, news_summary = news.get_news(ticker)
-        earnings_warning = fundamentals.earnings_within_horizon(ticker, self.pred_len)
         regime_note = self._regime_note(ticker, hist_df)
         explanation = explain.build_explanation(
             ticker, ind_df, fc, news_summary,
@@ -346,9 +358,14 @@ class StockAssistant:
         if not tickers:
             return {"text": "Which ticker's risks would you like me to flag?", "chart": None, "data": {}}
         ticker = tickers[0]
-        hist_df = data_fetcher.fetch_history(ticker)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            hist_future = pool.submit(data_fetcher.fetch_history, ticker)
+            news_future = pool.submit(news.get_news, ticker)
+            hist_df = hist_future.result()
+            _, news_summary = news_future.result()
+
         ind_df = indicators.compute_indicators(hist_df)
-        _, news_summary = news.get_news(ticker)
         risks = explain.build_risk_note(ind_df, news_summary, beginner=context.beginner_mode)
         text = f"Risks to watch for {ticker}:\n" + "\n".join(f"- {r}" for r in risks)
         return {"text": text, "chart": None,

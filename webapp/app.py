@@ -33,6 +33,7 @@ from assistant.screener import engine as screener_engine
 from assistant.screener import universe as screener_universe
 from assistant.screener import presets as screener_presets
 from assistant.screener import filters as screener_filters
+from assistant.screener import history as screener_history
 from assistant.config import SCREENER_CONFIG
 from assistant.data_fetcher import TickerNotFoundError
 from assistant.ticker_directory import search_tickers
@@ -387,6 +388,7 @@ def screener():
         "screener.html", active="screener",
         universes=screener_universe.UNIVERSES, presets=screener_presets.PRESETS,
         metric_catalog=screener_filters.METRIC_CATALOG, config=SCREENER_CONFIG,
+        run_history=screener_history.get_history(_user_id(), limit=20),
     )
 
 
@@ -449,12 +451,24 @@ def screener_run():
         flash(result["error"], "error")
         return redirect(url_for("screener"))
 
+    # Record which tickers this screen returned -- only for a real,
+    # completed result (not the empty-universe error case above), so
+    # history reflects actual scans a user would want to look back at.
+    screener_history.record_run(_user_id(), result, universe_key, preset_key)
+
     return render_template(
         "screener.html", active="screener",
         universes=screener_universe.UNIVERSES, presets=screener_presets.PRESETS,
         metric_catalog=screener_filters.METRIC_CATALOG, config=SCREENER_CONFIG,
-        result=result,
+        result=result, run_history=screener_history.get_history(_user_id(), limit=20),
     )
+
+
+@app.route("/screener/history/clear", methods=["POST"])
+def screener_history_clear():
+    screener_history.clear_history(_user_id())
+    flash("Screen history cleared.", "ok")
+    return redirect(url_for("screener"))
 
 
 # ---------------------------------------------------------------------------
@@ -462,7 +476,7 @@ def screener_run():
 # ---------------------------------------------------------------------------
 @app.route("/forecast")
 def forecast():
-    return render_template("forecast.html", active="forecast")
+    return render_template("forecast.html", active="forecast", prefill_ticker=request.args.get("ticker", ""))
 
 
 @app.route("/forecast/ticker", methods=["POST"])

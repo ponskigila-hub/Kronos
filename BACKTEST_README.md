@@ -77,6 +77,94 @@ temporarily -- it's ~4x smaller than `Kronos-base` and iterates much faster
 for the exploratory phase. Switch back to `Kronos-base` for your final,
 fewer-but-longer verification runs once you've settled on settings.
 
+## More tips for faster, more representative backtests
+
+### Prediction caching now speeds up repeated runs (new)
+
+`assistant/forecaster.run_forecast()` -- what `backtesting/kronos_adapter.py`
+calls for every single walk-forward window -- is now backed by a
+content-hash-keyed cache (`assistant/forecast_cache.py`). This has a real,
+automatic effect on backtesting specifically:
+
+- **Re-running the exact same window twice in one process is nearly free.**
+  If you tweak something that doesn't change Kronos's inputs -- a plotting
+  option, a trading-simulator threshold, a scoring weight -- and re-run,
+  every window whose (data, lookback, horizon, sampling params, model)
+  combination was already computed comes back instantly instead of
+  re-invoking the model.
+- **It's per-process, in-memory only.** Each `python run_backtest.py`
+  invocation starts a fresh process with an empty cache -- this does *not*
+  make two separate CLI runs fast. To actually benefit across multiple
+  iterations, keep one Python process alive and call the API repeatedly
+  instead of shelling out each time:
+  ```python
+  from backtesting.runner import BacktestRunner
+  runner = BacktestRunner(tickers=["AAPL"], max_windows=10)
+  runner.run()      # cold -- computes every window
+  runner.run()      # warm -- everything hits cache, returns almost instantly
+  ```
+  This is genuinely useful while iterating on backtest *reporting* code
+  (plots, metrics formatting) without wanting to wait for Kronos again
+  every time you tweak a chart.
+- **It can't contaminate a hyperparameter search.** The cache key includes
+  every sampling parameter (`T`, `lookback`, `top_p`, `sample_count`,
+  `anchor_to_last_close`) plus the model id, so `grid_search()` trying
+  different `T`/`lookback` combinations always computes each combination
+  fresh -- there's no risk of one grid point's result leaking into another's.
+- **Long overnight sweeps may want a longer TTL.** The default
+  (`FORECAST_CACHE_TTL_SECONDS=900`, 15 minutes) is tuned for interactive
+  chat use, not a multi-hour `Kronos-base` sweep across many tickers where
+  the same window might legitimately get revisited an hour later. Raise it
+  for a long session: `FORECAST_CACHE_TTL_SECONDS=14400` (4 hours) in
+  `.env`. Also raise `FORECAST_CACHE_MAX_ENTRIES` (default 256) if you're
+  sweeping many tickers × many windows -- otherwise LRU eviction may push
+  out a window before you get back to reusing it.
+
+### Comparing Kronos-mini/small/base for backtesting (new)
+
+The "Kronos-small vs Kronos-base A/B test" idea below (under "Other
+recommended next steps") is now a one-command tool instead of a manual
+`KRONOS_MODEL_ID` swap-and-rerun: `benchmarking/model_benchmark.py`
+runs `run_backtest.py` once per model variant (mini/small/base) in a
+clean process each -- required since `model_loader.py` is a deliberate
+one-model-per-process singleton -- and aggregates MAE/RMSE/MAPE/directional
+accuracy plus latency and memory into one comparison table.
+```bash
+# sanity check first, same spirit as --max-windows above
+python benchmarking/model_benchmark.py --models mini small --tickers AAPL --max-windows 5
+
+# full comparison
+python benchmarking/model_benchmark.py
+```
+See `IMPROVEMENTS_REPORT.md` for the full design rationale (why each
+model needs its own process, why mini's different tokenizer/context
+length matters) if you're curious how it works under the hood.
+
+### `--max-windows` samples the *earliest* history, not a spread (methodological)
+
+Worth knowing exactly what capping windows does: `WalkForwardValidator`
+generates windows chronologically forward from the start of your data
+and stops as soon as it hits `--max-windows` (`backtesting/walk_forward.py`).
+That means `--max-windows 15` on 5 years of history tests only the
+*earliest* ~15 windows' worth of time (a few months), not 15 windows
+spread across the full 5 years -- so a quick sanity-check run can look
+fine (or bad) for reasons specific to that one early period, not
+necessarily representative of the model's behavior today.
+
+For a quick check that's still spread across your full history, widen
+`--step-size` instead of (or in addition to) capping windows:
+```bash
+# 15 windows chronologically clustered near the start of your data
+python run_backtest.py --tickers AAPL --max-windows 15
+
+# ~15 windows spread across the whole history instead (bigger gap between
+# each walk-forward step) -- still fast, more representative
+python run_backtest.py --tickers AAPL --step-size 120 --max-windows 15
+```
+Always do a full, uncapped run (no `--max-windows`) before trusting a
+final number -- both of the above are for fast iteration, not the result
+you'd report.
+
 ## Statistical significance (is Kronos actually better, or just noise?)
 
 `backtesting/significance.py` implements a Diebold-Mariano test, run

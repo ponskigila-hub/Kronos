@@ -77,7 +77,7 @@ def build_forecast_png(ticker, hist_df, forecast_result, save_path=None, display
     plt.figure(figsize=(14, 7))
 
     plt.plot(display_hist["timestamps"], display_hist["close"],
-              label="Historical", linewidth=1.5, color="#1f77b4")
+              label="Historical", linewidth=2.2, color="#1f77b4")
 
     if low_df is not None and high_df is not None:
         plt.fill_between(pred_df["timestamps"], low_df["close"], high_df["close"],
@@ -85,9 +85,9 @@ def build_forecast_png(ticker, hist_df, forecast_result, save_path=None, display
                           label=f"Forecast range ({forecast_result.get('n_runs', 1)} runs)")
 
     plt.plot(pred_df["timestamps"], pred_df["close"], "--",
-              linewidth=2, label="Kronos Forecast", color="#ff7f0e")
+              linewidth=2.8, label="Kronos Forecast", color="#ff7f0e")
 
-    plt.axvline(x=display_hist["timestamps"].iloc[-1], linestyle=":", linewidth=1, color="gray")
+    plt.axvline(x=display_hist["timestamps"].iloc[-1], linestyle=":", linewidth=1.8, color="gray")
 
     plt.title(f"{ticker} Forecast -- Next {len(pred_df)} Trading Days")
     plt.xlabel("Date")
@@ -135,26 +135,26 @@ def build_detailed_forecast_png(ticker, hist_df, forecast_result, save_path=None
     plt.figure(figsize=(15, 7.5))
 
     plt.plot(display_hist["timestamps"], display_hist["close"],
-              color="#4c78a8", linewidth=1.4, label="Historical Close (Full Data)")
+              color="#4c78a8", linewidth=2.2, label="Historical Close (Full Data)")
 
     for i, run in enumerate(all_runs):
-        plt.plot(run["timestamps"], run["close"], color="#f5a623", alpha=0.35, linewidth=0.9,
+        plt.plot(run["timestamps"], run["close"], color="#f5a623", alpha=0.4, linewidth=1.3,
                   label="Forecast Paths" if i == 0 else None)
 
     if mean_df is not None:
         plt.plot(mean_df["timestamps"], mean_df["close"], color="#a91e1e",
-                  linewidth=2.2, label="Mean Forecast")
+                  linewidth=3.0, label="Mean Forecast")
     elif len(all_runs) == 1:
         plt.plot(pred_df["timestamps"], pred_df["close"], color="#a91e1e",
-                  linewidth=2.2, label="Forecast")
+                  linewidth=3.0, label="Forecast")
 
     if low_df is not None and high_df is not None:
         plt.fill_between(pred_df["timestamps"], low_df["close"], high_df["close"],
                           color="#f5a623", alpha=0.18, label="10-90th percentile")
 
     if context_start is not None and context_start >= display_hist["timestamps"].iloc[0]:
-        plt.axvline(context_start, color="#2ca02c", linestyle=":", linewidth=1.3, label="Model Context Start")
-    plt.axvline(forecast_start, color="gray", linestyle=":", linewidth=1.3, label="Forecast Start")
+        plt.axvline(context_start, color="#2ca02c", linestyle=":", linewidth=2.0, label="Model Context Start")
+    plt.axvline(forecast_start, color="gray", linestyle=":", linewidth=2.0, label="Forecast Start")
 
     plt.title(f"{ticker} Price Forecast (Kronos) -- {n_runs} sampled path{'s' if n_runs != 1 else ''}")
     plt.xlabel("Date")
@@ -178,12 +178,12 @@ def build_comparison_png(ticker_dfs, save_path=None):
     for ticker, df in ticker_dfs.items():
         base = df["close"].iloc[0]
         norm = (df["close"] / base - 1) * 100
-        plt.plot(df["timestamps"], norm, label=ticker, linewidth=1.8)
+        plt.plot(df["timestamps"], norm, label=ticker, linewidth=2.6)
 
     plt.title("Relative Performance (%)")
     plt.xlabel("Date")
     plt.ylabel("% change since period start")
-    plt.axhline(y=0, linestyle=":", linewidth=1, color="gray")
+    plt.axhline(y=0, linestyle=":", linewidth=1.8, color="gray")
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.xticks(rotation=45)
@@ -212,6 +212,10 @@ def build_forecast_chart(ticker, hist_df, ind_df, forecast_result, news_items=No
     fig.add_trace(go.Candlestick(
         x=hist_df["timestamps"], open=hist_df["open"], high=hist_df["high"],
         low=hist_df["low"], close=hist_df["close"], name="Historical",
+        # Explicit (bolder than Plotly's thin default) wick/border width so
+        # individual candles stay legible even on a dense, months-long
+        # history -- matches the rest of this chart's thicker line weights.
+        increasing=dict(line=dict(width=1.6)), decreasing=dict(line=dict(width=1.6)),
     ), row=1, col=1)
 
     # --- Moving averages ---
@@ -219,15 +223,15 @@ def build_forecast_chart(ticker, hist_df, ind_df, forecast_result, news_items=No
         if col in ind_df.columns:
             fig.add_trace(go.Scatter(
                 x=ind_df["timestamps"], y=ind_df[col], name=name,
-                line=dict(width=1, dash=dash), opacity=0.8,
+                line=dict(width=2, dash=dash), opacity=0.9,
             ), row=1, col=1)
 
     # --- Bollinger Bands ---
     if "bb_upper" in ind_df.columns:
         fig.add_trace(go.Scatter(x=ind_df["timestamps"], y=ind_df["bb_upper"],
-                                  name="BB Upper", line=dict(width=1, color="rgba(150,150,150,0.5)")), row=1, col=1)
+                                  name="BB Upper", line=dict(width=1.6, color="rgba(120,120,120,0.7)")), row=1, col=1)
         fig.add_trace(go.Scatter(x=ind_df["timestamps"], y=ind_df["bb_lower"],
-                                  name="BB Lower", line=dict(width=1, color="rgba(150,150,150,0.5)"),
+                                  name="BB Lower", line=dict(width=1.6, color="rgba(120,120,120,0.7)"),
                                   fill="tonexty", fillcolor="rgba(150,150,150,0.08)"), row=1, col=1)
 
     # --- Confidence band (if multi-run) ---
@@ -242,7 +246,7 @@ def build_forecast_chart(ticker, hist_df, ind_df, forecast_result, news_items=No
     # --- Forecast line ---
     fig.add_trace(go.Scatter(
         x=pred_df["timestamps"], y=pred_df["close"], name="Kronos Forecast",
-        line=dict(width=2, dash="dash", color="#ff7f0e"),
+        line=dict(width=3, dash="dash", color="#ff7f0e"),
     ), row=1, col=1)
 
     # --- News markers on the price timeline ---
@@ -272,12 +276,12 @@ def build_forecast_chart(ticker, hist_df, ind_df, forecast_result, news_items=No
                           marker_color="rgba(100,100,200,0.5)"), row=2, col=1)
     if "volume_sma_20" in ind_df.columns:
         fig.add_trace(go.Scatter(x=ind_df["timestamps"], y=ind_df["volume_sma_20"],
-                                  name="Vol SMA 20", line=dict(width=1, color="purple")), row=2, col=1)
+                                  name="Vol SMA 20", line=dict(width=2, color="purple")), row=2, col=1)
 
     # --- RSI ---
     if "rsi_14" in ind_df.columns:
         fig.add_trace(go.Scatter(x=ind_df["timestamps"], y=ind_df["rsi_14"], name="RSI 14",
-                                  line=dict(width=1.5, color="teal")), row=3, col=1)
+                                  line=dict(width=2.5, color="teal")), row=3, col=1)
         fig.add_hline(y=70, line_dash="dot", line_color="red", row=3, col=1)
         fig.add_hline(y=30, line_dash="dot", line_color="green", row=3, col=1)
 
@@ -298,7 +302,7 @@ def build_comparison_chart(ticker_dfs):
     for ticker, df in ticker_dfs.items():
         base = df["close"].iloc[0]
         norm = (df["close"] / base - 1) * 100
-        fig.add_trace(go.Scatter(x=df["timestamps"], y=norm, name=ticker, mode="lines"))
+        fig.add_trace(go.Scatter(x=df["timestamps"], y=norm, name=ticker, mode="lines", line=dict(width=2.6)))
     fig.update_layout(
         title="Relative Performance (%)", template="plotly_white",
         yaxis_title="% change since period start", height=500,

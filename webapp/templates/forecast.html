@@ -19,7 +19,7 @@
       <div class="field-row">
         <div class="field">
           <label for="ticker">Ticker</label>
-          <input type="text" id="ticker" name="ticker" placeholder="AAPL, BTC-USD, MSFT…" required value="{{ request.form.ticker if request.form.ticker }}">
+          <input type="text" id="ticker" name="ticker" placeholder="AAPL, BTC-USD, MSFT…" required value="{{ request.form.ticker if request.form.ticker else prefill_ticker }}">
         </div>
         <div class="field">
           <label for="pred_len">Forecast horizon (days)</label>

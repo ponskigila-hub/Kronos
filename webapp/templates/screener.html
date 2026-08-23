@@ -8,6 +8,40 @@
   <p class="page-desc">Rank a universe of stocks on trend, momentum, volatility, liquidity, risk, and relative strength — then optionally send only the strongest setups to Kronos for a forecast. Quantitative signals, not financial advice.</p>
 </div>
 
+{% if run_history %}
+<details class="card history-panel" id="screenHistoryPanel" {{ 'open' if not result }}>
+  <summary class="card-title-row" style="cursor:pointer; list-style:none;">
+    <span class="card-title" style="margin:0;">Recent screens <span class="result-tag" style="margin-left:8px;">{{ run_history|length }}</span></span>
+    <form method="post" action="{{ url_for('screener_history_clear') }}" onsubmit="return confirm('Clear all screen history?');" style="margin:0;">
+      <button type="submit" class="btn btn-ghost btn-small">Clear history</button>
+    </form>
+  </summary>
+  <div class="history-runs">
+    {% for run in run_history %}
+    <div class="history-run">
+      <div class="history-run-head">
+        <span class="history-run-meta">
+          <span class="history-run-time" data-epoch="{{ run.timestamp }}">{{ run.timestamp }}</span>
+          &middot; {{ run.universe }}{% if run.preset and run.preset != 'none' %} &middot; {{ run.preset }}{% endif %}
+          {% if run.kronos_ran %}&middot; Kronos{% endif %}
+          &middot; {{ run.elapsed_seconds }}s
+        </span>
+      </div>
+      <div class="history-run-tickers">
+        {% for t in run.tickers[:12] %}
+        <a href="{{ url_for('forecast') }}?ticker={{ t.ticker }}" class="ticker-chip signal-{{ (t.signal or '')|lower|replace(' ', '-') }}" title="Score {{ '%.1f'|format(t.score) if t.score is not none else '—' }} · {{ t.signal or '' }}">
+          #{{ t.rank }} {{ t.ticker }}
+        </a>
+        {% endfor %}
+        {% if run.tickers|length > 12 %}<span class="history-run-more">+{{ run.tickers|length - 12 }} more</span>{% endif %}
+        {% if not run.tickers %}<span class="page-desc" style="margin:0;">No tickers passed the filters on this run.</span>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</details>
+{% endif %}
+
 <form id="screenerForm" method="post" action="{{ url_for('screener_run') }}" enctype="multipart/form-data" data-loading-message="Scanning universe — this can take a while for large universes or with Kronos enabled…">
   <div class="card">
     <div class="field-group">
@@ -184,4 +218,16 @@
 <script id="presetData" type="application/json">{{ presets | tojson }}</script>
 <script id="metricCatalogData" type="application/json">{{ metric_catalog | tojson }}</script>
 <script src="{{ url_for('static', filename='js/screener.js') }}"></script>
+<script>
+  // Render each history run's stored unix timestamp in the viewer's own
+  // local time/format rather than baking a server-timezone string into
+  // the page.
+  document.querySelectorAll(".history-run-time[data-epoch]").forEach((el) => {
+    const d = new Date(parseFloat(el.dataset.epoch) * 1000);
+    const now = new Date();
+    const sameDay = d.toDateString() === now.toDateString();
+    const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    el.textContent = sameDay ? `Today ${time}` : `${d.toLocaleDateString()} ${time}`;
+  });
+</script>
 {% endblock %}

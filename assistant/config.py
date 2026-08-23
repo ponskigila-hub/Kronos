@@ -68,6 +68,11 @@ FORECAST_CACHE_MAX_ENTRIES = int(os.getenv("FORECAST_CACHE_MAX_ENTRIES", "256"))
 # ---------------------------------------------------------------------------
 DATA_DIR = os.path.join(BASE_DIR, "assistant_data")
 WATCHLIST_PATH = os.path.join(DATA_DIR, "watchlists.json")
+SCREENER_HISTORY_PATH = os.path.join(DATA_DIR, "screener_history.json")
+# How many past screen runs to keep per user. Each entry only stores the
+# ranked ticker list + score/signal + the config used (not full per-ticker
+# metrics), so this stays cheap even at a generous cap.
+SCREENER_HISTORY_MAX_RUNS = int(os.getenv("SCREENER_HISTORY_MAX_RUNS", "50"))
 WATCHLIST_NOTES_PATH = os.path.join(DATA_DIR, "watchlist_notes.json")
 WATCHLIST_ENTRY_ZONES_PATH = os.path.join(DATA_DIR, "watchlist_entry_zones.json")
 CONVERSATION_DIR = os.path.join(DATA_DIR, "conversations")
