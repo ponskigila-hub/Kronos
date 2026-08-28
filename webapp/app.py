@@ -34,6 +34,7 @@ from assistant.screener import universe as screener_universe
 from assistant.screener import presets as screener_presets
 from assistant.screener import filters as screener_filters
 from assistant.screener import history as screener_history
+from assistant import simulation as simulation_store
 from assistant.config import SCREENER_CONFIG
 from assistant.data_fetcher import TickerNotFoundError
 from assistant.ticker_directory import search_tickers
@@ -563,7 +564,8 @@ def forecast_job(job_id):
 @app.route("/backtest", methods=["GET", "POST"])
 def backtest():
     if request.method == "GET":
-        return render_template("backtest.html", active="backtest")
+        return render_template("backtest.html", active="backtest",
+                                portfolio=simulation_store.get_portfolio(_user_id()))
 
     ticker = (request.form.get("ticker") or "").strip().upper()
     max_windows = int(request.form.get("max_windows") or 15)
@@ -578,10 +580,77 @@ def backtest():
         result = quick_backtest(ticker, max_windows=max_windows)
         return render_template("backtest.html", active="backtest",
                                 result_text=result["text"], result_ticker=ticker,
-                                image_url=_to_url(result.get("image_path")))
+                                image_url=_to_url(result.get("image_path")),
+                                portfolio=simulation_store.get_portfolio(_user_id()))
     except Exception as e:
         flash(f"Backtest failed: {e}", "error")
         return redirect(url_for("backtest"))
+
+
+# ---------------------------------------------------------------------------
+# Simulation -- paper trading with demo money (assistant/simulation.py).
+# "Buy" a ticker at its real current price with fake cash, let it sit, and
+# come back once the forecast's horizon has passed to see whether Kronos's
+# call actually played out against real future prices -- a forward-looking
+# complement to the historical walk-forward backtest above, not a
+# replacement for it.
+# ---------------------------------------------------------------------------
+@app.route("/backtest/simulation/buy", methods=["POST"])
+def simulation_buy():
+    ticker = (request.form.get("ticker") or "").strip().upper()
+    amount_type = request.form.get("amount_type", "dollars")
+    raw_amount = request.form.get("amount")
+
+    if not ticker:
+        flash("Enter a ticker first.", "error")
+        return redirect(url_for("backtest") + "#simulation")
+    try:
+        amount = float(raw_amount)
+    except (TypeError, ValueError):
+        flash("Enter a valid amount.", "error")
+        return redirect(url_for("backtest") + "#simulation")
+
+    try:
+        if amount_type == "shares":
+            simulation_store.buy(_user_id(), ticker, shares=amount)
+        else:
+            simulation_store.buy(_user_id(), ticker, dollars=amount)
+        flash(f"Bought {ticker} with demo money.", "ok")
+    except (simulation_store.SimulationError, TickerNotFoundError) as e:
+        flash(str(e), "error")
+    except Exception as e:
+        flash(f"Buy failed: {e}", "error")
+    return redirect(url_for("backtest") + "#simulation")
+
+
+@app.route("/backtest/simulation/sell", methods=["POST"])
+def simulation_sell():
+    ticker = (request.form.get("ticker") or "").strip().upper()
+    position_id = request.form.get("position_id") or None
+    raw_shares = request.form.get("shares")
+    shares = None
+    if raw_shares:
+        try:
+            shares = float(raw_shares)
+        except ValueError:
+            flash("Enter a valid number of shares.", "error")
+            return redirect(url_for("backtest") + "#simulation")
+
+    try:
+        simulation_store.sell(_user_id(), ticker, position_id=position_id, shares=shares)
+        flash(f"Sold {ticker}.", "ok")
+    except simulation_store.SimulationError as e:
+        flash(str(e), "error")
+    except Exception as e:
+        flash(f"Sell failed: {e}", "error")
+    return redirect(url_for("backtest") + "#simulation")
+
+
+@app.route("/backtest/simulation/reset", methods=["POST"])
+def simulation_reset():
+    simulation_store.reset_portfolio(_user_id())
+    flash("Demo portfolio reset.", "ok")
+    return redirect(url_for("backtest") + "#simulation")
 
 
 # ---------------------------------------------------------------------------

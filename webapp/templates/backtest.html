@@ -4,38 +4,199 @@
 
 <div class="page-head">
   <p class="eyebrow">Verification</p>
-  <h1 class="page-title">Walk-forward backtest</h1>
-  <p class="page-desc">A quick check of Kronos's own track record before you trust a forecast — direction accuracy, RMSE vs. simple baselines, and a significance test.</p>
+  <h1 class="page-title">Backtest</h1>
+  <p class="page-desc">Two ways to check whether Kronos's forecasts actually hold up: a statistical walk-forward test over history, or a live demo portfolio you fund with fake money and let play out for real, going forward.</p>
 </div>
 
-<div class="card">
-  <form method="post" action="{{ url_for('backtest') }}" data-loading-message="Running walk-forward backtest — several Kronos calls, this can take a couple of minutes…">
-    <div class="field-row">
-      <div class="field">
-        <label for="ticker">Ticker</label>
-        <input type="text" id="ticker" name="ticker" placeholder="AAPL" required value="{{ request.form.ticker if request.form.ticker }}">
-      </div>
-      <div class="field">
-        <label for="max_windows">Walk-forward windows</label>
-        <input type="number" id="max_windows" name="max_windows" value="15" min="5" max="60">
-      </div>
-    </div>
-    <button class="btn" type="submit">Run backtest</button>
-    <span class="typing" id="backtestNote">Runs several Kronos calls — can take a while on CPU-only hardware.</span>
-  </form>
+<div class="tabs">
+  <button class="tab-btn active" data-tab="walkforward" type="button">Walk-forward backtest</button>
+  <button class="tab-btn" data-tab="simulation" type="button">Simulation <span class="result-tag" style="margin-left:4px;">demo money</span></button>
 </div>
 
-{% if result_text %}
-<div class="result-section">
-  <div class="result-header">
-    <h2>Backtest result</h2>
-    <span class="result-tag">{{ result_ticker }}</span>
+<div class="tab-panel active" id="tab-walkforward">
+  <div class="card">
+    <form method="post" action="{{ url_for('backtest') }}" data-loading-message="Running walk-forward backtest — several Kronos calls, this can take a couple of minutes…">
+      <div class="field-row">
+        <div class="field">
+          <label for="ticker">Ticker</label>
+          <input type="text" id="ticker" name="ticker" placeholder="AAPL" required value="{{ request.form.ticker if request.form.ticker }}">
+        </div>
+        <div class="field">
+          <label for="max_windows">Walk-forward windows</label>
+          <input type="number" id="max_windows" name="max_windows" value="15" min="5" max="60">
+        </div>
+      </div>
+      <button class="btn" type="submit">Run backtest</button>
+      <span class="typing" id="backtestNote">Runs several Kronos calls — can take a while on CPU-only hardware.</span>
+    </form>
   </div>
-  {% if image_url %}
-  <div class="chart-frame"><img src="{{ image_url }}" alt="Backtest direction summary for {{ result_ticker }}"></div>
-  {% endif %}
-  <div class="result-text">{{ result_text }}</div>
-</div>
-{% endif %}
 
+  {% if result_text %}
+  <div class="result-section">
+    <div class="result-header">
+      <h2>Backtest result</h2>
+      <span class="result-tag">{{ result_ticker }}</span>
+    </div>
+    {% if image_url %}
+    <div class="chart-frame"><img src="{{ image_url }}" alt="Backtest direction summary for {{ result_ticker }}"></div>
+    {% endif %}
+    <div class="result-text">{{ result_text }}</div>
+  </div>
+  {% endif %}
+</div>
+
+<div class="tab-panel" id="tab-simulation">
+  <p class="page-desc" style="margin-top:0;">This is a demo brokerage account funded with fake money — no real trades, no real broker, nothing here ever touches real funds. "Buy" a ticker at its current price and Kronos will snapshot a forecast for it right now; check back once that forecast's horizon has passed to see whether the real price actually moved the way it predicted.</p>
+
+  {% set p = portfolio %}
+  <div class="card">
+    <div class="kpi-row">
+      <div>
+        <div class="kpi-value">${{ "%.2f"|format(p.cash) }}</div>
+        <div class="kpi-label">Cash available</div>
+      </div>
+      <div>
+        <div class="kpi-value">${{ "%.2f"|format(p.total_value) }}</div>
+        <div class="kpi-label">Total portfolio value</div>
+      </div>
+      <div>
+        <div class="kpi-value"><span class="{{ 'score-high' if p.total_return_pct >= 0 else 'score-low' }}" style="padding:2px 8px; border-radius:4px;">{{ "%+.2f"|format(p.total_return_pct) }}%</span></div>
+        <div class="kpi-label">Total return</div>
+      </div>
+      {% if p.win_rate_pct is not none %}
+      <div>
+        <div class="kpi-value">{{ p.win_rate_pct }}%</div>
+        <div class="kpi-label">Win rate ({{ p.closed_trade_count }} closed)</div>
+      </div>
+      {% endif %}
+      {% if p.forecast_accuracy_pct is not none %}
+      <div>
+        <div class="kpi-value">{{ p.forecast_accuracy_pct }}%</div>
+        <div class="kpi-label">Kronos direction accuracy</div>
+      </div>
+      {% endif %}
+    </div>
+    <form method="post" action="{{ url_for('simulation_reset') }}" onsubmit="return confirm('Reset your demo portfolio back to ${{ "%.0f"|format(p.starting_cash) }} cash? This clears all open and closed positions.');" style="margin-top:16px;">
+      <button type="submit" class="btn btn-ghost btn-small">Reset demo portfolio</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <p class="card-title" style="margin-top:0;">Buy</p>
+    <form method="post" action="{{ url_for('simulation_buy') }}">
+      <div class="field-row">
+        <div class="field">
+          <label for="simTicker">Ticker</label>
+          <input type="text" id="simTicker" name="ticker" placeholder="AAPL" required>
+        </div>
+        <div class="field">
+          <label for="simAmount">Amount</label>
+          <input type="number" id="simAmount" name="amount" step="any" min="0" placeholder="1000" required>
+        </div>
+        <div class="field">
+          <label for="simAmountType">Amount is</label>
+          <select id="simAmountType" name="amount_type">
+            <option value="dollars">Dollars (fractional shares)</option>
+            <option value="shares">Shares</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn" type="submit">Buy with demo money</button>
+    </form>
+  </div>
+
+  {% if p.positions %}
+  <div class="result-section">
+    <div class="result-header"><h2>Open positions</h2></div>
+    <div style="overflow-x:auto;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Ticker</th><th>Shares</th><th>Entry</th><th>Current</th>
+            <th>Unrealized P&amp;L</th><th>Kronos said (at buy)</th><th>Forecast check</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for pos in p.positions %}
+          <tr>
+            <td>{{ pos.ticker }}</td>
+            <td>{{ "%.4f"|format(pos.shares) }}</td>
+            <td>${{ "%.2f"|format(pos.entry_price) }}</td>
+            <td>{{ "$%.2f"|format(pos.current_price) if pos.current_price is not none else "—" }}</td>
+            <td class="{{ 'score-high' if (pos.unrealized_pnl or 0) >= 0 else 'score-low' }}">
+              {% if pos.unrealized_pnl is not none %}{{ "%+.2f"|format(pos.unrealized_pnl) }} ({{ "%+.2f"|format(pos.unrealized_pnl_pct) }}%){% else %}—{% endif %}
+            </td>
+            <td>
+              <span class="signal-badge signal-{{ 'candidate' if pos.forecast.trend == 'bullish' else 'weak-candidate' if pos.forecast.trend == 'bearish' else 'neutral' }}">
+                {{ pos.forecast.trend }} {{ "%+.1f"|format(pos.forecast.expected_return_pct) }}% by {{ pos.forecast.target_date[:10] }}
+              </span>
+            </td>
+            <td>
+              {% if pos.graded %}
+                <span class="signal-badge signal-{{ 'candidate' if pos.graded.direction_correct else 'weak-candidate' }}">
+                  {{ 'Correct' if pos.graded.direction_correct else 'Wrong' }} direction — actual {{ "%+.1f"|format(pos.graded.actual_return_pct) }}%
+                </span>
+              {% else %}
+                <span class="typing">Not due until {{ pos.forecast.target_date[:10] }}</span>
+              {% endif %}
+            </td>
+            <td>
+              <form method="post" action="{{ url_for('simulation_sell') }}" style="display:inline;">
+                <input type="hidden" name="ticker" value="{{ pos.ticker }}">
+                <input type="hidden" name="position_id" value="{{ pos.id }}">
+                <button type="submit" class="btn btn-ghost btn-small">Sell</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if p.closed_trades %}
+  <div class="result-section">
+    <div class="result-header"><h2>Closed trades</h2></div>
+    <div style="overflow-x:auto;">
+      <table class="data-table">
+        <thead>
+          <tr><th>Ticker</th><th>Shares</th><th>Entry</th><th>Exit</th><th>Realized P&amp;L</th><th>Held (days)</th></tr>
+        </thead>
+        <tbody>
+          {% for t in p.closed_trades %}
+          <tr>
+            <td>{{ t.ticker }}</td>
+            <td>{{ "%.4f"|format(t.shares) }}</td>
+            <td>${{ "%.2f"|format(t.entry_price) }}</td>
+            <td>${{ "%.2f"|format(t.exit_price) }}</td>
+            <td class="{{ 'score-high' if t.realized_pnl >= 0 else 'score-low' }}">{{ "%+.2f"|format(t.realized_pnl) }} ({{ "%+.2f"|format(t.realized_pnl_pct) }}%)</td>
+            <td>{{ t.holding_days }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if not p.positions and not p.closed_trades %}
+  <p class="page-desc">No demo trades yet — buy something above to start tracking whether Kronos's forecast for it plays out.</p>
+  {% endif %}
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+  (function () {
+    const tabBtns = document.querySelectorAll(".tab-btn");
+    const panels = document.querySelectorAll(".tab-panel");
+    function activate(tabName) {
+      tabBtns.forEach((b) => b.classList.toggle("active", b.dataset.tab === tabName));
+      panels.forEach((p) => p.classList.toggle("active", p.id === "tab-" + tabName));
+    }
+    tabBtns.forEach((btn) => btn.addEventListener("click", () => activate(btn.dataset.tab)));
+    if (window.location.hash === "#simulation") activate("simulation");
+  })();
+</script>
 {% endblock %}

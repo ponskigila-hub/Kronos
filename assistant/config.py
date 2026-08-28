@@ -73,6 +73,18 @@ SCREENER_HISTORY_PATH = os.path.join(DATA_DIR, "screener_history.json")
 # ranked ticker list + score/signal + the config used (not full per-ticker
 # metrics), so this stays cheap even at a generous cap.
 SCREENER_HISTORY_MAX_RUNS = int(os.getenv("SCREENER_HISTORY_MAX_RUNS", "50"))
+
+# --- Paper-trading simulation (assistant/simulation.py) ---
+SIMULATION_PATH = os.path.join(DATA_DIR, "simulations.json")
+# Starting demo cash for a new simulated portfolio. Fake money -- never
+# touches a real brokerage or moves real funds.
+SIMULATION_STARTING_CASH = float(os.getenv("SIMULATION_STARTING_CASH", "100000"))
+# Forecast horizon (trading days) snapshotted at buy time and used to
+# grade whether Kronos's forecast was right once that many trading days
+# have passed. Defaults to the app's normal forecast horizon so a demo
+# trade is graded against the same forecast a user would actually see on
+# the forecast page for that ticker.
+SIMULATION_FORECAST_HORIZON = int(os.getenv("SIMULATION_FORECAST_HORIZON", str(DEFAULT_PRED_LEN)))
 WATCHLIST_NOTES_PATH = os.path.join(DATA_DIR, "watchlist_notes.json")
 WATCHLIST_ENTRY_ZONES_PATH = os.path.join(DATA_DIR, "watchlist_entry_zones.json")
 CONVERSATION_DIR = os.path.join(DATA_DIR, "conversations")
