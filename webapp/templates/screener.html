@@ -42,7 +42,7 @@
 </details>
 {% endif %}
 
-<form id="screenerForm" method="post" action="{{ url_for('screener_run') }}" enctype="multipart/form-data" data-loading-message="Scanning universe — this can take a while for large universes or with Kronos enabled…">
+<form id="screenerForm" method="post" action="{{ url_for('screener_run') }}" enctype="multipart/form-data" data-loading-message="Scanning universe — this can take a while for large universes or with Kronos enabled…" data-skip-loading="true">
   <div class="card">
     <div class="field-group">
       <div class="field-group-title">Universe</div>

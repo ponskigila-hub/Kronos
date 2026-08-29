@@ -15,7 +15,7 @@
 
 <div class="tab-panel active" id="tab-walkforward">
   <div class="card">
-    <form method="post" action="{{ url_for('backtest') }}" data-loading-message="Running walk-forward backtest — several Kronos calls, this can take a couple of minutes…">
+    <form method="post" action="{{ url_for('backtest_run') }}" data-loading-message="Running walk-forward backtest — several Kronos calls, this can take a couple of minutes…" data-skip-loading="true" id="backtestForm">
       <div class="field-row">
         <div class="field">
           <label for="ticker">Ticker</label>
@@ -83,7 +83,7 @@
 
   <div class="card">
     <p class="card-title" style="margin-top:0;">Buy</p>
-    <form method="post" action="{{ url_for('simulation_buy') }}">
+    <form method="post" action="{{ url_for('simulation_buy') }}" data-loading-message="Buying — Kronos is running a forecast for this ticker…" data-skip-loading="true" id="simBuyForm">
       <div class="field-row">
         <div class="field">
           <label for="simTicker">Ticker</label>
@@ -197,6 +197,113 @@
     }
     tabBtns.forEach((btn) => btn.addEventListener("click", () => activate(btn.dataset.tab)));
     if (window.location.hash === "#simulation") activate("simulation");
+
+    // -------------------------------------------------- async job helpers
+    // Both forms below kick off real Kronos inference (a walk-forward
+    // backtest runs several forecast calls in a row; buying snapshots
+    // one forecast) -- easily the two slowest actions in the app. Both
+    // routes now return a job id immediately instead of blocking the
+    // request; poll until done, then navigate to show the result. Same
+    // pattern as forecast.js / screener.js.
+    const POLL_INTERVAL_MS = 1500;
+
+    function clearInlineError(form) {
+      const existing = form.querySelector(".flash-error");
+      if (existing) existing.remove();
+    }
+
+    function showInlineError(form, message) {
+      clearInlineError(form);
+      const el = document.createElement("div");
+      el.className = "flash flash-error";
+      el.textContent = message;
+      form.prepend(el);
+    }
+
+    function submitAsyncForm(form, { pollUrl, onDone }) {
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        clearInlineError(form);
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalText = submitBtn ? submitBtn.textContent : null;
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = "Working…";
+        }
+        window.KronosLoading && window.KronosLoading.show(form.dataset.loadingMessage);
+
+        function poll(jobId) {
+          fetch(pollUrl(jobId))
+            .then((r) => r.json())
+            .then((data) => {
+              if (data.status === "pending") {
+                setTimeout(() => poll(jobId), POLL_INTERVAL_MS);
+                return;
+              }
+              window.KronosLoading && window.KronosLoading.hide();
+              if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
+              }
+              if (data.status === "done") {
+                onDone(jobId, data);
+              } else if (data.status === "error") {
+                showInlineError(form, data.error || "Something went wrong.");
+              } else {
+                showInlineError(form, "Lost track of that job -- please try again.");
+              }
+            })
+            .catch(() => setTimeout(() => poll(jobId), POLL_INTERVAL_MS));
+        }
+
+        fetch(form.action, { method: "POST", body: new FormData(form) })
+          .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
+          .then(({ ok, data }) => {
+            if (!ok || data.error) {
+              window.KronosLoading && window.KronosLoading.hide();
+              if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
+              }
+              showInlineError(form, data.error || "Request failed.");
+              return;
+            }
+            poll(data.job_id);
+          })
+          .catch(() => {
+            window.KronosLoading && window.KronosLoading.hide();
+            if (submitBtn) {
+              submitBtn.disabled = false;
+              submitBtn.textContent = originalText;
+            }
+            showInlineError(form, "Couldn't reach the server -- please try again.");
+          });
+      });
+    }
+
+    const backtestForm = document.getElementById("backtestForm");
+    if (backtestForm) {
+      submitAsyncForm(backtestForm, {
+        pollUrl: (jobId) => "/backtest/job/" + jobId,
+        // The result page needs the full walk-forward text/chart, so
+        // navigate to a real page (rendered server-side from the
+        // completed job) rather than trying to reconstruct that markup
+        // here in JS.
+        onDone: (jobId) => { window.location.href = "/backtest/result/" + jobId; },
+      });
+    }
+
+    const simBuyForm = document.getElementById("simBuyForm");
+    if (simBuyForm) {
+      submitAsyncForm(simBuyForm, {
+        pollUrl: (jobId) => "/backtest/simulation/job/" + jobId,
+        // The buy itself already persisted the new position; a plain
+        // reload of this page picks it up naturally via the normal
+        // GET /backtest route (which always computes the portfolio
+        // fresh), so no special result URL is needed here.
+        onDone: () => { window.location.href = "{{ url_for('backtest') }}#simulation"; },
+      });
+    }
   })();
 </script>
 {% endblock %}

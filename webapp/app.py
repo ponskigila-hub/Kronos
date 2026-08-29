@@ -15,6 +15,7 @@ import sys
 import threading
 import time
 import uuid
+from datetime import timedelta
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -40,9 +41,28 @@ from assistant.data_fetcher import TickerNotFoundError
 from assistant.ticker_directory import search_tickers
 from assistant.conversation import get_context
 from backtesting.data_loaders import CSVLoader
+from jobs import JobManager
 
 app = Flask(__name__)
 app.secret_key = os.getenv("WEBAPP_SECRET_KEY", "kronos-dev-secret-change-me")
+
+# Without this, Flask's session cookie has no expiry and the browser
+# drops it as soon as it's closed -- so _user_id() (below) would hand out
+# a brand-new anonymous identity on your next visit, and everything tied
+# to it (watchlist, screener history, and especially an open demo
+# position you "let sit there" for days -- see assistant/simulation.py)
+# would look like it never saved, even though it's still sitting in
+# assistant_data/ under the old, now-unreachable id. Making the session
+# permanent with a long lifetime turns the cookie into a stable identity
+# across visits, which is what every one of those per-user JSON stores
+# was already assuming.
+app.permanent_session_lifetime = timedelta(days=365)
+
+
+@app.before_request
+def _make_session_permanent():
+    session.permanent = True
+
 
 bot = StockAssistant()
 
@@ -393,8 +413,43 @@ def screener():
     )
 
 
+_screener_jobs = JobManager()
+
+
+def _run_screener_job(user_id, universe_key, preset_key, custom_text, csv_rows, custom_filters,
+                       min_dollar_volume, lookback_days, preselection_count, final_count,
+                       enable_kronos, pred_len):
+    result = screener_engine.run_screen(
+        universe_key=universe_key, user_id=user_id,
+        custom_text=custom_text, csv_rows=csv_rows,
+        preset_key=preset_key, custom_filters=custom_filters,
+        min_avg_dollar_volume=min_dollar_volume, lookback_days=lookback_days,
+        preselection_count=preselection_count, final_count=final_count,
+        enable_kronos=enable_kronos, pred_len=pred_len,
+    )
+    if result.get("error"):
+        raise RuntimeError(result["error"])
+    # Record which tickers this screen returned -- only for a real,
+    # completed result, so history reflects actual scans a user would
+    # want to look back at. Done here (in the background job) rather than
+    # in the route, since by the time the route gets a response back this
+    # already happened.
+    screener_history.record_run(user_id, result, universe_key, preset_key)
+    return {"result": result, "universe_key": universe_key, "preset_key": preset_key}
+
+
 @app.route("/screener/run", methods=["POST"])
 def screener_run():
+    """
+    Scanning a universe with Kronos enabled means one forecast call per
+    ticker that survives to the final stage (see SCREENER_CONFIG's
+    final_count) -- by far the slowest single form submission in this
+    app before this was made async. Parses the request here (form data
+    and an uploaded CSV file don't survive into a background thread) then
+    hands the actual scan off to a background job; see
+    /screener/job/<id> to poll and /screener/result/<id> to render the
+    finished page once done.
+    """
     universe_key = request.form.get("universe") or "sp500"
     preset_key = request.form.get("preset") or "none"
     custom_text = request.form.get("custom_tickers") or ""
@@ -409,16 +464,14 @@ def screener_run():
     if universe_key == "csv":
         file = request.files.get("csv_file")
         if not file or file.filename == "":
-            flash("Choose a CSV file with a ticker/symbol column first.", "error")
-            return redirect(url_for("screener"))
+            return jsonify({"error": "Choose a CSV file with a ticker/symbol column first."}), 400
         import csv
         import io
         try:
             text = file.read().decode("utf-8-sig")
             csv_rows = list(csv.DictReader(io.StringIO(text)))
         except Exception as e:
-            flash(f"Couldn't read that CSV: {e}", "error")
-            return redirect(url_for("screener"))
+            return jsonify({"error": f"Couldn't read that CSV: {e}"}), 400
 
     custom_filters = []
     raw_filters = request.form.get("custom_filters_json") or "[]"
@@ -435,33 +488,30 @@ def screener_run():
     except (ValueError, TypeError, AttributeError):
         pass  # malformed filter rows are skipped, not a hard error -- the rest of the screen still runs
 
-    try:
-        result = screener_engine.run_screen(
-            universe_key=universe_key, user_id=_user_id(),
-            custom_text=custom_text, csv_rows=csv_rows,
-            preset_key=preset_key, custom_filters=custom_filters,
-            min_avg_dollar_volume=min_dollar_volume, lookback_days=lookback_days,
-            preselection_count=preselection_count, final_count=final_count,
-            enable_kronos=enable_kronos, pred_len=pred_len,
-        )
-    except Exception as e:
-        flash(f"Screen failed: {e}", "error")
+    job_id = _screener_jobs.submit(
+        _run_screener_job, _user_id(), universe_key, preset_key, custom_text, csv_rows,
+        custom_filters, min_dollar_volume, lookback_days, preselection_count, final_count,
+        enable_kronos, pred_len,
+    )
+    return jsonify({"job_id": job_id})
+
+
+@app.route("/screener/job/<job_id>")
+def screener_job(job_id):
+    return jsonify(_screener_jobs.poll(job_id))
+
+
+@app.route("/screener/result/<job_id>")
+def screener_result(job_id):
+    payload = _screener_jobs.get_result(job_id)
+    if payload is None:
+        flash("That screen result has expired or wasn't found -- please run it again.", "error")
         return redirect(url_for("screener"))
-
-    if result.get("error"):
-        flash(result["error"], "error")
-        return redirect(url_for("screener"))
-
-    # Record which tickers this screen returned -- only for a real,
-    # completed result (not the empty-universe error case above), so
-    # history reflects actual scans a user would want to look back at.
-    screener_history.record_run(_user_id(), result, universe_key, preset_key)
-
     return render_template(
         "screener.html", active="screener",
         universes=screener_universe.UNIVERSES, presets=screener_presets.PRESETS,
         metric_catalog=screener_filters.METRIC_CATALOG, config=SCREENER_CONFIG,
-        result=result, run_history=screener_history.get_history(_user_id(), limit=20),
+        result=payload["result"], run_history=screener_history.get_history(_user_id(), limit=20),
     )
 
 
@@ -561,30 +611,55 @@ def forecast_job(job_id):
 # ---------------------------------------------------------------------------
 # Backtest
 # ---------------------------------------------------------------------------
-@app.route("/backtest", methods=["GET", "POST"])
-def backtest():
-    if request.method == "GET":
-        return render_template("backtest.html", active="backtest",
-                                portfolio=simulation_store.get_portfolio(_user_id()))
+_backtest_jobs = JobManager()
 
+
+def _run_quick_backtest_job(ticker, max_windows):
+    from backtesting.runner import quick_backtest
+    result = quick_backtest(ticker, max_windows=max_windows)
+    return {"ticker": ticker, "text": result["text"], "image_url": _to_url(result.get("image_path"))}
+
+
+@app.route("/backtest", methods=["GET"])
+def backtest():
+    return render_template("backtest.html", active="backtest",
+                            portfolio=simulation_store.get_portfolio(_user_id()))
+
+
+@app.route("/backtest/run", methods=["POST"])
+def backtest_run():
+    """
+    Kicks off a walk-forward backtest (several sequential Kronos calls,
+    one per window -- easily the slowest single action in this app) in a
+    background thread and returns a job id immediately instead of
+    blocking the request. See /backtest/job/<id> to poll and
+    /backtest/result/<id> to render the finished page -- same
+    submit/poll/render-on-completion pattern used for /screener/run and
+    /backtest/simulation/buy below.
+    """
     ticker = (request.form.get("ticker") or "").strip().upper()
     max_windows = int(request.form.get("max_windows") or 15)
     if not ticker:
-        flash("Enter a ticker first.", "error")
-        return redirect(url_for("backtest"))
+        return jsonify({"error": "Enter a ticker first."}), 400
+    job_id = _backtest_jobs.submit(_run_quick_backtest_job, ticker, max_windows)
+    return jsonify({"job_id": job_id})
 
-    try:
-        # Imported lazily, same reasoning as core_assistant._backtest --
-        # scipy/statsmodels only need to load when this route is used.
-        from backtesting.runner import quick_backtest
-        result = quick_backtest(ticker, max_windows=max_windows)
-        return render_template("backtest.html", active="backtest",
-                                result_text=result["text"], result_ticker=ticker,
-                                image_url=_to_url(result.get("image_path")),
-                                portfolio=simulation_store.get_portfolio(_user_id()))
-    except Exception as e:
-        flash(f"Backtest failed: {e}", "error")
+
+@app.route("/backtest/job/<job_id>")
+def backtest_job(job_id):
+    return jsonify(_backtest_jobs.poll(job_id))
+
+
+@app.route("/backtest/result/<job_id>")
+def backtest_result(job_id):
+    result = _backtest_jobs.get_result(job_id)
+    if result is None:
+        flash("That backtest result has expired or wasn't found -- please run it again.", "error")
         return redirect(url_for("backtest"))
+    return render_template("backtest.html", active="backtest",
+                            result_text=result["text"], result_ticker=result["ticker"],
+                            image_url=result["image_url"],
+                            portfolio=simulation_store.get_portfolio(_user_id()))
 
 
 # ---------------------------------------------------------------------------
@@ -595,32 +670,48 @@ def backtest():
 # complement to the historical walk-forward backtest above, not a
 # replacement for it.
 # ---------------------------------------------------------------------------
+_simulation_jobs = JobManager()
+
+
+def _run_simulation_buy_job(user_id, ticker, amount_type, amount):
+    if amount_type == "shares":
+        return simulation_store.buy(user_id, ticker, shares=amount)
+    return simulation_store.buy(user_id, ticker, dollars=amount)
+
+
 @app.route("/backtest/simulation/buy", methods=["POST"])
 def simulation_buy():
+    """
+    Buying snapshots a real Kronos forecast (see
+    assistant.simulation._snapshot_forecast) -- the same inference cost as
+    any other forecast in the app, so this gets the same background-job
+    treatment as /forecast/ticker and /backtest/run rather than blocking
+    the request for however long that takes on your hardware.
+    """
     ticker = (request.form.get("ticker") or "").strip().upper()
     amount_type = request.form.get("amount_type", "dollars")
     raw_amount = request.form.get("amount")
 
     if not ticker:
-        flash("Enter a ticker first.", "error")
-        return redirect(url_for("backtest") + "#simulation")
+        return jsonify({"error": "Enter a ticker first."}), 400
     try:
         amount = float(raw_amount)
     except (TypeError, ValueError):
-        flash("Enter a valid amount.", "error")
-        return redirect(url_for("backtest") + "#simulation")
+        return jsonify({"error": "Enter a valid amount."}), 400
+    if amount <= 0:
+        return jsonify({"error": "Amount must be greater than zero."}), 400
 
-    try:
-        if amount_type == "shares":
-            simulation_store.buy(_user_id(), ticker, shares=amount)
-        else:
-            simulation_store.buy(_user_id(), ticker, dollars=amount)
-        flash(f"Bought {ticker} with demo money.", "ok")
-    except (simulation_store.SimulationError, TickerNotFoundError) as e:
-        flash(str(e), "error")
-    except Exception as e:
-        flash(f"Buy failed: {e}", "error")
-    return redirect(url_for("backtest") + "#simulation")
+    job_id = _simulation_jobs.submit(_run_simulation_buy_job, _user_id(), ticker, amount_type, amount)
+    return jsonify({"job_id": job_id})
+
+
+@app.route("/backtest/simulation/job/<job_id>")
+def simulation_job(job_id):
+    status = _simulation_jobs.poll(job_id)
+    if status["status"] == "done":
+        position = status["result"]
+        status["ticker"] = position["ticker"]
+    return jsonify(status)
 
 
 @app.route("/backtest/simulation/sell", methods=["POST"])

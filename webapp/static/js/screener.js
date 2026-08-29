@@ -87,7 +87,8 @@
   }
 
   if (form) {
-    form.addEventListener("submit", () => {
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
       const rows = [];
       filterRows.querySelectorAll(".filter-row").forEach((row) => {
         const [metricSelect, opSelect, valueInput] = row.querySelectorAll("select, input");
@@ -96,7 +97,94 @@
         }
       });
       customFiltersJson.value = JSON.stringify(rows);
+      submitScreenerForm(form);
     });
+  }
+
+  // -------------------------------------------------- async job submission
+  // A screen with Kronos enabled runs one forecast call per ticker that
+  // survives to the final stage -- easily the slowest form submission in
+  // the app. /screener/run now returns a job id immediately instead of
+  // blocking the request; poll /screener/job/<id> until done, then
+  // navigate to /screener/result/<id>, which renders this exact page
+  // fresh from the completed result -- so all of the rendering logic
+  // below (renderTable, detail panel, etc.) runs completely unmodified,
+  // exactly as if this had been a normal synchronous page load.
+  const POLL_INTERVAL_MS = 1500;
+
+  function clearInlineError(form) {
+    const existing = form.querySelector(".flash-error");
+    if (existing) existing.remove();
+  }
+
+  function showInlineError(form, message) {
+    clearInlineError(form);
+    const el = document.createElement("div");
+    el.className = "flash flash-error";
+    el.textContent = message;
+    form.prepend(el);
+  }
+
+  function pollScreenerJob(jobId, form, submitBtn, originalText) {
+    fetch("/screener/job/" + jobId)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.status === "pending") {
+          setTimeout(() => pollScreenerJob(jobId, form, submitBtn, originalText), POLL_INTERVAL_MS);
+          return;
+        }
+        window.KronosLoading && window.KronosLoading.hide();
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = originalText;
+        }
+        if (data.status === "done") {
+          window.location.href = "/screener/result/" + jobId;
+        } else if (data.status === "error") {
+          showInlineError(form, data.error || "Screen failed.");
+        } else {
+          showInlineError(form, "Lost track of that screen -- please try again.");
+        }
+      })
+      .catch(() => {
+        // Transient network hiccup while polling -- the job keeps running
+        // server-side regardless, so keep polling rather than giving up.
+        setTimeout(() => pollScreenerJob(jobId, form, submitBtn, originalText), POLL_INTERVAL_MS);
+      });
+  }
+
+  function submitScreenerForm(form) {
+    clearInlineError(form);
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalText = submitBtn ? submitBtn.textContent : null;
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Scanning…";
+    }
+    window.KronosLoading && window.KronosLoading.show(form.dataset.loadingMessage);
+
+    fetch(form.action, { method: "POST", body: new FormData(form) })
+      .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok || data.error) {
+          window.KronosLoading && window.KronosLoading.hide();
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+          }
+          showInlineError(form, data.error || "Request failed.");
+          return;
+        }
+        pollScreenerJob(data.job_id, form, submitBtn, originalText);
+      })
+      .catch(() => {
+        window.KronosLoading && window.KronosLoading.hide();
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = originalText;
+        }
+        showInlineError(form, "Couldn't reach the server -- please try again.");
+      });
   }
 
   // ------------------------------------------------------------ results
