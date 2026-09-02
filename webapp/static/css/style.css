@@ -903,13 +903,23 @@ table.data-table th { color: var(--gold-dim); font-weight: 500; text-transform: 
 
 .hero {
   display: grid;
-  grid-template-columns: 1fr 220px;
-  gap: 40px;
+  grid-template-columns: minmax(0, 1fr) 250px;
+  gap: 56px;
   align-items: center;
-  padding: 8px 0 48px;
+  min-height: min(620px, calc(100vh - var(--topbar-h) - 60px));
+  padding: 32px 0 48px;
   margin-bottom: 8px;
   border-bottom: var(--border-width) solid var(--line);
 }
+
+.hero-kicker {
+  display: flex; align-items: center; gap: 9px;
+  margin-bottom: 22px;
+  font-family: var(--mono); font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.1em; color: var(--bone-dim);
+}
+.pulse-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 0 4px color-mix(in srgb, var(--teal) 13%, transparent); }
+.hero-kicker-rule { width: 32px; height: 1px; background: var(--line); margin-left: 3px; }
 
 .hero h1 {
   font-family: var(--serif);
@@ -929,6 +939,25 @@ table.data-table th { color: var(--gold-dim); font-weight: 500; text-transform: 
 
 .clockface { width: 220px; height: 220px; }
 
+.hero-art-wrap {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  aspect-ratio: 1; border-left: var(--border-width) solid var(--line);
+  border-bottom: var(--border-width) solid var(--line);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--gold) 5%, transparent), transparent 58%);
+}
+.hero-art-wrap::before, .hero-art-wrap::after { content: ""; position: absolute; background: var(--line); opacity: 0.8; }
+.hero-art-wrap::before { width: 1px; height: 100%; left: 50%; top: 0; }
+.hero-art-wrap::after { width: 100%; height: 1px; left: 0; top: 50%; }
+.hero-art-label, .hero-art-caption { position: absolute; z-index: 1; font-family: var(--mono); font-size: 10px; line-height: 1.4; color: var(--bone-dim); text-transform: uppercase; letter-spacing: 0.08em; }
+.hero-art-label { top: 14px; left: 16px; color: var(--gold); }
+.hero-art-caption { right: 14px; bottom: 14px; text-align: right; }
+.hero-art-wrap .clockface { position: relative; z-index: 1; width: 82%; height: 82%; }
+
+.scroll-cue { display: flex; align-items: center; gap: 12px; width: max-content; margin: -1px 0 0 auto; padding: 13px 0 0; font-family: var(--mono); font-size: 10px; color: var(--bone-dim); text-transform: uppercase; letter-spacing: 0.08em; }
+.scroll-cue:hover { color: var(--gold); text-decoration: none; }
+.scroll-cue-line { width: 44px; height: 1px; background: var(--gold); transform-origin: left; transition: transform 0.25s ease; }
+.scroll-cue:hover .scroll-cue-line { transform: scaleX(1.4); }
+
 .clockface .hand {
   transform-origin: 110px 110px;
   animation: sweep 90s linear infinite;
@@ -941,14 +970,15 @@ table.data-table th { color: var(--gold-dim); font-weight: 500; text-transform: 
 }
 
 @media (max-width: 1024px) {
-  .hero { grid-template-columns: 1fr 170px; gap: 24px; }
-  .clockface { width: 170px; height: 170px; }
+  .hero { grid-template-columns: 1fr 190px; gap: 28px; }
 }
 
 @media (max-width: 768px) {
-  .hero { grid-template-columns: 1fr; text-align: center; }
+  .hero { grid-template-columns: 1fr; min-height: auto; padding-top: 18px; text-align: center; }
+  .hero-kicker { justify-content: center; }
   .hero-ctas { justify-content: center; }
-  .clockface { justify-self: center; width: 150px; height: 150px; }
+  .hero-art-wrap { width: min(260px, 74vw); justify-self: center; }
+  .scroll-cue { margin-right: 0; }
 }
 
 /* ------------------------------------------------------------ loading overlay */
@@ -1178,6 +1208,8 @@ textarea:focus { border-color: var(--gold-dim); }
   box-shadow: var(--shadow);
   transform: translateY(-3px);
 }
+.feature-card:focus-visible { border-color: var(--gold); box-shadow: 0 0 0 4px color-mix(in srgb, var(--gold) 14%, transparent); transform: translateY(-3px); outline: none; }
+.feature-card:focus-visible .feature-arrow { opacity: 1; transform: translateX(0); }
 .feature-card.in-view:hover { transform: translateY(-3px); }
 
 .feature-num {
@@ -1231,6 +1263,10 @@ textarea:focus { border-color: var(--gold-dim); }
     transition: none !important;
     opacity: 1 !important; transform: none !important;
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-cue-line { transition: none; }
 }
 
 @media (max-width: 640px) {

@@ -4,6 +4,7 @@
 
 <section class="hero">
   <div>
+    <div class="hero-kicker"><span class="pulse-dot"></span>Local market intelligence <span class="hero-kicker-rule"></span> Ready when you are</div>
     <h1>Time-series forecasting<br>for markets, <em>made conversational.</em></h1>
     <p>Kronos reads price history the way a language model reads text. Ask it a question, screen the market for setups worth a closer look, or let it run a walk-forward backtest against itself — all from one desk.</p>
     <div class="hero-ctas">
@@ -11,10 +12,16 @@
       <a class="btn btn-ghost" href="{{ url_for('screener') }}">Screen the market</a>
     </div>
   </div>
-  {% include "_clockface.html" %}
+  <div class="hero-art-wrap">
+    <span class="hero-art-label">K / 01</span>
+    {% include "_clockface.html" %}
+    <span class="hero-art-caption">Reading the rhythm<br>of the market</span>
+  </div>
 </section>
 
-<div class="section" style="padding-top:28px;">
+<a class="scroll-cue" href="#ways-in"><span>Explore the desk</span><span class="scroll-cue-line"></span></a>
+
+<div class="section" id="ways-in" style="padding-top:28px;">
   <div class="section-head">
     <h2>Five ways in</h2>
   </div>
