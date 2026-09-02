@@ -15,16 +15,18 @@
   <div class="hero-art-wrap">
     <span class="hero-art-label">K / 01</span>
     {% include "_clockface.html" %}
-    <span class="hero-art-caption">Reading the rhythm<br>of the market</span>
+    <div class="hero-clock-readout" aria-live="polite">
+      <span class="hero-clock-time" id="localTime">--:--:--</span>
+      <span class="hero-clock-zone" id="localZone">Your local time</span>
+    </div>
+    <span class="hero-art-caption">Your time<br>moves the hands</span>
   </div>
 </section>
 
 <a class="scroll-cue" href="#ways-in"><span>Explore the desk</span><span class="scroll-cue-line"></span></a>
 
 <div class="section" id="ways-in" style="padding-top:28px;">
-  <div class="section-head">
-    <h2>Five ways in</h2>
-  </div>
+  <div class="section-head"><div><p class="eyebrow">Inside the workspace</p><h2>One desk. Five ways to think.</h2></div></div>
   <div class="feature-grid">
     <a class="feature-card" href="{{ url_for('screener') }}" style="--i:0;">
       <span class="feature-num">01</span>
@@ -35,8 +37,7 @@
           <line x1="26" y1="26" x2="34.5" y2="34.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
         </svg>
       </span>
-      <h3>Screen the market</h3>
-      <p>Rank a universe of stocks on trend, momentum, volatility, liquidity, and risk — then send only the strongest setups to Kronos for a forecast.</p>
+      <div class="feature-copy"><h3>Screen the market</h3><p>Start broad. Rank a universe of stocks on trend, momentum, volatility, liquidity, and risk, then isolate the setups that deserve your attention.</p><span class="feature-detail">Find the signal before the noise.</span></div>
       <span class="feature-arrow">Screen the market &rarr;</span>
     </a>
     <a class="feature-card" href="{{ url_for('chat') }}" style="--i:1;">
@@ -47,8 +48,7 @@
           <path class="feature-icon-wave" d="M12 17.5l3-4 3 7 3-9 3 6 3-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </span>
-      <h3>Ask Kronos directly</h3>
-      <p>"Forecast AAPL", "why is it expected to decline", "compare NVDA and AMD" — plain language in, grounded explanation out.</p>
+      <div class="feature-copy"><h3>Ask Kronos directly</h3><p>Use the language you already think in. Ask for a forecast, a comparison, or the reason behind a move and get a grounded explanation back.</p><span class="feature-detail">Plain language in. Market context out.</span></div>
       <span class="feature-arrow">Start chatting &rarr;</span>
     </a>
     <a class="feature-card" href="{{ url_for('forecast') }}" style="--i:2;">
@@ -59,8 +59,7 @@
           <path d="M4 24l7-8 6 5 9-13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
         </svg>
       </span>
-      <h3>Ticker or your own CSV</h3>
-      <p>Pull live history automatically by ticker, or upload your own OHLCV file for full manual control.</p>
+      <div class="feature-copy"><h3>Ticker or your own CSV</h3><p>Move from a ticker to a forecast in moments, or bring your own OHLCV history when you need full control over the data.</p><span class="feature-detail">Your data, your horizon, your call.</span></div>
       <span class="feature-arrow">Run a forecast &rarr;</span>
     </a>
     <a class="feature-card" href="{{ url_for('backtest') }}" style="--i:3;">
@@ -72,8 +71,7 @@
           <path d="M13 5.5h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
         </svg>
       </span>
-      <h3>Verify with a backtest</h3>
-      <p>Don't take the forecast on faith — check its historical accuracy against naive and statistical baselines first.</p>
+      <div class="feature-copy"><h3>Verify with a backtest</h3><p>Confidence comes from checking the work. Compare Kronos against naive and statistical baselines across historical windows before trusting a pattern.</p><span class="feature-detail">Test the idea before the trade.</span></div>
       <span class="feature-arrow">Run a backtest &rarr;</span>
     </a>
     <a class="feature-card" href="{{ url_for('news') }}" style="--i:4;">
@@ -86,8 +84,7 @@
           <line x1="11" y1="26" x2="21" y2="26" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" class="feature-icon-line" style="--d:2"/>
         </svg>
       </span>
-      <h3>Track the headlines</h3>
-      <p>Look up a ticker to see its latest headlines, scored positive, negative, or neutral.</p>
+      <div class="feature-copy"><h3>Track the headlines</h3><p>Pair price action with the story around it. Look up a ticker, scan the latest headlines, and see sentiment grouped as positive, negative, or neutral.</p><span class="feature-detail">Keep the story in the frame.</span></div>
       <span class="feature-arrow">See the news &rarr;</span>
     </a>
   </div>

@@ -1,4 +1,27 @@
 (function () {
+  const hourHand = document.querySelector(".clock-hour");
+  const minuteHand = document.querySelector(".clock-minute");
+  const secondHand = document.querySelector(".clock-second");
+  const timeReadout = document.getElementById("localTime");
+  const zoneReadout = document.getElementById("localZone");
+
+  function updateClock() {
+    const now = new Date();
+    const seconds = now.getSeconds() + now.getMilliseconds() / 1000;
+    const minutes = now.getMinutes() + seconds / 60;
+    const hours = (now.getHours() % 12) + minutes / 60;
+    if (hourHand) hourHand.style.transform = `rotate(${hours * 30}deg)`;
+    if (minuteHand) minuteHand.style.transform = `rotate(${minutes * 6}deg)`;
+    if (secondHand) secondHand.style.transform = `rotate(${seconds * 6}deg)`;
+    if (timeReadout) timeReadout.textContent = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    if (zoneReadout) zoneReadout.textContent = Intl.DateTimeFormat().resolvedOptions().timeZone.replace(/_/g, " ");
+  }
+
+  if (hourHand || timeReadout) {
+    updateClock();
+    window.setInterval(updateClock, 250);
+  }
+
   const cards = document.querySelectorAll(".feature-card");
   if (!cards.length) return;
 
