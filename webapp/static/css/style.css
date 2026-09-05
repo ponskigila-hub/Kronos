@@ -903,7 +903,7 @@ table.data-table th { color: var(--gold-dim); font-weight: 500; text-transform: 
 
 .hero {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 250px;
+  grid-template-columns: minmax(0, 1fr) 310px;
   gap: 56px;
   align-items: center;
   min-height: min(620px, calc(100vh - var(--topbar-h) - 60px));
@@ -951,7 +951,7 @@ table.data-table th { color: var(--gold-dim); font-weight: 500; text-transform: 
 .hero-art-label, .hero-art-caption { position: absolute; z-index: 1; font-family: var(--mono); font-size: 10px; line-height: 1.4; color: var(--bone-dim); text-transform: uppercase; letter-spacing: 0.08em; }
 .hero-art-label { top: 14px; left: 16px; color: var(--gold); }
 .hero-art-caption { right: 14px; bottom: 14px; text-align: right; }
-.hero-art-wrap .clockface { position: relative; z-index: 1; width: 82%; height: 82%; }
+.hero-art-wrap .clockface { position: relative; z-index: 1; width: 88%; height: 88%; transform: translateY(-14px); }
 
 .scroll-cue { display: flex; align-items: center; gap: 12px; width: max-content; margin: -1px 0 0 auto; padding: 13px 0 0; font-family: var(--mono); font-size: 10px; color: var(--bone-dim); text-transform: uppercase; letter-spacing: 0.08em; }
 .scroll-cue:hover { color: var(--gold); text-decoration: none; }
@@ -965,7 +965,7 @@ table.data-table th { color: var(--gold-dim); font-weight: 500; text-transform: 
 .hero-clock-zone { font-family: var(--mono); font-size: 9px; color: var(--gold); text-transform: uppercase; letter-spacing: 0.08em; }
 
 @media (max-width: 1024px) {
-  .hero { grid-template-columns: 1fr 190px; gap: 28px; }
+  .hero { grid-template-columns: 1fr 240px; gap: 28px; }
 }
 
 @media (max-width: 768px) {
