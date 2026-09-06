@@ -401,6 +401,63 @@ def api_news():
 
 
 # ---------------------------------------------------------------------------
+# Ticker price chart -- Google-Finance-style popup used from Watchlist,
+# Screener, and Simulation (see static/js/ticker-chart.js). Deliberately
+# reuses data_fetcher.fetch_history() exactly as every other page already
+# does -- same provider, same cache, same "1d" interval -- rather than
+# adding a new data path. Ranges are expressed as a daily-bar lookback
+# count (not calendar days) since that's what fetch_history expects.
+# ---------------------------------------------------------------------------
+CHART_RANGE_LOOKBACK = {
+    "1M": 25, "3M": 68, "6M": 135, "YTD": 400, "1Y": 260, "5Y": 1300, "MAX": 7500,
+}
+
+
+@app.route("/api/chart/<ticker>")
+def api_chart(ticker):
+    ticker = (ticker or "").strip().upper()
+    range_key = (request.args.get("range") or "6M").upper()
+    lookback = CHART_RANGE_LOOKBACK.get(range_key, CHART_RANGE_LOOKBACK["6M"])
+
+    try:
+        df = data_fetcher.fetch_history(ticker, lookback_days=lookback, interval="1d")
+    except TickerNotFoundError as e:
+        return jsonify({"error": str(e)}), 404
+    except Exception:
+        return jsonify({"error": f"Couldn't fetch chart data for {ticker} right now."}), 502
+
+    if range_key == "YTD":
+        import pandas as pd
+        this_year = pd.Timestamp.now().year
+        ytd_df = df[df["timestamps"].dt.year == this_year]
+        # Very early January: not enough YTD rows yet -- fall back to a
+        # short recent window rather than showing an empty chart.
+        df = ytd_df if len(ytd_df) >= 2 else df.tail(10)
+
+    if df is None or df.empty:
+        return jsonify({"error": f"No chart data available for {ticker}."}), 404
+
+    points = [
+        {"t": ts.strftime("%Y-%m-%d"), "c": round(float(close), 4)}
+        for ts, close in zip(df["timestamps"], df["close"])
+    ]
+    latest = float(df["close"].iloc[-1])
+    first = float(df["close"].iloc[0])
+    prev = float(df["close"].iloc[-2]) if len(df) > 1 else latest
+
+    return jsonify({
+        "ticker": ticker,
+        "range": range_key,
+        "points": points,
+        "latest_price": round(latest, 2),
+        "day_change": round(latest - prev, 2),
+        "day_change_pct": round((latest - prev) / prev * 100, 2) if prev else 0.0,
+        "range_change": round(latest - first, 2),
+        "range_change_pct": round((latest - first) / first * 100, 2) if first else 0.0,
+    })
+
+
+# ---------------------------------------------------------------------------
 # Stock Screener (assistant/screener/)
 # ---------------------------------------------------------------------------
 @app.route("/screener", methods=["GET"])

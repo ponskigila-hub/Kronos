@@ -257,7 +257,7 @@
     tbody.innerHTML = rows.map((row) => `
       <tr data-ticker="${row.ticker}">
         <td class="num-cell">${row.rank}</td>
-        <td><strong>${row.ticker}</strong></td>
+        <td><strong class="chart-trigger" data-ticker="${row.ticker}">${row.ticker}</strong></td>
         <td class="num-cell">${row.price != null ? row.price.toFixed(2) : "—"}</td>
         <td>${scoreCell(row.overall_score)}</td>
         <td>${scoreCell(row.category_scores.trend)}</td>
@@ -334,7 +334,7 @@
     detailPanel.innerHTML = `
       <div class="card screener-detail-panel">
         <div class="screener-detail-head">
-          <h3>${row.ticker}</h3>
+          <h3 class="chart-trigger" data-ticker="${row.ticker}">${row.ticker}</h3>
           <span class="signal-badge ${signalClass(row.signal)}">${row.signal}</span>
           <span class="score-pill ${scoreClass(row.overall_score)}">${row.overall_score.toFixed(1)}</span>
           <a class="btn btn-ghost btn-small" href="/chat?prefill=forecast+${row.ticker}" style="margin-left:auto;">Analyze with Kronos</a>

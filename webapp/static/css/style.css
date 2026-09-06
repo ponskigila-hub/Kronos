@@ -1333,3 +1333,96 @@ textarea:focus { border-color: var(--gold-dim); }
 .ticker-chip.signal-neutral { border-color: var(--line); background: var(--ink-3); color: var(--bone-dim); }
 .ticker-chip.signal-weak-candidate { border-color: var(--red); background: rgba(192, 57, 43, 0.06); color: var(--red); }
 .ticker-chip.signal-high-risk { border-color: var(--red); background: rgba(192, 57, 43, 0.12); color: var(--red); }
+
+/* ------------------------------------------------------ ticker chart popup
+   Shared Google-Finance-style price chart, opened by clicking any element
+   with class="chart-trigger" (Watchlist cards, Screener rows/detail panel,
+   Simulation position/trade tables) -- see static/js/ticker-chart.js. */
+
+.chart-trigger { cursor: pointer; }
+.chart-trigger:hover { color: var(--gold); text-decoration: underline; text-underline-offset: 2px; }
+
+.ticker-chart-overlay {
+  position: fixed; inset: 0; z-index: 1100;
+  background: var(--overlay-scrim);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+.ticker-chart-overlay.open { opacity: 1; pointer-events: all; }
+
+.ticker-chart-panel {
+  position: relative;
+  width: min(680px, 100%);
+  background: var(--ink-1);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 24px 24px 20px;
+  transform: translateY(10px) scale(0.98);
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ticker-chart-overlay.open .ticker-chart-panel { transform: translateY(0) scale(1); }
+
+.ticker-chart-close {
+  position: absolute; top: 14px; right: 16px;
+  width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none;
+  font-size: 22px; line-height: 1; color: var(--bone-dim);
+  cursor: pointer; border-radius: 50%;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.ticker-chart-close:hover { background: var(--ink-2); color: var(--bone); }
+
+.ticker-chart-title { font-family: var(--serif); font-size: 22px; font-weight: 600; color: var(--bone); }
+.ticker-chart-price-row { display: flex; align-items: baseline; gap: 10px; margin-top: 4px; }
+.ticker-chart-price { font-family: var(--mono); font-size: 26px; font-weight: 600; color: var(--bone); }
+.ticker-chart-change { font-family: var(--mono); font-size: 14px; font-weight: 600; }
+.ticker-chart-change.positive { color: var(--teal); }
+.ticker-chart-change.negative { color: var(--red); }
+
+.ticker-chart-svg-wrap { position: relative; margin: 18px 0 4px; min-height: 180px; }
+.ticker-chart-svg { width: 100%; height: auto; display: block; cursor: crosshair; }
+.ticker-chart-axis-label { font-family: var(--mono); font-size: 10px; fill: var(--bone-dim); }
+.ticker-chart-hover-line { stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 3; }
+.ticker-chart-hover-dot { fill: var(--ink-1); stroke: var(--gold); stroke-width: 2; }
+
+.ticker-chart-status {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--bone-dim); font-family: var(--mono); font-size: 12px;
+}
+
+.ticker-chart-tooltip {
+  position: absolute; top: -6px;
+  transform: translate(-50%, -100%);
+  background: var(--ink-0); border: var(--border-width) solid var(--line);
+  border-radius: 4px; padding: 4px 8px;
+  font-family: var(--mono); font-size: 11px; color: var(--bone);
+  white-space: nowrap; pointer-events: none;
+  box-shadow: var(--shadow-sm);
+}
+
+.ticker-chart-ranges { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 10px; }
+.ticker-chart-range-btn {
+  font-family: var(--mono); font-size: 11.5px;
+  padding: 5px 11px;
+  background: var(--ink-2);
+  border: var(--border-width) solid var(--line);
+  border-radius: 20px;
+  color: var(--bone-dim);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.ticker-chart-range-btn:hover { color: var(--bone); border-color: var(--gold-dim); }
+.ticker-chart-range-btn.active { color: var(--gold); border-color: var(--gold); background: color-mix(in srgb, var(--gold) 10%, transparent); font-weight: 600; }
+
+.ticker-chart-foot { margin-top: 16px; display: flex; justify-content: flex-end; }
+
+@media (max-width: 640px) {
+  .ticker-chart-panel { padding: 20px 16px 16px; }
+  .ticker-chart-title { font-size: 19px; }
+  .ticker-chart-price { font-size: 22px; }
+}

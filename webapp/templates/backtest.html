@@ -35,7 +35,7 @@
   <div class="result-section">
     <div class="result-header">
       <h2>Backtest result</h2>
-      <span class="result-tag">{{ result_ticker }}</span>
+      <span class="result-tag chart-trigger" data-ticker="{{ result_ticker }}">{{ result_ticker }}</span>
     </div>
     {% if image_url %}
     <div class="chart-frame"><img src="{{ image_url }}" alt="Backtest direction summary for {{ result_ticker }}"></div>
@@ -119,7 +119,7 @@
         <tbody>
           {% for pos in p.positions %}
           <tr>
-            <td>{{ pos.ticker }}</td>
+            <td><strong class="chart-trigger" data-ticker="{{ pos.ticker }}">{{ pos.ticker }}</strong></td>
             <td>{{ "%.4f"|format(pos.shares) }}</td>
             <td>${{ "%.2f"|format(pos.entry_price) }}</td>
             <td>{{ "$%.2f"|format(pos.current_price) if pos.current_price is not none else "—" }}</td>
@@ -166,7 +166,7 @@
         <tbody>
           {% for t in p.closed_trades %}
           <tr>
-            <td>{{ t.ticker }}</td>
+            <td><strong class="chart-trigger" data-ticker="{{ t.ticker }}">{{ t.ticker }}</strong></td>
             <td>{{ "%.4f"|format(t.shares) }}</td>
             <td>${{ "%.2f"|format(t.entry_price) }}</td>
             <td>${{ "%.2f"|format(t.exit_price) }}</td>

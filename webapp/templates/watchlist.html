@@ -70,7 +70,7 @@
   {% for t in watchlist %}
   <div class="wl-card" data-ticker="{{ t }}">
     <div class="wl-card-head">
-      <div class="wl-ticker">{{ t }}</div>
+      <div class="wl-ticker chart-trigger" data-ticker="{{ t }}">{{ t }}</div>
       <div class="wl-price-block">
         <span class="wl-price skeleton">--.--</span>
         <span class="wl-change"></span>
