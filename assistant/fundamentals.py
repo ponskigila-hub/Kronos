@@ -69,6 +69,16 @@ def get_fundamentals(ticker):
         "fifty_two_week_low": info.get("fiftyTwoWeekLow"),
         "fifty_two_week_high": info.get("fiftyTwoWeekHigh"),
         "current_price": info.get("currentPrice") or info.get("regularMarketPrice"),
+        # Added for the stock-detail popup's "About" section (Pluang/
+        # TradingView-style company profile) -- pulled from the same
+        # info dict above, no extra network call. Existing callers of
+        # get_fundamentals() are unaffected by new keys being present.
+        "description": info.get("longBusinessSummary"),
+        "website": info.get("website"),
+        "employees": info.get("fullTimeEmployees"),
+        "country": info.get("country"),
+        "exchange": info.get("exchange") or info.get("fullExchangeName"),
+        "currency": info.get("currency"),
     }
 
 

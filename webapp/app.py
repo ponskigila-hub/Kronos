@@ -402,26 +402,37 @@ def api_news():
 
 # ---------------------------------------------------------------------------
 # Ticker price chart -- Google-Finance-style popup used from Watchlist,
-# Screener, and Simulation (see static/js/ticker-chart.js). Deliberately
-# reuses data_fetcher.fetch_history() exactly as every other page already
-# does -- same provider, same cache, same "1d" interval -- rather than
-# adding a new data path. Ranges are expressed as a daily-bar lookback
-# count (not calendar days) since that's what fetch_history expects.
+# Screener, and Simulation (see static/js/ticker-chart.js). Daily ranges
+# reuse data_fetcher.fetch_history() exactly as every other page already
+# does -- same provider, same cache. "1D"/"1W" use the separate
+# fetch_intraday() (see data_fetcher.py for why that's not just more
+# lookback on fetch_history). Ranges are expressed as a daily-bar lookback
+# *row count* (not calendar days) since that's what fetch_history expects.
 # ---------------------------------------------------------------------------
 CHART_RANGE_LOOKBACK = {
     "1M": 25, "3M": 68, "6M": 135, "YTD": 400, "1Y": 260, "5Y": 1300, "MAX": 7500,
 }
+CHART_INTRADAY_RANGES = {"1D", "1W"}
 
 
 @app.route("/api/chart/<ticker>")
 def api_chart(ticker):
     ticker = (ticker or "").strip().upper()
     range_key = (request.args.get("range") or "6M").upper()
-    lookback = CHART_RANGE_LOOKBACK.get(range_key, CHART_RANGE_LOOKBACK["6M"])
+    is_intraday = range_key in CHART_INTRADAY_RANGES
 
     try:
-        df = data_fetcher.fetch_history(ticker, lookback_days=lookback, interval="1d")
+        if is_intraday:
+            df = data_fetcher.fetch_intraday(ticker, range_key)
+        else:
+            lookback = CHART_RANGE_LOOKBACK.get(range_key, CHART_RANGE_LOOKBACK["6M"])
+            df = data_fetcher.fetch_history(ticker, lookback_days=lookback, interval="1d")
     except TickerNotFoundError as e:
+        if is_intraday:
+            # Common case: markets closed / symbol has no intraday bars.
+            # Don't dead-end the popup -- tell the frontend so it can fall
+            # back to a daily range instead of just showing an error.
+            return jsonify({"error": str(e), "fallback_range": "1M"}), 404
         return jsonify({"error": str(e)}), 404
     except Exception:
         return jsonify({"error": f"Couldn't fetch chart data for {ticker} right now."}), 502
@@ -437,8 +448,11 @@ def api_chart(ticker):
     if df is None or df.empty:
         return jsonify({"error": f"No chart data available for {ticker}."}), 404
 
+    # Intraday bars need a time on the label (Google/Pluang-style "10:30
+    # AM"), daily bars just need the date.
+    time_fmt = "%H:%M" if is_intraday else "%Y-%m-%d"
     points = [
-        {"t": ts.strftime("%Y-%m-%d"), "c": round(float(close), 4)}
+        {"t": ts.strftime(time_fmt), "c": round(float(close), 4)}
         for ts, close in zip(df["timestamps"], df["close"])
     ]
     latest = float(df["close"].iloc[-1])
@@ -448,12 +462,77 @@ def api_chart(ticker):
     return jsonify({
         "ticker": ticker,
         "range": range_key,
+        "is_intraday": is_intraday,
         "points": points,
         "latest_price": round(latest, 2),
         "day_change": round(latest - prev, 2),
         "day_change_pct": round((latest - prev) / prev * 100, 2) if prev else 0.0,
         "range_change": round(latest - first, 2),
         "range_change_pct": round((latest - first) / first * 100, 2) if first else 0.0,
+    })
+
+
+# Consensus rating positioned on a 0-4 Strong Sell..Strong Buy scale, the
+# same shape TradingView/Pluang-style gauges use. yfinance's info dict only
+# gives a single consensus key (not the full analyst-count breakdown --
+# that needs a separate, heavier Ticker.recommendations call this doesn't
+# make), so the gauge shows one marker rather than a segmented bar.
+_RATING_SCALE = {
+    "strong_sell": 0, "sell": 1, "underperform": 1,
+    "hold": 2, "neutral": 2,
+    "buy": 3, "outperform": 3,
+    "strong_buy": 4,
+}
+
+
+@app.route("/api/stock-profile/<ticker>")
+def api_stock_profile(ticker):
+    """Company info + analyst consensus for the chart popup's expanded
+    detail view. Separate from /api/chart because this data doesn't change
+    when the user switches timeframe -- fetched once per popup open, not
+    once per range click."""
+    ticker = (ticker or "").strip().upper()
+    try:
+        fund = fundamentals.get_fundamentals(ticker)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
+    except Exception:
+        return jsonify({"error": f"Couldn't fetch company data for {ticker} right now."}), 502
+
+    try:
+        analyst = fundamentals.get_analyst_targets(ticker)
+    except Exception:
+        analyst = {}
+
+    rating_key = (analyst.get("recommendation") or "").lower()
+    description = fund.get("description") or ""
+    if len(description) > 420:
+        description = description[:420].rsplit(" ", 1)[0] + "…"
+
+    return jsonify({
+        "ticker": ticker,
+        "name": fund.get("name"),
+        "sector": fund.get("sector"),
+        "industry": fund.get("industry"),
+        "description": description,
+        "market_cap": fund.get("market_cap"),
+        "pe_ratio": fund.get("pe_ratio"),
+        "forward_pe": fund.get("forward_pe"),
+        "beta": fund.get("beta"),
+        "dividend_yield": fund.get("dividend_yield"),
+        "fifty_two_week_low": fund.get("fifty_two_week_low"),
+        "fifty_two_week_high": fund.get("fifty_two_week_high"),
+        "employees": fund.get("employees"),
+        "country": fund.get("country"),
+        "exchange": fund.get("exchange"),
+        "analyst": {
+            "target_mean": analyst.get("target_mean"),
+            "target_low": analyst.get("target_low"),
+            "target_high": analyst.get("target_high"),
+            "recommendation": analyst.get("recommendation"),
+            "rating_score": _RATING_SCALE.get(rating_key),
+            "num_analysts": analyst.get("num_analysts"),
+        },
     })
 
 

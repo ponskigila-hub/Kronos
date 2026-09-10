@@ -7,21 +7,25 @@
  * class="chart-trigger" and a data-ticker attribute opens this popup,
  * including elements injected later by screener.js's re-renders.
  *
- * Backend: GET /api/chart/<ticker>?range=1M|3M|6M|YTD|1Y|5Y|MAX
- * (see webapp/app.py's api_chart) -- reuses the exact same
- * assistant.data_fetcher.fetch_history() every other page already uses,
- * just with a different lookback per range. Daily bars only (no intraday
- * 1D/5D view) -- see the code comment on CHART_RANGE_LOOKBACK in app.py
- * for why.
+ * Backend:
+ *   GET /api/chart/<ticker>?range=1D|1W|1M|3M|6M|YTD|1Y|5Y|MAX
+ *     (webapp/app.py's api_chart) -- 1D/1W use intraday bars via
+ *     data_fetcher.fetch_intraday(); everything else reuses
+ *     fetch_history() exactly like every other page in the app.
+ *   GET /api/stock-profile/<ticker>
+ *     (webapp/app.py's api_stock_profile) -- company info + analyst
+ *     consensus, fetched once per popup open (doesn't change per range).
  */
 (function () {
-  const RANGES = ["1M", "3M", "6M", "YTD", "1Y", "5Y", "MAX"];
-  const DEFAULT_RANGE = "6M";
+  const RANGES = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "5Y", "MAX"];
+  const DEFAULT_RANGE = "1D";
+  const RATING_LABELS = ["Strong Sell", "Sell", "Hold", "Buy", "Strong Buy"];
 
-  let overlay, panel, titleEl, priceEl, changeEl, rangeTabsEl, svgWrap, statusEl;
+  let overlay, titleEl, priceEl, changeEl, rangeTabsEl, svgWrap, statusEl, profileEl;
   let currentTicker = null;
   let currentRange = DEFAULT_RANGE;
   let requestToken = 0;
+  let profileToken = 0;
 
   function buildModal() {
     overlay = document.createElement("div");
@@ -40,6 +44,7 @@
           <div class="ticker-chart-status"></div>
         </div>
         <div class="ticker-chart-ranges"></div>
+        <div class="ticker-chart-profile"></div>
         <div class="ticker-chart-foot">
           <a class="btn btn-ghost btn-small ticker-chart-forecast-link" href="#">Analyze with Kronos &rarr;</a>
         </div>
@@ -47,13 +52,13 @@
     `;
     document.body.appendChild(overlay);
 
-    panel = overlay.querySelector(".ticker-chart-panel");
     titleEl = overlay.querySelector(".ticker-chart-title");
     priceEl = overlay.querySelector(".ticker-chart-price");
     changeEl = overlay.querySelector(".ticker-chart-change");
     svgWrap = overlay.querySelector(".ticker-chart-svg-wrap");
     statusEl = overlay.querySelector(".ticker-chart-status");
     rangeTabsEl = overlay.querySelector(".ticker-chart-ranges");
+    profileEl = overlay.querySelector(".ticker-chart-profile");
 
     RANGES.forEach((r) => {
       const btn = document.createElement("button");
@@ -93,12 +98,14 @@
     priceEl.textContent = "";
     changeEl.textContent = "";
     changeEl.className = "ticker-chart-change";
+    profileEl.innerHTML = "";
     overlay.querySelector(".ticker-chart-forecast-link").href =
       "/chat?prefill=forecast+" + encodeURIComponent(currentTicker);
     updateActiveRangeBtn();
     overlay.classList.add("open");
     document.body.style.overflow = "hidden";
     loadChart();
+    loadProfile();
   }
 
   function close() {
@@ -114,6 +121,14 @@
     const sign = v > 0 ? "+" : "";
     return `${sign}${v.toFixed(2)}`;
   }
+  function fmtLarge(n) {
+    if (n == null) return "n/a";
+    const abs = Math.abs(n);
+    if (abs >= 1e12) return (n / 1e12).toFixed(2) + "T";
+    if (abs >= 1e9) return (n / 1e9).toFixed(2) + "B";
+    if (abs >= 1e6) return (n / 1e6).toFixed(2) + "M";
+    return n.toFixed(0);
+  }
 
   async function loadChart() {
     const myToken = ++requestToken;
@@ -127,6 +142,15 @@
       if (myToken !== requestToken) return; // a newer request superseded this one
 
       if (!resp.ok || data.error) {
+        // Intraday (1D/1W) commonly has nothing to show outside market
+        // hours or for symbols Yahoo doesn't serve intraday bars for --
+        // fall back to a daily range automatically rather than dead-ending
+        // on an error the first time someone opens the popup after close.
+        if (data.fallback_range && data.fallback_range !== currentRange) {
+          currentRange = data.fallback_range;
+          updateActiveRangeBtn();
+          return loadChart();
+        }
         statusEl.textContent = data.error || "Couldn't load chart data.";
         return;
       }
@@ -138,15 +162,89 @@
     }
   }
 
+  async function loadProfile() {
+    const myToken = ++profileToken;
+    try {
+      const resp = await fetch(`/api/stock-profile/${encodeURIComponent(currentTicker)}`);
+      const data = await resp.json();
+      if (myToken !== profileToken) return;
+      if (!resp.ok || data.error) return; // non-fatal -- chart still works without this
+      renderProfile(data);
+    } catch (err) { /* non-fatal */ }
+  }
+
+  function renderProfile(data) {
+    const a = data.analyst || {};
+    const parts = [];
+
+    parts.push(`
+      <div class="ticker-chart-profile-head">
+        ${data.name ? `<div class="ticker-chart-company-name">${data.name}</div>` : ""}
+        <div class="ticker-chart-tags">
+          ${data.sector ? `<span class="ticker-chart-tag">${data.sector}</span>` : ""}
+          ${data.industry ? `<span class="ticker-chart-tag">${data.industry}</span>` : ""}
+          ${data.exchange ? `<span class="ticker-chart-tag">${data.exchange}</span>` : ""}
+        </div>
+      </div>
+    `);
+
+    if (data.description) {
+      parts.push(`<p class="ticker-chart-description">${data.description}</p>`);
+    }
+
+    parts.push(`
+      <div class="ticker-chart-stats-grid">
+        <div><span class="label">Market cap</span><span class="value">${fmtLarge(data.market_cap)}</span></div>
+        <div><span class="label">P/E (TTM)</span><span class="value">${data.pe_ratio != null ? data.pe_ratio.toFixed(1) : "n/a"}</span></div>
+        <div><span class="label">Forward P/E</span><span class="value">${data.forward_pe != null ? data.forward_pe.toFixed(1) : "n/a"}</span></div>
+        <div><span class="label">Beta</span><span class="value">${data.beta != null ? data.beta.toFixed(2) : "n/a"}</span></div>
+        <div><span class="label">52w range</span><span class="value">${data.fifty_two_week_low != null && data.fifty_two_week_high != null ? `${data.fifty_two_week_low.toFixed(2)}–${data.fifty_two_week_high.toFixed(2)}` : "n/a"}</span></div>
+        <div><span class="label">Dividend yield</span><span class="value">${data.dividend_yield != null ? (data.dividend_yield * 100).toFixed(2) + "%" : "n/a"}</span></div>
+      </div>
+    `);
+
+    if (a.rating_score != null || a.target_mean != null) {
+      const scorePct = a.rating_score != null ? (a.rating_score / 4) * 100 : 50;
+      const ratingLabel = a.rating_score != null ? RATING_LABELS[a.rating_score] : (a.recommendation || "n/a");
+      parts.push(`
+        <div class="ticker-chart-analyst">
+          <div class="ticker-chart-analyst-head">
+            <span class="card-title" style="margin:0;">Analyst view</span>
+            <span class="ticker-chart-rating-label">${ratingLabel}${a.num_analysts ? ` · ${a.num_analysts} analysts` : ""}</span>
+          </div>
+          ${a.rating_score != null ? `
+            <div class="ticker-chart-gauge">
+              <div class="ticker-chart-gauge-track"></div>
+              <div class="ticker-chart-gauge-marker" style="left:${scorePct}%;"></div>
+            </div>
+            <div class="ticker-chart-gauge-labels">
+              <span>Strong Sell</span><span>Hold</span><span>Strong Buy</span>
+            </div>
+          ` : ""}
+          ${a.target_mean != null ? `
+            <div class="ticker-chart-targets">
+              <span>Low <strong>$${a.target_low != null ? a.target_low.toFixed(2) : "n/a"}</strong></span>
+              <span>Mean <strong>$${a.target_mean.toFixed(2)}</strong></span>
+              <span>High <strong>$${a.target_high != null ? a.target_high.toFixed(2) : "n/a"}</strong></span>
+            </div>
+          ` : ""}
+          <p class="ticker-chart-source-note">Analyst consensus via Yahoo Finance -- not a TradingView feed (this app has no TradingView integration), shown here as the closest equivalent already used elsewhere in the app.</p>
+        </div>
+      `);
+    }
+
+    profileEl.innerHTML = parts.join("");
+  }
+
   function renderChart(data) {
     priceEl.textContent = data.latest_price != null ? "$" + data.latest_price.toFixed(2) : "—";
 
-    // Google Finance shows day-over-day change on short ranges, but the
-    // change across the whole selected window once you've picked a longer
-    // range -- that's the more useful number once you're looking at 1Y/5Y.
-    const useRangeChange = currentRange !== "1M";
-    const changeVal = useRangeChange ? data.range_change : data.day_change;
-    const changePct = useRangeChange ? data.range_change_pct : data.day_change_pct;
+    // Short/intraday ranges read better as "change since this range
+    // started" (today's move, this week's move); longer ranges already
+    // mean that by definition, so range_change and day_change converge --
+    // simplest to just always use range_change and drop the special case.
+    const changeVal = data.range_change;
+    const changePct = data.range_change_pct;
     const up = changeVal >= 0;
     changeEl.textContent = `${fmtNum(changeVal)} (${fmtPct(changePct)})`;
     changeEl.className = "ticker-chart-change " + (up ? "positive" : "negative");
