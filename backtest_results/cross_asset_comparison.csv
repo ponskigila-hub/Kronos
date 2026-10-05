@@ -1,7 +1,0 @@
-ticker,horizon,best_model,rmse,direction_accuracy
-MSFT,1,Kronos,5.274845014315074,0.0
-MSFT,3,Naive (last close),7.239964120127212,28.333333333333332
-MSFT,5,Naive (last close),8.422868784985832,39.0
-MSFT,7,Naive (last close),10.070150174125727,40.0
-MSFT,14,Naive (last close),13.189754027892219,48.214285714285715
-MSFT,30,Naive (last close),18.099652322779725,50.66666666666667
