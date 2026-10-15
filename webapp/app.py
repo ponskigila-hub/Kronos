@@ -803,6 +803,55 @@ def backtest_result(job_id):
 
 
 # ---------------------------------------------------------------------------
+# Relative valuation (research aid; no buy/sell signal)
+# ---------------------------------------------------------------------------
+_valuation_jobs = JobManager()
+_valuation_provider_lock = threading.Lock()
+
+
+def _run_relative_valuation_job(ticker, peers):
+    from assistant.valuation import fetch_relative_valuation
+    with _valuation_provider_lock:
+        return fetch_relative_valuation(ticker, peers)
+
+
+@app.route("/valuation", methods=["GET"])
+def valuation():
+    return render_template("valuation.html", active="valuation", result=None,
+                           ticker=request.args.get("ticker", ""), peers=request.args.get("peers", ""))
+
+
+@app.route("/valuation/run", methods=["POST"])
+def valuation_run():
+    ticker = (request.form.get("ticker") or "").strip().upper()
+    peer_text = request.form.get("peers") or ""
+    peers = [item.strip().upper() for item in peer_text.replace(";", ",").split(",") if item.strip()]
+    if not ticker:
+        return jsonify({"error": "Enter the target ticker."}), 400
+    if not 3 <= len(peers) <= 8:
+        return jsonify({"error": "Enter between 3 and 8 peer tickers, separated by commas."}), 400
+    if ticker in peers or len(set(peers)) != len(peers):
+        return jsonify({"error": "Target and peer tickers must be unique."}), 400
+    job_id = _valuation_jobs.submit(_run_relative_valuation_job, ticker, peers)
+    return jsonify({"job_id": job_id})
+
+
+@app.route("/valuation/job/<job_id>")
+def valuation_job(job_id):
+    return jsonify(_valuation_jobs.poll(job_id))
+
+
+@app.route("/valuation/result/<job_id>")
+def valuation_result(job_id):
+    result = _valuation_jobs.get_result(job_id)
+    if result is None:
+        flash("That valuation result expired or was not found; please run it again.", "error")
+        return redirect(url_for("valuation"))
+    return render_template("valuation.html", active="valuation", result=result,
+                           ticker=result["ticker"], peers=", ".join(result["peer_tickers"]))
+
+
+# ---------------------------------------------------------------------------
 # Simulation -- paper trading with demo money (assistant/simulation.py).
 # "Buy" a ticker at its real current price with fake cash, let it sit, and
 # come back once the forecast's horizon has passed to see whether Kronos's

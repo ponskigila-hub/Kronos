@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block title %}Kronos — Valuation{% endblock %}
+{% block content %}
+<div class="page-head">
+  <p class="eyebrow">Relative valuation research</p>
+  <h1 class="page-title">Valuation</h1>
+  <p class="page-desc">Compare a stock's valuation multiples with a peer group you choose. This estimates a relative discount or premium—not intrinsic value and not a buy/sell recommendation.</p>
+</div>
+<div class="card">
+  <form method="post" action="{{ url_for('valuation_run') }}" id="valuationForm"
+        data-poll-url="{{ url_for('valuation_job', job_id='JOB_ID') }}"
+        data-result-url="{{ url_for('valuation_result', job_id='JOB_ID') }}">
+    <div class="field-row">
+      <div class="field">
+        <label for="valuationTicker">Target ticker</label>
+        <input type="text" id="valuationTicker" name="ticker" placeholder="AAPL" value="{{ ticker }}" required maxlength="15">
+      </div>
+      <div class="field" style="flex:2">
+        <label for="valuationPeers">Comparable peers (3–8)</label>
+        <input type="text" id="valuationPeers" name="peers" placeholder="e.g. MSFT, GOOGL, META" value="{{ peers }}" required>
+      </div>
+    </div>
+    <p class="typing">Choose genuinely comparable companies yourself; use commas between tickers. The app does not auto-select peers. Data retrieval may take a little while and runs in a server background job.</p>
+    <button class="btn" id="valuationSubmit" type="submit">Compare valuation</button>
+    <span id="valuationStatus" class="typing" role="status" aria-live="polite"></span>
+    <div id="valuationError" class="flash flash-error" style="display:none" role="alert"></div>
+  </form>
+</div>
+
+{% if result %}
+<section class="result-section">
+  <div class="result-header">
+    <div>
+      <p class="eyebrow">Peer-multiple snapshot</p>
+      <h2>{{ result.company_name }} ({{ result.ticker }})</h2>
+    </div>
+    <span class="result-tag">{{ result.currency }}</span>
+  </div>
+  <p class="page-desc">Source: Yahoo Finance company summary via yfinance (secondary data). Latest provider price shown: {{ "%.2f"|format(result.current_price) }} {{ result.currency }}{% if result.price_as_of %} · provider timestamp {{ result.price_as_of }}{% endif %}. Data retrieved {{ result.retrieved_at }}.</p>
+
+  {% if result.summary %}
+  <div class="card">
+    <p class="eyebrow">Relative reference only · {{ result.summary.method_count }} methods</p>
+    <h2>{{ result.summary.label }}</h2>
+    <div class="kpi-row">
+      <div><div class="kpi-value">{{ "%.2f"|format(result.summary.median_peer_implied_price) }} {{ result.currency }}</div><div class="kpi-label">Median of method midpoints; not a price target</div></div>
+      <div><div class="kpi-value {{ 'score-high' if result.summary.upside_vs_price_pct >= 0 else 'score-low' }}">{{ "%+.1f"|format(result.summary.upside_vs_price_pct) }}%</div><div class="kpi-label">Difference vs current provider price</div></div>
+      <div><div class="kpi-value">{{ result.summary.method_count }}</div><div class="kpi-label">Methods with sufficient peer data (may be correlated)</div></div>
+    </div>
+  </div>
+  {% else %}
+  <div class="card"><strong>No combined peer reference.</strong> Fewer than two valuation methods had adequate comparable data. Review the individual snapshot and provide a more suitable peer set.</div>
+  {% endif %}
+
+  <div class="result-section">
+    <div class="result-header"><h2>Implied ranges by method</h2></div>
+    {% if result.methods %}
+    <div style="overflow-x:auto">
+      <table class="data-table">
+        <thead><tr><th>Method</th><th>Company multiple</th><th>Peer median</th><th>Peer range implied price</th><th>Midpoint vs price</th><th>Peers with data</th></tr></thead>
+        <tbody>
+          {% for m in result.methods %}
+          <tr>
+            <td><strong>{{ m.name }}</strong><br><small>{{ m.formula }}</small></td>
+            <td>{{ "%.2f×"|format(m.company_multiple) if m.company_multiple is not none else "—" }}</td>
+            <td>{{ "%.2f×"|format(m.peer_median_multiple) }}</td>
+            <td>{{ "%.2f"|format(m.implied_low) if m.implied_low is not none else "—" }} – {{ "%.2f"|format(m.implied_mid) if m.implied_mid is not none else "—" }} – {{ "%.2f"|format(m.implied_high) if m.implied_high is not none else "—" }} {{ result.currency }}<br><small>25th percentile – median – 75th percentile</small></td>
+            <td class="{{ 'score-high' if (m.upside_vs_price_pct or 0) >= 0 else 'score-low' }}">{{ "%+.1f%%"|format(m.upside_vs_price_pct) if m.upside_vs_price_pct is not none else "—" }}</td>
+            <td>{{ m.peer_count }}<br><small>{{ m.peer_symbols|join(", ") }}</small></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="page-desc">No method passed data and sample-size checks. Common reasons: negative EPS/EBITDA, missing fundamentals, or fewer than three usable peer multiples.</p>
+    {% endif %}
+  </div>
+
+  {% if result.snapshot_metrics %}
+  <div class="result-section">
+    <div class="result-header"><h2>Target fundamentals snapshot</h2><span class="result-tag">{{ result.sector or "Sector unavailable" }}{% if result.industry %} · {{ result.industry }}{% endif %}</span></div>
+    <div class="kpi-row">
+      {% for metric in result.snapshot_metrics %}
+      <div><div class="kpi-value">{{ "%.2f"|format(metric.value) }}{{ metric.unit }}</div><div class="kpi-label">{{ metric.name }}</div></div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="result-section">
+    <div class="result-header"><h2>Selected peers</h2></div>
+    <div style="overflow-x:auto">
+      <table class="data-table">
+        <thead><tr><th>Ticker</th><th>Company</th><th>Sector</th><th>Industry</th></tr></thead>
+        <tbody>{% for peer in result.peer_profiles %}<tr><td>{{ peer.ticker }}</td><td>{{ peer.name or "—" }}</td><td>{{ peer.sector or "—" }}</td><td>{{ peer.industry or "—" }}</td></tr>{% endfor %}</tbody>
+      </table>
+    </div>
+    {% if result.warnings %}
+    <div class="card" style="margin-top:16px">
+      <strong>Interpretation and data limitations</strong>
+      <ul>{% for warning in result.warnings %}<li>{{ warning }}</li>{% endfor %}</ul>
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
+<div class="card" style="margin-top:32px">
+  <h2>How to read this page</h2>
+  <p>For each method, the target company's per-share fundamental (such as forward EPS) is multiplied by the selected peers' 25th percentile, median and 75th percentile valuation multiples. EV/EBITDA also subtracts target net debt and divides by shares outstanding. Methods that need positive denominators or unavailable balance-sheet inputs are omitted.</p>
+  <p>A positive difference means the peer multiple would imply a higher price than the current provider snapshot; it does <strong>not</strong> prove the stock is undervalued. Multiple choice, business quality, growth, accounting, capital structure, interest rates and data timing can explain the gap. The page intentionally does not label a stock “fair value” or produce a precise DCF target.</p>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const form = document.getElementById("valuationForm");
+  if (!form) return;
+  const button = document.getElementById("valuationSubmit");
+  const status = document.getElementById("valuationStatus");
+  const error = document.getElementById("valuationError");
+  function showError(message) {
+    error.textContent = message;
+    error.style.display = "block";
+    status.textContent = "";
+    button.disabled = false;
+    button.textContent = "Compare valuation";
+    window.KronosLoading && window.KronosLoading.hide();
+  }
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    error.style.display = "none";
+    button.disabled = true;
+    button.textContent = "Loading…";
+    status.textContent = "Fetching company and peer summaries. This runs on the Python server; switching browser tabs will not cancel it.";
+    window.KronosLoading && window.KronosLoading.show("Loading valuation data on the server… safe to switch tabs; keep the Python app running.");
+    fetch(form.action, {method: "POST", body: new FormData(form)})
+      .then(async response => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not start valuation job.");
+        return data.job_id;
+      })
+      .then(function poll(jobId) {
+        const url = form.dataset.pollUrl.replace("JOB_ID", encodeURIComponent(jobId));
+        return fetch(url).then(r => r.json()).then(data => {
+          if (data.status === "pending") return new Promise(resolve => setTimeout(resolve, 1800)).then(() => poll(jobId));
+          if (data.status === "error") throw new Error(data.error || "Valuation job failed.");
+          if (data.status === "not_found") throw new Error("The job expired or the app restarted. Please run it again.");
+          if (data.status !== "done") throw new Error("Unexpected job response.");
+          window.location.assign(form.dataset.resultUrl.replace("JOB_ID", encodeURIComponent(jobId)));
+        });
+      })
+      .catch(err => showError(err.message));
+  });
+})();
+</script>
+{% endblock %}

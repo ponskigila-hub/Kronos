@@ -9,8 +9,8 @@ class TradingSimulator:
         strategy: "long_only", "short_only", or "long_short"
         threshold: minimum predicted return (fraction, e.g. 0.01 = 1%) to
                    act on -- predictions inside [-threshold, threshold] are HOLD
-        transaction_cost: round-trip cost as a fraction of trade value
-                           (applied on both entry and exit)
+        transaction_cost: assumed one-way cost per side as a fraction of
+                           trade value (default 0.05%; deducted at entry and exit)
         """
         if strategy not in ("long_only", "short_only", "long_short"):
             raise ValueError("strategy must be long_only, short_only, or long_short")
@@ -28,14 +28,17 @@ class TradingSimulator:
             signals = np.where(signals > 0, 0, signals)
         return signals
 
-    def run(self, horizon_df, starting_capital=10000.0):
+    def run(self, horizon_df, starting_capital=10000.0, force_signal=None):
         """Enter next bar's open and exit at the endpoint close.
 
         The signal is calculated from the endpoint forecast versus the close
         known at the origin. This avoids assuming a fill at that same close.
         This remains simplified: no borrow fee, market impact, stops or
-        overlapping positions are modelled.
+        overlapping positions are modelled. ``force_signal=1`` is used only
+        for the matched always-long benchmark on the same evaluated intervals.
         """
+        if force_signal not in (None, -1, 0, 1):
+            raise ValueError("force_signal must be None, -1, 0, or 1")
         if horizon_df.empty:
             return pd.DataFrame(), pd.DataFrame()
 
@@ -51,7 +54,8 @@ class TradingSimulator:
             if origin_close <= 0 or entry_price <= 0:
                 continue
             predicted_return = (exit_price_predicted - origin_close) / origin_close
-            signal = int(self.generate_signals([predicted_return])[0])
+            signal = int(force_signal if force_signal is not None
+                         else self.generate_signals([predicted_return])[0])
 
             if signal == 0:
                 equity_curve.append({"date": row["date"], "equity": capital})

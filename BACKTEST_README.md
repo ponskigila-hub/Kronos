@@ -1,13 +1,10 @@
 # Kronos Backtesting Framework
 
-A walk-forward evaluation system for Kronos, built the way quant firms evaluate
-forecasting models: rolling out-of-sample predictions, multiple horizons, a full
-metrics suite, a trading simulation with realistic portfolio statistics, baseline
-comparisons, residual diagnostics, market-regime robustness checks, and
-hyperparameter search. Lives entirely in `backtesting/` + `run_backtest.py`;
-nothing in `assistant/` or the original Kronos code was changed (the framework
-reuses `assistant.data_fetcher.py` and `assistant.forecaster.py` rather than
-duplicating them).
+A walk-forward evaluation system for Kronos with multiple horizons, price and
+return metrics, baseline comparisons, residual diagnostics, market-regime checks,
+and a simplified paper-trading simulation. It lives in `backtesting/` +
+`run_backtest.py` and reuses `assistant.data_fetcher.py` and
+`assistant.forecaster.py`.
 
 ## Evaluation semantics and limits
 
@@ -16,9 +13,13 @@ horizon** (the predicted close at exactly `t+h`), rather than pooling all the
 intermediate points in each forecast path. Thus `n_predictions` is the number
 of origins for that horizon, not `origins × horizon`. Strategy signals use the
 forecast relative to the origin close and assume entry at the next bar's open,
-then exit at the horizon endpoint close. This is still a simplified paper
-simulation: it does not model spread, market impact, short borrow, or
-overlapping positions.
+then exit at the horizon endpoint close. Forecast model comparison is ranked by
+endpoint return RMSE; price RMSE remains a scale-dependent diagnostic. The paper
+simulation also compares Kronos signals with an always-long baseline on the same
+evaluated intervals, with the same assumed 0.05% per-side cost. This is an
+interval-matched baseline, not continuous buy-and-hold during gaps between
+origins. It does not model spread, market impact, short borrow, dividends, or
+overlapping positions; Yahoo OHLC bars are not a verified total-return series.
 
 The DM comparison uses the **pre-specified naive last-close baseline** rather
 than selecting the apparent best baseline on the same test sample. The full
@@ -246,12 +247,13 @@ understand `"backtest AAPL"` directly:
 you> backtest AAPL
 
 bot> Backtest for AAPL -- example output only; horizons [5, 14, 30] days (expanding window):
-       h=5d: RMSE=2.10, MAE=1.50, direction accuracy=58.0%, IC=0.12
-       h=14d: RMSE=4.30, MAE=3.10, direction accuracy=55.0%, IC=0.08
-       h=30d: RMSE=7.80, MAE=5.90, direction accuracy=52.0%
-     At 30d horizon, ranked by RMSE (lower is better): Kronos (RMSE=7.80), Linear Regression (RMSE=8.50), Naive (last close) (RMSE=9.10)
+       30 endpoint origins observed (requested cap 30; origins spaced about 30 trading bars apart)
+       h=5 bars: price RMSE=2.10, return RMSE=2.1%, MAE=1.50, direction accuracy=58.0%, IC=0.12
+       h=14 bars: price RMSE=4.30, return RMSE=4.3%, MAE=3.10, direction accuracy=55.0%, IC=0.08
+       h=30 bars: price RMSE=7.80, return RMSE=7.8%, MAE=5.90, direction accuracy=52.0%
+     At 30-bar horizon, ranked by endpoint return RMSE (lower is better; not trading returns): Kronos, Linear Regression, Naive (last close)
      Simulated trading at 30d horizon: total return 12.4%, Sharpe 1.35, win rate 61.0%, max drawdown -5.2%, 8 trades.
-     This is a quick in-chat check (few windows, few benchmarks). For a full report with plots and diagnostics, run `python run_backtest.py --tickers AAPL`.
+     Forecast-loss significance uses paired endpoint return errors; fewer than 20 origins yields no p-value. Historical results are not proof of future profit.
 ```
 
 This calls `backtesting.runner.quick_backtest()` -- a faster version of the full framework (30 windows by default in the current config, 3 horizons, 2 baselines,
@@ -264,7 +266,7 @@ and an up/down bias bar chart (see `backtesting/visualization.py:plot_direction_
 Tune it via `.env`:
 ```
 BACKTEST_QUICK_HORIZONS=5,14,30
-BACKTEST_QUICK_MAX_WINDOWS=5
+BACKTEST_QUICK_MAX_WINDOWS=30
 BACKTEST_QUICK_MIN_TRAIN_SIZE=252
 BACKTEST_QUICK_STEP_SIZE=30
 ```
@@ -280,7 +282,7 @@ Results land in `backtest_results/<TICKER>/`:
   direction markers, rolling directional accuracy, and an up/down bias bar
   chart, for each horizon (see below)
 - `*.png` -- every plot from the visualization suite
-- `backtest_results/cross_asset_comparison.csv` -- best model per horizon per asset
+- `backtest_results/cross_asset_comparison.csv` -- model with lowest endpoint return RMSE per horizon per asset
 
 **A real run is compute-heavy.** Every walk-forward window re-invokes
 `KronosPredictor.predict()` per horizon. With `Kronos-base` (the "heaviest" model

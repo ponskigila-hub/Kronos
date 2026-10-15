@@ -121,7 +121,20 @@ class BacktestRunner:
                 starting_capital=self.starting_capital, periods_per_year=periods_per_year,
             )
             pm["horizon"] = h
+            pm["strategy"] = "Kronos forecast signals"
             portfolio_table.append(pm)
+
+            # Matched always-long interval baseline: same signal origins,
+            # next-open entry, endpoint close exit and transaction costs.
+            long_trades, long_equity = self.simulator.run(
+                hdf, self.starting_capital, force_signal=1)
+            long_pm = portfolio_metrics.compute_all(
+                long_trades, long_equity, total_periods=n_splits,
+                starting_capital=self.starting_capital, periods_per_year=periods_per_year,
+            )
+            long_pm["horizon"] = h
+            long_pm["strategy"] = "Always long on evaluated intervals"
+            portfolio_table.append(long_pm)
 
             if not equity_df.empty:
                 visualization.plot_equity_curve(
@@ -219,10 +232,11 @@ class BacktestRunner:
             mdf = result["metrics_df"]
             if mdf.empty:
                 continue
-            best_per_horizon = mdf.loc[mdf.groupby("horizon")["rmse"].idxmin()]
+            best_per_horizon = mdf.loc[mdf.groupby("horizon")["return_rmse"].idxmin()]
             for _, row in best_per_horizon.iterrows():
                 rows.append({"ticker": ticker, "horizon": row["horizon"],
                              "best_model": row["model"], "rmse": row["rmse"],
+                             "return_rmse": row["return_rmse"],
                              "direction_accuracy": row["direction_accuracy"]})
         comparison_df = pd.DataFrame(rows)
         comparison_df.to_csv(os.path.join(self.output_dir, "cross_asset_comparison.csv"), index=False)
@@ -308,6 +322,11 @@ def quick_backtest(ticker, horizons=None, max_windows=None, min_train_size=None,
             trades_df, equity_df, total_periods=n_splits,
             starting_capital=starting_capital, periods_per_year=periods_per_year,
         )
+        long_trades, long_equity = sim.run(hdf, starting_capital, force_signal=1)
+        portfolio["matched_long_baseline"] = portfolio_metrics.compute_all(
+            long_trades, long_equity, total_periods=n_splits,
+            starting_capital=starting_capital, periods_per_year=periods_per_year,
+        )
         if not equity_df.empty:
             equity_curve_path = visualization.plot_equity_curve(
                 equity_df, f"{ticker} -- Backtest Equity Curve (horizon={main_horizon}d, "
@@ -364,17 +383,21 @@ def _format_quick_backtest_text(ticker, metrics_df, portfolio, horizons, max_win
                 f"{max_windows} walk-forward windows at these horizons. Try a "
                 f"smaller horizon or a longer-listed ticker.")
 
-    lines = [f"Backtest for {ticker} -- {max_windows} walk-forward windows, "
-             f"horizons {list(horizons)} days (expanding window):"]
-
     kronos_df = metrics_df[metrics_df["model"] == "Kronos"].sort_values("horizon")
+    observed_origins = int(kronos_df["n_predictions"].max()) if not kronos_df.empty else 0
+    lines = [f"Backtest for {ticker} -- {observed_origins} endpoint origins observed "
+             f"(requested cap {max_windows}; origins spaced about 30 trading bars apart), "
+             f"horizons {list(horizons)} bars (expanding window):"]
+
     all_notes = []
     for _, row in kronos_df.iterrows():
         lines.append(
-            f"  h={int(row['horizon'])}d: RMSE={row['rmse']:.2f}, MAE={row['mae']:.2f}, "
+            f"  h={int(row['horizon'])} bars: price RMSE={row['rmse']:.2f}, "
+            f"return RMSE={row['return_rmse'] * 100:.2f}%, MAE={row['mae']:.2f}, "
             f"direction accuracy={row['direction_accuracy']:.1f}%, "
             f"IC={row['information_coefficient']:.2f}" if row['information_coefficient'] == row['information_coefficient']
-            else f"  h={int(row['horizon'])}d: RMSE={row['rmse']:.2f}, MAE={row['mae']:.2f}, "
+            else f"  h={int(row['horizon'])} bars: price RMSE={row['rmse']:.2f}, "
+                 f"return RMSE={row['return_rmse'] * 100:.2f}%, MAE={row['mae']:.2f}, "
                  f"direction accuracy={row['direction_accuracy']:.1f}%"
         )
         for note in row.get("reliability_notes", []) or []:
@@ -384,13 +407,13 @@ def _format_quick_backtest_text(ticker, metrics_df, portfolio, horizons, max_win
 
     # quick comparison vs baselines at the longest horizon
     main_h = max(horizons)
-    at_main_h = metrics_df[metrics_df["horizon"] == main_h].sort_values("rmse")
+    at_main_h = metrics_df[metrics_df["horizon"] == main_h].sort_values("return_rmse")
     if len(at_main_h) > 1:
-        ranking = ", ".join(f"{r['model']} (RMSE={r['rmse']:.2f})" for _, r in at_main_h.iterrows())
-        lines.append(f"At {main_h}d horizon, ranked by RMSE (lower is better): {ranking}")
+        ranking = ", ".join(f"{r['model']} (return RMSE={r['return_rmse'] * 100:.2f}%)" for _, r in at_main_h.iterrows())
+        lines.append(f"At {main_h}-bar horizon, ranked by endpoint return RMSE (lower is better): {ranking}")
 
     if dm_result:
-        lines.append(f"Significance check (Kronos vs {dm_result.get('vs_model', '?')}): {dm_result['note']}")
+        lines.append(f"Forecast-loss check (paired endpoint return errors; Kronos vs {dm_result.get('vs_model', '?')}): {dm_result['note']}")
 
     if regime_breakdown:
         h_label = main_horizon if main_horizon is not None else main_h
@@ -417,11 +440,21 @@ def _format_quick_backtest_text(ticker, metrics_df, portfolio, horizons, max_win
             f"{int(portfolio.get('num_trades', 0))} trades. "
             f"(Equity curve chart also saved alongside the attached image.)"
         )
+        baseline = portfolio.get("matched_long_baseline") or {}
+        if baseline:
+            lines.append(
+                f"Matched always-long baseline on the same evaluated intervals: total return "
+                f"{baseline.get('total_return_pct', float('nan')):.1f}%, "
+                f"Sharpe {baseline.get('sharpe_ratio', float('nan')):.2f}, "
+                f"max drawdown {baseline.get('max_drawdown_pct', float('nan')):.1f}%. "
+                f"This baseline is also simplified and uses the same assumed costs."
+            )
 
     if all_notes:
         lines.append("⚠️ Reliability notes: " + "; ".join(all_notes) + ".")
 
-    lines.append("This is a quick in-chat check (few windows, few benchmarks). "
-                  "For a full report with plots and diagnostics, run "
-                  "`python run_backtest.py --tickers " + ticker + "`.")
+    lines.append("This is a historical forecast diagnostic, not proof of future profit. "
+                  "If you use these results to tune choices, they are no longer an untouched holdout. "
+                  "The paper-trading simulation is simplified and omits spread, market impact, borrow and overlapping positions. "
+                  "For full diagnostics, run `python run_backtest.py --tickers " + ticker + "`.")
     return "\n".join(lines)

@@ -34,6 +34,7 @@
       <a href="{{ url_for('news') }}" class="{{ 'active' if active == 'news' }}">News</a>
       <a href="{{ url_for('screener') }}" class="{{ 'active' if active == 'screener' }}">Screener</a>
       <a href="{{ url_for('backtest') }}" class="{{ 'active' if active == 'backtest' }}">Backtest</a>
+      <a href="{{ url_for('valuation') }}" class="{{ 'active' if active == 'valuation' }}">Valuation</a>
       <a href="{{ url_for('watchlist') }}" class="{{ 'active' if active == 'watchlist' }}">Watchlist</a>
     </nav>
 
@@ -59,7 +60,7 @@
 
   <footer class="site-footer">
     <div class="site-footer-inner">
-      <div><span class="dot"></span>{{ kronos_model_id or 'NeoQuasar/Kronos-base' }} &middot; local session &middot; no data leaves this machine</div>
+      <div><span class="dot"></span>{{ kronos_model_id or 'NeoQuasar/Kronos-base' }} &middot; local app &middot; public ticker/news queries go to configured data providers</div>
       <div class="integrations-status">
         <span class="integration-badge {{ 'on' if integrations.news_extra_configured else 'off' }}"
               title="{{ integrations.news_source_label }}">

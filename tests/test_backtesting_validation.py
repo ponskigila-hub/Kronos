@@ -49,6 +49,23 @@ def test_simulator_enters_after_signal_at_next_open():
     assert np.isclose(equity.iloc[-1]["equity"], 1000 * (108 / 102))
 
 
+def test_matched_always_long_baseline_uses_same_fills_and_two_sided_costs():
+    row = pd.DataFrame([{
+        "split_date": pd.Timestamp("2024-01-01"),
+        "entry_date": pd.Timestamp("2024-01-02"),
+        "date": pd.Timestamp("2024-01-03"),
+        "prev_actual": 100.0,
+        "entry_price": 100.0,
+        "predicted": 90.0,
+        "actual": 110.0,
+    }])
+    sim = TradingSimulator(strategy="long_short", threshold=0.01, transaction_cost=0.0005)
+    trades, equity = sim.run(row, 1000, force_signal=1)
+    assert trades.iloc[0]["direction"] == "long"
+    assert np.isclose(trades.iloc[0]["pnl_return"], 0.10 - 0.001)
+    assert np.isclose(equity.iloc[-1]["equity"], 1000 * (1.099))
+
+
 def test_dm_declines_to_claim_significance_with_too_few_origins():
     out = diebold_mariano_test(np.arange(12.0), np.arange(12.0) + 1, min_origins=20)
     assert np.isnan(out["p_value"])

@@ -5,15 +5,21 @@
 <div class="page-head">
   <p class="eyebrow">Verification</p>
   <h1 class="page-title">Backtest</h1>
-  <p class="page-desc">Two ways to check whether Kronos's forecasts actually hold up: a statistical walk-forward test over history, or a live demo portfolio you fund with fake money and let play out for real, going forward.</p>
+  <p class="page-desc">A backtest replays historical data in time order: at each forecast origin, Kronos sees only earlier bars, predicts future endpoints, then we compare with what later happened. It is a research diagnostic—not a live signal or proof of future profit.</p>
 </div>
 
 <div class="tabs">
   <button class="tab-btn active" data-tab="walkforward" type="button">Walk-forward backtest</button>
-  <button class="tab-btn" data-tab="simulation" type="button">Simulation <span class="result-tag" style="margin-left:4px;">demo money</span></button>
+  <button class="tab-btn" data-tab="simulation" type="button">Forward demo <span class="result-tag" style="margin-left:4px;">fake cash</span></button>
 </div>
 
 <div class="tab-panel active" id="tab-walkforward">
+  <div class="card">
+    <h2>What this run does</h2>
+    <p>Walk-forward means the model is rerun at historical points using only information then available. The app checks endpoint forecasts at 5, 14 and 30 trading bars, against Naive (last close) and linear-regression forecast baselines. The strategy-style paper calculation enters at the next bar's open, exits at the endpoint close, deducts an assumed 0.05% cost per side, and compares with an always-long baseline on the same evaluated intervals.</p>
+    <p><strong>Windows are forecast origins, not days.</strong> They are spaced about 30 trading bars apart; if data history is shorter, the run may produce fewer than requested. The 30-window default is a screening run. P-values are withheld with fewer than 20 paired origins. If you tune the model or thresholds after seeing these results, reserve a new untouched later period for final evaluation.</p>
+    <p class="typing">The second tab is a separate forward demo portfolio with fake cash. It tracks forecasts made now as future prices arrive; it is not part of the historical backtest and does not place real trades.</p>
+  </div>
   <div class="card">
     <form method="post" action="{{ url_for('backtest_run') }}" data-loading-message="Running walk-forward backtest on the server — safe to switch tabs; it will keep running while the app stays open…" data-skip-loading="true" id="backtestForm">
       <div class="field-row">
@@ -22,7 +28,7 @@
           <input type="text" id="ticker" name="ticker" placeholder="AAPL" required value="{{ request.form.ticker if request.form.ticker }}">
         </div>
         <div class="field">
-          <label for="max_windows">Walk-forward windows</label>
+          <label for="max_windows">Maximum forecast origins</label>
           <input type="number" id="max_windows" name="max_windows" value="30" min="5" max="60">
         </div>
       </div>

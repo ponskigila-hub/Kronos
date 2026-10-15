@@ -24,10 +24,11 @@ Then open **http://127.0.0.1:5050**. Change the port with `WEBAPP_PORT` in
 
 | Page | What it does |
 |---|---|
-| **Dashboard** (`/`) | Landing page, your watchlist at a glance, links into the other three flows. |
+| **Dashboard** (`/`) | Landing page, your watchlist at a glance, and links into the app's main flows. |
 | **Chat** (`/chat`) | Same conversational assistant as the CLI/Discord/WhatsApp bots, over AJAX (`POST /api/chat`). Forecast charts and sparklines show inline, quick-reply chips suggest follow-ups, a ticker autocomplete dropdown helps while typing, chat history survives a page refresh, and a Beginner/Advanced toggle controls how technical the explanations are. |
 | **Forecast** (`/forecast`) | Two tabs: **by ticker** (auto-fetches from Yahoo Finance, same as chat) or **upload CSV** (manual setup -- bring your own OHLCV file, no ticker required). A "detailed multi-path chart" checkbox switches to the slower spaghetti-plot visualization (several sampled paths + mean + confidence band). |
-| **Backtest** (`/backtest`) | Runs `quick_backtest()` as a server-side background job and shows endpoint-only walk-forward metrics plus a primary-horizon comparison against a pre-specified naive baseline. |
+| **Backtest** (`/backtest`) | Runs `quick_backtest()` as a server-side background job. Explains walk-forward origins, endpoint forecasts, return-RMSE ranking, paired return-loss testing, and the simplified paper-return simulation. The second tab is a separate forward demo with fake cash. |
+| **Valuation** (`/valuation`) | Compares a target stock against 3–8 user-selected peers using forward P/E, price/sales, price/book and EV/EBITDA when positive inputs and enough peer data exist. Shows quartile-implied ranges and a relative discount/premium label—not intrinsic fair value or a buy/sell signal. Provider calls run as a background job. |
 | **Watchlist** (`/watchlist`) | Per-ticker cards with the latest price (auto-refreshing), next earnings date + estimated quarter, a buy-range entry zone you set yourself (flagged in/above/below once a price is known), free-text notes (autosaved), and a correlation matrix across everything on your list once you have 2+. Shared ticker list with the CLI/Discord/WhatsApp bots (`assistant_data/watchlists.json`); notes and entry zones are web-app-only for now. |
 
 ## CSV upload format
@@ -97,6 +98,13 @@ the browser may delay its status polling while hidden, then resume when you
 return. Keep the Python app process open. On CPU-only machines the default is
 four PyTorch threads (`KRONOS_CPU_THREADS` can override it); the web backtest
 defaults to 30 walk-forward windows and may take several minutes.
+
+The Valuation page uses the existing `yfinance` dependency to request public
+ticker summary data for the target and its user-selected peers, sequentially
+to limit provider pressure. It records retrieval time and quote time when
+available, but provider metrics remain secondary, may be delayed or missing,
+and are not reconstructed point-in-time. For valuation formulas and
+interpretation limits, see `VALUATION_README.md`.
 
 ## Watchlist data safety
 
