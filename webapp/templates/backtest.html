@@ -15,7 +15,7 @@
 
 <div class="tab-panel active" id="tab-walkforward">
   <div class="card">
-    <form method="post" action="{{ url_for('backtest_run') }}" data-loading-message="Running walk-forward backtest — several Kronos calls, this can take a couple of minutes…" data-skip-loading="true" id="backtestForm">
+    <form method="post" action="{{ url_for('backtest_run') }}" data-loading-message="Running walk-forward backtest on the server — safe to switch tabs; it will keep running while the app stays open…" data-skip-loading="true" id="backtestForm">
       <div class="field-row">
         <div class="field">
           <label for="ticker">Ticker</label>
@@ -23,11 +23,11 @@
         </div>
         <div class="field">
           <label for="max_windows">Walk-forward windows</label>
-          <input type="number" id="max_windows" name="max_windows" value="15" min="5" max="60">
+          <input type="number" id="max_windows" name="max_windows" value="30" min="5" max="60">
         </div>
       </div>
       <button class="btn" type="submit">Run backtest</button>
-      <span class="typing" id="backtestNote">Runs several Kronos calls — can take a while on CPU-only hardware.</span>
+      <span class="typing" id="backtestNote">Runs in a server-side background job; switching Chrome tabs will not stop it. CPU-only runs may take several minutes. Keep the Python app process running.</span>
     </form>
   </div>
 

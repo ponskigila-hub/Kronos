@@ -30,7 +30,7 @@ KRONOS_MAX_CONTEXT = int(os.getenv("KRONOS_MAX_CONTEXT", "512"))
 # default (usually all logical cores), which can cause more contention than
 # benefit on a laptop. A good starting point on a 6-core/12-thread CPU with
 # 8GB RAM is 4-6.
-KRONOS_CPU_THREADS = int(os.getenv("KRONOS_CPU_THREADS", "0")) or None
+KRONOS_CPU_THREADS = int(os.getenv("KRONOS_CPU_THREADS", "4")) or None
 DEFAULT_LOOKBACK_DAYS = int(os.getenv("DEFAULT_LOOKBACK_DAYS", "400"))
 DEFAULT_PRED_LEN = int(os.getenv("DEFAULT_PRED_LEN", "30"))
 # Sampling temperature: 1.0 = Kronos's most exploratory/random setting.
@@ -104,7 +104,7 @@ os.makedirs(BACKTEST_DIR, exist_ok=True)
 BACKTEST_QUICK_HORIZONS = tuple(
     int(h) for h in os.getenv("BACKTEST_QUICK_HORIZONS", "5,14,30").split(",")
 )
-BACKTEST_QUICK_MAX_WINDOWS = int(os.getenv("BACKTEST_QUICK_MAX_WINDOWS", "15"))
+BACKTEST_QUICK_MAX_WINDOWS = int(os.getenv("BACKTEST_QUICK_MAX_WINDOWS", "30"))
 BACKTEST_QUICK_MIN_TRAIN_SIZE = int(os.getenv("BACKTEST_QUICK_MIN_TRAIN_SIZE", "252"))
 BACKTEST_QUICK_STEP_SIZE = int(os.getenv("BACKTEST_QUICK_STEP_SIZE", "30"))
 

@@ -27,7 +27,7 @@ Then open **http://127.0.0.1:5050**. Change the port with `WEBAPP_PORT` in
 | **Dashboard** (`/`) | Landing page, your watchlist at a glance, links into the other three flows. |
 | **Chat** (`/chat`) | Same conversational assistant as the CLI/Discord/WhatsApp bots, over AJAX (`POST /api/chat`). Forecast charts and sparklines show inline, quick-reply chips suggest follow-ups, a ticker autocomplete dropdown helps while typing, chat history survives a page refresh, and a Beginner/Advanced toggle controls how technical the explanations are. |
 | **Forecast** (`/forecast`) | Two tabs: **by ticker** (auto-fetches from Yahoo Finance, same as chat) or **upload CSV** (manual setup -- bring your own OHLCV file, no ticker required). A "detailed multi-path chart" checkbox switches to the slower spaghetti-plot visualization (several sampled paths + mean + confidence band). |
-| **Backtest** (`/backtest`) | Runs `quick_backtest()` -- the same walk-forward check available via the `backtest AAPL` chat command -- and shows the direction-summary chart plus a significance check against the best baseline. |
+| **Backtest** (`/backtest`) | Runs `quick_backtest()` as a server-side background job and shows endpoint-only walk-forward metrics plus a primary-horizon comparison against a pre-specified naive baseline. |
 | **Watchlist** (`/watchlist`) | Per-ticker cards with the latest price (auto-refreshing), next earnings date + estimated quarter, a buy-range entry zone you set yourself (flagged in/above/below once a price is known), free-text notes (autosaved), and a correlation matrix across everything on your list once you have 2+. Shared ticker list with the CLI/Discord/WhatsApp bots (`assistant_data/watchlists.json`); notes and entry zones are web-app-only for now. |
 
 ## CSV upload format
@@ -90,6 +90,13 @@ slow-running form). The watchlist page also shows a skeleton-loading
 shimmer on price/earnings while `/api/watchlist/details` is still
 fetching, and the chat's "thinking" state is an animated three-dot
 indicator instead of static text.
+
+Backtest work runs in the Python server's background thread, not in the
+browser page. Switching to another Chrome tab does not stop the computation;
+the browser may delay its status polling while hidden, then resume when you
+return. Keep the Python app process open. On CPU-only machines the default is
+four PyTorch threads (`KRONOS_CPU_THREADS` can override it); the web backtest
+defaults to 30 walk-forward windows and may take several minutes.
 
 ## Watchlist data safety
 
@@ -180,10 +187,6 @@ user's OS has reduced-motion enabled.
   machine -- right now anyone who can reach the port has full access
   (forecast, backtest, watchlist). Fine for `127.0.0.1`, not fine to expose
   publicly as-is.
-- **Progress feedback for backtests** -- `quick_backtest` can take a while
-  on CPU-only hardware and the request currently just blocks until it's
-  done. A polling job-status endpoint (start job -> poll `/status/<id>`)
-  would avoid a browser timeout on slower machines.
 - **Interactive Plotly embeds** instead of static PNGs -- `assistant/charts.py`
   already builds a Plotly figure (`build_forecast_chart`) alongside the PNG;
   wiring `fig.to_html(full_html=False)` into the forecast/chat results would

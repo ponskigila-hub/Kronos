@@ -1,12 +1,4 @@
-"""
-Requirement #4: turn predictions into trading signals and simulate the P&L.
-
-Simple, transparent, single-asset simulator: one position at a time, full
-capital per trade, optional transaction cost, held for the same length as
-the forecast horizon (i.e. enter after each walk-forward split, exit at the
-end of that horizon). This mirrors how the walk-forward predictions line up
-with realized prices, and keeps the simulation honest -- no look-ahead bias.
-"""
+"""Convert endpoint forecasts into a simply timed, single-asset paper backtest."""
 import numpy as np
 import pandas as pd
 
@@ -20,7 +12,8 @@ class TradingSimulator:
         transaction_cost: round-trip cost as a fraction of trade value
                            (applied on both entry and exit)
         """
-        assert strategy in ("long_only", "short_only", "long_short")
+        if strategy not in ("long_only", "short_only", "long_short"):
+            raise ValueError("strategy must be long_only, short_only, or long_short")
         self.strategy = strategy
         self.threshold = threshold
         self.transaction_cost = transaction_cost
@@ -36,43 +29,42 @@ class TradingSimulator:
         return signals
 
     def run(self, horizon_df, starting_capital=10000.0):
-        """
-        horizon_df: the per-horizon DataFrame from WalkForwardValidator.run(),
-        with one row per (split_date, date) — i.e. one row per predicted day.
-        We simulate one trade per walk-forward split: enter at `prev_actual`
-        on the split date, exit at the final `actual` of that horizon window.
+        """Enter next bar's open and exit at the endpoint close.
 
-        Returns (trades_df, equity_df).
+        The signal is calculated from the endpoint forecast versus the close
+        known at the origin. This avoids assuming a fill at that same close.
+        This remains simplified: no borrow fee, market impact, stops or
+        overlapping positions are modelled.
         """
         if horizon_df.empty:
             return pd.DataFrame(), pd.DataFrame()
 
-        # One row per split: the last predicted day of each split_date group
-        # is the exit point; the first prev_actual is the entry price.
         trades = []
-        capital = starting_capital
-        equity_curve = [{"date": None, "equity": capital}]
+        capital = float(starting_capital)
+        equity_curve = []
 
-        for split_date, group in horizon_df.groupby("split_date"):
-            group = group.sort_values("date")
-            entry_price = float(group.iloc[0]["prev_actual"])
-            exit_price_actual = float(group.iloc[-1]["actual"])
-            exit_price_predicted = float(group.iloc[-1]["predicted"])
-
-            predicted_return = (exit_price_predicted - entry_price) / entry_price
+        for _, row in horizon_df.sort_values("split_date").iterrows():
+            origin_close = float(row["prev_actual"])
+            entry_price = float(row.get("entry_price", origin_close))
+            exit_price_actual = float(row["actual"])
+            exit_price_predicted = float(row["predicted"])
+            if origin_close <= 0 or entry_price <= 0:
+                continue
+            predicted_return = (exit_price_predicted - origin_close) / origin_close
             signal = int(self.generate_signals([predicted_return])[0])
 
             if signal == 0:
-                equity_curve.append({"date": group.iloc[-1]["date"], "equity": capital})
+                equity_curve.append({"date": row["date"], "equity": capital})
                 continue
 
             realized_return = (exit_price_actual - entry_price) / entry_price
             pnl_return = signal * realized_return - 2 * self.transaction_cost
             capital *= (1 + pnl_return)
 
+            entry_date = row.get("entry_date", row["split_date"])
             trades.append({
-                "entry_date": split_date,
-                "exit_date": group.iloc[-1]["date"],
+                "entry_date": entry_date,
+                "exit_date": row["date"],
                 "direction": "long" if signal == 1 else "short",
                 "entry_price": entry_price,
                 "exit_price": exit_price_actual,
@@ -80,10 +72,10 @@ class TradingSimulator:
                 "realized_return": realized_return,
                 "pnl_return": pnl_return,
                 "capital_after": capital,
-                "holding_period_days": (group.iloc[-1]["date"] - split_date).days,
+                "holding_period_days": (row["date"] - entry_date).days,
             })
-            equity_curve.append({"date": group.iloc[-1]["date"], "equity": capital})
+            equity_curve.append({"date": row["date"], "equity": capital})
 
         trades_df = pd.DataFrame(trades)
-        equity_df = pd.DataFrame(equity_curve).dropna(subset=["date"]).reset_index(drop=True)
+        equity_df = pd.DataFrame(equity_curve).reset_index(drop=True)
         return trades_df, equity_df

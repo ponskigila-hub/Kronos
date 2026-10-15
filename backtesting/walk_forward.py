@@ -1,7 +1,8 @@
-"""
-Requirement #1 + #2: walk-forward validation with expanding or rolling
-windows, a configurable step size, and multiple forecast horizons evaluated
-in the same pass.
+"""Time-ordered walk-forward validation for fixed-horizon forecasts.
+
+Each (origin, horizon) contributes exactly one observation: the forecast at
+lead=h compared with the close h bars ahead. Intermediate forecast-path
+points are not counted as independent observations.
 """
 import pandas as pd
 
@@ -49,16 +50,11 @@ class WalkForwardValidator:
             start += self.step_size
 
     def run(self, df, predict_fn, price_col="close", verbose=True):
-        """
-        df: full historical DataFrame with a 'timestamps' column plus OHLCV,
-            sorted ascending by time.
-        predict_fn: callable(train_df, horizon) -> array-like of predicted
-                    close prices, length == horizon. Both
-                    backtesting.kronos_adapter.make_kronos_predict_fn(...)
-                    and every function in backtesting.benchmarks share this
-                    signature.
+        """Return endpoint-only rows: one per split and horizon.
 
-        Returns: {horizon: DataFrame[split_date, date, actual, predicted]}
+        ``actual`` and ``predicted`` refer to the close exactly h bars after
+        ``split_date``. ``entry_price`` is the next bar's open, the earliest
+        assumed executable price after a signal formed at the origin close.
         """
         df = df.reset_index(drop=True)
         results = {h: [] for h in self.horizons}
@@ -81,15 +77,26 @@ class WalkForwardValidator:
                     if verbose:
                         print(f"  horizon {h}: predict_fn failed ({e}); skipping this window")
                     continue
-                preds = list(preds)[:h]
-                for j in range(len(preds)):
-                    results[h].append({
-                        "split_date": split_date,
-                        "date": actual_window.iloc[j]["timestamps"],
-                        "actual": float(actual_window.iloc[j][price_col]),
-                        "predicted": float(preds[j]),
-                        "prev_actual": float(train_df.iloc[-1][price_col]) if j == 0
-                                        else float(actual_window.iloc[j - 1][price_col]),
-                    })
+                preds = list(preds)
+                if len(preds) < h:
+                    if verbose:
+                        print(f"  horizon {h}: returned {len(preds)} forecasts, expected {h}; skipping")
+                    continue
+                endpoint = actual_window.iloc[-1]
+                first_bar = actual_window.iloc[0]
+                origin_close = float(train_df.iloc[-1][price_col])
+                results[h].append({
+                    "split_date": split_date,
+                    "date": endpoint["timestamps"],
+                    "horizon": int(h),
+                    "lead_time": int(h),
+                    "actual": float(endpoint[price_col]),
+                    "predicted": float(preds[h - 1]),
+                    "prev_actual": origin_close,
+                    "actual_return": (float(endpoint[price_col]) / origin_close) - 1.0,
+                    "predicted_return": (float(preds[h - 1]) / origin_close) - 1.0,
+                    "entry_date": first_bar["timestamps"],
+                    "entry_price": float(first_bar.get("open", origin_close)),
+                })
 
         return {h: pd.DataFrame(rows) for h, rows in results.items()}

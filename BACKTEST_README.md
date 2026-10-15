@@ -6,8 +6,32 @@ metrics suite, a trading simulation with realistic portfolio statistics, baselin
 comparisons, residual diagnostics, market-regime robustness checks, and
 hyperparameter search. Lives entirely in `backtesting/` + `run_backtest.py`;
 nothing in `assistant/` or the original Kronos code was changed (the framework
-reuses `assistant/data_fetcher.py` and `assistant/forecaster.py` rather than
+reuses `assistant.data_fetcher.py` and `assistant.forecaster.py` rather than
 duplicating them).
+
+## Evaluation semantics and limits
+
+The validator now records **one endpoint observation per forecast origin and
+horizon** (the predicted close at exactly `t+h`), rather than pooling all the
+intermediate points in each forecast path. Thus `n_predictions` is the number
+of origins for that horizon, not `origins × horizon`. Strategy signals use the
+forecast relative to the origin close and assume entry at the next bar's open,
+then exit at the horizon endpoint close. This is still a simplified paper
+simulation: it does not model spread, market impact, short borrow, or
+overlapping positions.
+
+The DM comparison uses the **pre-specified naive last-close baseline** rather
+than selecting the apparent best baseline on the same test sample. The full
+runner reports Holm-adjusted p-values across horizons. With fewer than 20
+paired origins, the test deliberately reports “insufficient origins” instead
+of a p-value. Even a valid DM result tests forecast loss, not positive net
+strategy returns. Keep a final untouched time period for model/threshold
+selection and confirm any proposed edge with forward paper trading.
+
+The webapp backtest executes in a server-side background job. Switching away
+from its Chrome tab does not cancel the computation; the app's Python process
+must remain running. CPU-only inference defaults to four PyTorch threads
+(override with `KRONOS_CPU_THREADS`), and the web form defaults to 30 windows.
 
 ## Accuracy fixes (if you saw an "always predicts one direction" or level-mismatch result)
 
@@ -165,22 +189,14 @@ Always do a full, uncapped run (no `--max-windows`) before trusting a
 final number -- both of the above are for fast iteration, not the result
 you'd report.
 
-## Statistical significance (is Kronos actually better, or just noise?)
+## Statistical significance
 
-`backtesting/significance.py` implements a Diebold-Mariano test, run
-automatically:
-- In `run_backtest.py`: `backtest_results/<TICKER>/significance_vs_best_benchmark.csv`
-  -- Kronos vs. whichever benchmark had the lowest RMSE, per horizon.
-- In the in-chat `backtest AAPL` command: a `Significance check` line in the
-  reply.
-
-This costs nothing extra to compute (it reuses predictions already made)
-and answers the question a plain RMSE comparison can't: is the gap between
-Kronos and the benchmark large enough, relative to the noise in the data,
-to trust -- or could you get a gap that size by chance even if the two
-models were equally good? A non-significant result (p >= 0.05) means "can't
-tell them apart with this much data," which is common and expected with
-small `--max-windows` values.
+`backtesting/significance.py` runs a paired Diebold–Mariano comparison on
+endpoint forecast errors aligned by forecast origin. The full runner writes
+`significance_vs_naive_baseline.csv`; it also reports Holm-adjusted p-values
+across the tested horizons. The quick UI reports only the primary (longest)
+horizon. A p-value is omitted if there are fewer than 20 paired origins.
+This is a forecast-loss comparison, not a test of trading strategy returns.
 
 ## Other recommended next steps (not yet automated -- manual for now)
 
@@ -229,7 +245,7 @@ understand `"backtest AAPL"` directly:
 ```
 you> backtest AAPL
 
-bot> Backtest for AAPL -- 5 walk-forward windows, horizons [5, 14, 30] days (expanding window):
+bot> Backtest for AAPL -- example output only; horizons [5, 14, 30] days (expanding window):
        h=5d: RMSE=2.10, MAE=1.50, direction accuracy=58.0%, IC=0.12
        h=14d: RMSE=4.30, MAE=3.10, direction accuracy=55.0%, IC=0.08
        h=30d: RMSE=7.80, MAE=5.90, direction accuracy=52.0%
@@ -238,8 +254,7 @@ bot> Backtest for AAPL -- 5 walk-forward windows, horizons [5, 14, 30] days (exp
      This is a quick in-chat check (few windows, few benchmarks). For a full report with plots and diagnostics, run `python run_backtest.py --tickers AAPL`.
 ```
 
-This calls `backtesting.runner.quick_backtest()` -- a deliberately small,
-fast version of the full framework (5 windows, 3 horizons, 2 benchmarks,
+This calls `backtesting.runner.quick_backtest()` -- a faster version of the full framework (30 windows by default in the current config, 3 horizons, 2 baselines,
 one direction-summary chart attached inline, an equity curve chart also
 saved to disk) so it returns in a reasonable time inside a chat reply
 instead of running the full multi-hour walk-forward. The attached image is

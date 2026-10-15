@@ -80,28 +80,30 @@ class BacktestRunner:
         metrics_df.to_csv(os.path.join(asset_dir, "metrics_by_model_horizon.csv"), index=False)
 
         # ------------------------------------------------------------
-        # Statistical significance: is Kronos actually better than the
-        # best benchmark, or is the RMSE gap just noise? Free to compute --
-        # reuses predictions already made, no extra Kronos calls.
+        # Statistical significance against a pre-specified baseline.
         # ------------------------------------------------------------
         significance_table = []
+        kronos_results = results.get("Kronos", {})
         if self.include_benchmarks and not metrics_df.empty:
             for h in self.horizons:
                 kronos_hdf = kronos_results.get(h)
                 if kronos_hdf is None or kronos_hdf.empty:
                     continue
-                bench_rows = metrics_df[(metrics_df["horizon"] == h) & (metrics_df["model"] != "Kronos")]
-                if bench_rows.empty:
-                    continue
-                best_bench_name = bench_rows.loc[bench_rows["rmse"].idxmin(), "model"]
-                bench_hdf = results.get(best_bench_name, {}).get(h)
+                bench_name = "Naive (last close)"
+                bench_hdf = results.get(bench_name, {}).get(h)
                 if bench_hdf is None or bench_hdf.empty:
                     continue
-                dm = significance.compare_models_dm(kronos_hdf, bench_hdf, h=h)
-                dm.update({"horizon": h, "kronos_vs": best_bench_name})
+                dm = significance.compare_models_dm(
+                    kronos_hdf, bench_hdf, h=h, step_size=self.validator.step_size)
+                dm.update({"horizon": h, "kronos_vs": bench_name})
                 significance_table.append(dm)
+        if significance_table:
+            p_adjusted = significance.holm_adjust([r.get("p_value", float("nan")) for r in significance_table])
+            for row, p_adj in zip(significance_table, p_adjusted):
+                row["p_value_holm"] = p_adj
+                row["test_family"] = "horizons for ticker; comparator pre-specified as naive"
         pd.DataFrame(significance_table).to_csv(
-            os.path.join(asset_dir, "significance_vs_best_benchmark.csv"), index=False)
+            os.path.join(asset_dir, "significance_vs_naive_baseline.csv"), index=False)
 
         # ------------------------------------------------------------
         # Trading simulation + portfolio metrics (Kronos only, per horizon)
@@ -113,7 +115,7 @@ class BacktestRunner:
                 continue
             trades_df, equity_df = self.simulator.run(hdf, self.starting_capital)
             n_splits = hdf["split_date"].nunique()
-            periods_per_year = max(1, round(252 / max(h, 1)))
+            periods_per_year = max(1, round(252 / max(self.validator.step_size, 1)))
             pm = portfolio_metrics.compute_all(
                 trades_df, equity_df, total_periods=n_splits,
                 starting_capital=self.starting_capital, periods_per_year=periods_per_year,
@@ -301,7 +303,7 @@ def quick_backtest(ticker, horizons=None, max_windows=None, min_train_size=None,
         sim = TradingSimulator(strategy=trading_strategy, threshold=trading_threshold)
         trades_df, equity_df = sim.run(hdf, starting_capital)
         n_splits = hdf["split_date"].nunique()
-        periods_per_year = max(1, round(252 / max(main_horizon, 1)))
+        periods_per_year = max(1, round(252 / max(step_size, 1)))
         portfolio = portfolio_metrics.compute_all(
             trades_df, equity_df, total_periods=n_splits,
             starting_capital=starting_capital, periods_per_year=periods_per_year,
@@ -337,17 +339,15 @@ def quick_backtest(ticker, horizons=None, max_windows=None, min_train_size=None,
             pred_len=min_horizon, rolling_window=min(20, max(2, len(hdf_min) // 3)),
         )
 
-    # Statistical significance vs. the best benchmark at the main horizon --
-    # free to compute (reuses predictions already made), answers "is this
-    # RMSE gap real or just noise" instead of eyeballing a ranking.
+    # Primary-horizon check against a pre-specified naive baseline.
     dm_result = None
-    if include_benchmarks and not metrics_df.empty:
-        bench_rows = metrics_df[(metrics_df["horizon"] == main_horizon) & (metrics_df["model"] != "Kronos")]
-        if not bench_rows.empty and kronos_results and not kronos_results.get(main_horizon, pd.DataFrame()).empty:
-            best_bench_name = bench_rows.loc[bench_rows["rmse"].idxmin(), "model"]
+    if include_benchmarks and kronos_results and not kronos_results.get(main_horizon, pd.DataFrame()).empty:
+            best_bench_name = "Naive (last close)"
             bench_hdf = all_results.get(best_bench_name, {}).get(main_horizon)
             if bench_hdf is not None and not bench_hdf.empty:
-                dm_result = significance.compare_models_dm(kronos_results[main_horizon], bench_hdf, h=main_horizon)
+                dm_result = significance.compare_models_dm(
+                    kronos_results[main_horizon], bench_hdf,
+                    h=main_horizon, step_size=step_size)
                 dm_result["vs_model"] = best_bench_name
 
     text = _format_quick_backtest_text(ticker, metrics_df, portfolio, horizons, max_windows,

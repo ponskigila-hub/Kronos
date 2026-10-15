@@ -174,6 +174,12 @@ def compute_all_metrics(df):
         "spearman_corr": spearman_correlation(y_true, y_pred),
         "hit_ratio": hit_ratio(y_true, y_pred, y_prev),
         "information_coefficient": information_coefficient(y_true, y_pred, y_prev),
+        "return_mae": float(np.mean(np.abs(df["actual_return"] - df["predicted_return"])))
+                      if {"actual_return", "predicted_return"}.issubset(df.columns) else np.nan,
+        "return_rmse": float(np.sqrt(np.mean((df["actual_return"] - df["predicted_return"]) ** 2)))
+                       if {"actual_return", "predicted_return"}.issubset(df.columns) else np.nan,
+        "return_bias": float(np.mean(df["predicted_return"] - df["actual_return"]))
+                       if {"actual_return", "predicted_return"}.issubset(df.columns) else np.nan,
         "pred_up_fraction": float(np.mean(pred_dir == 1) * 100) if n else np.nan,
         "actual_up_fraction": float(np.mean(actual_dir == 1) * 100) if n else np.nan,
     }

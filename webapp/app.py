@@ -774,7 +774,11 @@ def backtest_run():
     /backtest/simulation/buy below.
     """
     ticker = (request.form.get("ticker") or "").strip().upper()
-    max_windows = int(request.form.get("max_windows") or 15)
+    try:
+        max_windows = int(request.form.get("max_windows") or 30)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Walk-forward windows must be a whole number."}), 400
+    max_windows = max(5, min(max_windows, 60))
     if not ticker:
         return jsonify({"error": "Enter a ticker first."}), 400
     job_id = _backtest_jobs.submit(_run_quick_backtest_job, ticker, max_windows)
