@@ -12,7 +12,13 @@ import numpy as np
 import pandas as pd
 
 from .model_loader import get_predictor
-from .config import DEFAULT_PRED_LEN, DEFAULT_SAMPLE_RUNS, DEFAULT_KRONOS_SAMPLE_COUNT, DEFAULT_KRONOS_T
+from .config import (
+    DEFAULT_PRED_LEN,
+    DEFAULT_SAMPLE_RUNS,
+    DEFAULT_KRONOS_SAMPLE_COUNT,
+    DEFAULT_KRONOS_T,
+    FORECAST_DRIFT_BLEND,
+)
 from . import forecast_cache
 
 FEATURE_COLS = ["open", "high", "low", "close", "volume", "amount"]
@@ -21,6 +27,41 @@ OHLC_COLS = ["open", "high", "low", "close"]
 
 def _future_dates(last_date, pred_len):
     return pd.date_range(start=last_date + pd.offsets.BDay(1), periods=pred_len, freq="B")
+
+
+def _drift_path(last_close, hist_closes, pred_len):
+    """Simple linear drift baseline from recent average daily change."""
+    if len(hist_closes) < 2:
+        return np.full(pred_len, last_close)
+    # Use last ~20 trading days for a local drift estimate (more reactive
+    # than full-history mean, less noisy than 1-day return).
+    window = min(20, len(hist_closes) - 1)
+    recent = hist_closes[-(window + 1) :]
+    avg_drift = float(np.mean(np.diff(recent)))
+    return last_close + avg_drift * np.arange(1, pred_len + 1)
+
+
+def _blend_with_drift(pred_df, last_close, hist_closes, alpha):
+    """
+    Soft-blend Kronos close path with a local drift baseline.
+    alpha=0 keeps pure Kronos; alpha=1 is pure drift. OHLC other columns
+    are shifted by the same close delta so the candle structure stays
+    consistent with the blended close.
+    """
+    if alpha <= 0:
+        return pred_df
+    alpha = min(1.0, float(alpha))
+    pred_len = len(pred_df)
+    drift = _drift_path(last_close, hist_closes, pred_len)
+    kronos_close = pred_df["close"].values.astype(float)
+    blended = (1.0 - alpha) * kronos_close + alpha * drift
+    delta = blended - kronos_close
+    out = pred_df.copy()
+    out["close"] = blended
+    for col in ("open", "high", "low"):
+        if col in out.columns:
+            out[col] = out[col].values.astype(float) + delta
+    return out
 
 
 def _anchor_to_last_close(pred_df, last_close):
@@ -85,13 +126,15 @@ def run_forecast(hist_df, pred_len=None, n_runs=None, lookback=None, T=None, top
     x_df = hist_df.iloc[-lookback:][FEATURE_COLS].copy()
     x_timestamp = hist_df.iloc[-lookback:]["timestamps"].copy()
     last_close = float(x_df["close"].iloc[-1])
+    hist_closes = x_df["close"].values.astype(float)
     last_date = hist_df["timestamps"].max()
     future_dates = _future_dates(last_date, pred_len)
     y_timestamp = pd.Series(future_dates)
+    drift_blend = FORECAST_DRIFT_BLEND
 
     cache_key = forecast_cache.make_key(
         x_df, x_timestamp, pred_len, n_runs, lookback, T, top_p,
-        sample_count, anchor_to_last_close,
+        sample_count, anchor_to_last_close, drift_blend=drift_blend,
     )
     cached = forecast_cache.get(cache_key)
     if cached is not None:
@@ -113,6 +156,9 @@ def run_forecast(hist_df, pred_len=None, n_runs=None, lookback=None, T=None, top
         pred_df["timestamps"] = future_dates[: len(pred_df)]
         if anchor_to_last_close:
             pred_df = _anchor_to_last_close(pred_df, last_close)
+        # Light ensemble with local drift — applied per-run so the band
+        # also reflects the blended distribution.
+        pred_df = _blend_with_drift(pred_df, last_close, hist_closes, drift_blend)
         runs.append(pred_df.reset_index(drop=True))
 
     main_pred = runs[0]
@@ -127,6 +173,12 @@ def run_forecast(hist_df, pred_len=None, n_runs=None, lookback=None, T=None, top
 
         main_pred = main_pred.copy()
         main_pred["close"] = median_close
+        # Keep OHLC consistent with median close (shift by delta from first run)
+        if "open" in main_pred.columns:
+            delta = median_close - runs[0]["close"].values
+            for col in ("open", "high", "low"):
+                if col in main_pred.columns:
+                    main_pred[col] = main_pred[col].values.astype(float) + delta
 
         low_df = pd.DataFrame({"timestamps": future_dates, "close": low_close})
         high_df = pd.DataFrame({"timestamps": future_dates, "close": high_close})

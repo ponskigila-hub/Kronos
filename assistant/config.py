@@ -32,23 +32,29 @@ KRONOS_MAX_CONTEXT = int(os.getenv("KRONOS_MAX_CONTEXT", "512"))
 # 8GB RAM is 4-6.
 KRONOS_CPU_THREADS = int(os.getenv("KRONOS_CPU_THREADS", "4")) or None
 DEFAULT_LOOKBACK_DAYS = int(os.getenv("DEFAULT_LOOKBACK_DAYS", "400"))
-DEFAULT_PRED_LEN = int(os.getenv("DEFAULT_PRED_LEN", "30"))
-# Sampling temperature: 1.0 = Kronos's most exploratory/random setting.
-# Lower values (0.6-0.8) produce more stable, less noisy forecasts --
-# generally preferable for financial forecasting where wild single-sample
-# swings hurt more than they help. Override with KRONOS_TEMPERATURE.
-DEFAULT_KRONOS_T = float(os.getenv("KRONOS_TEMPERATURE", "0.7"))
+# Default horizon: shorter windows (7–14 days) are typically more useful
+# than 30+ day projections for a pure price-history model.
+DEFAULT_PRED_LEN = int(os.getenv("DEFAULT_PRED_LEN", "14"))
+# Slightly lower temperature reduces wild sample-to-sample swings while
+# still allowing the model some diversity. Override with KRONOS_TEMPERATURE.
+DEFAULT_KRONOS_T = float(os.getenv("KRONOS_TEMPERATURE", "0.55"))
 # How many samples Kronos averages internally per single predict() call
 # (its own built-in noise reduction -- higher is smoother but slower).
-DEFAULT_KRONOS_SAMPLE_COUNT = int(os.getenv("DEFAULT_KRONOS_SAMPLE_COUNT", "5"))
+DEFAULT_KRONOS_SAMPLE_COUNT = int(os.getenv("DEFAULT_KRONOS_SAMPLE_COUNT", "8"))
 # How many independent sampling passes to run through Kronos in order to
-# build a confidence band around the forecast. 1 = fast, no band.
-DEFAULT_SAMPLE_RUNS = int(os.getenv("DEFAULT_SAMPLE_RUNS", "1"))
+# build a confidence band around the forecast. 3 = usable band without
+# making every chat reply painfully slow on CPU.
+DEFAULT_SAMPLE_RUNS = int(os.getenv("DEFAULT_SAMPLE_RUNS", "3"))
 # How many independent sampled paths to plot for the "detailed forecast"
 # command/page (a spaghetti plot -- see assistant/charts.py:build_detailed_forecast_png).
 # Much slower than a normal forecast (this many separate Kronos predict()
 # calls) -- kept modest by default for CPU-only/limited-RAM machines.
 DETAILED_FORECAST_RUNS = int(os.getenv("DETAILED_FORECAST_RUNS", "8"))
+# Optional post-hoc blend of Kronos path with a simple drift baseline.
+# 0.0 = pure Kronos. Small values (0.15–0.25) damp extreme level jumps
+# without erasing the model's directional signal. Set FORECAST_DRIFT_BLEND=0
+# to disable entirely.
+FORECAST_DRIFT_BLEND = float(os.getenv("FORECAST_DRIFT_BLEND", "0.18"))
 
 # How long a Kronos forecast stays cached (keyed on a content hash of the
 # exact history window + parameters fed to the model -- see
