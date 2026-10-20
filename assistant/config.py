@@ -99,6 +99,18 @@ SIMULATION_STARTING_CASH = float(os.getenv("SIMULATION_STARTING_CASH", "100000")
 # trade is graded against the same forecast a user would actually see on
 # the forecast page for that ticker.
 SIMULATION_FORECAST_HORIZON = int(os.getenv("SIMULATION_FORECAST_HORIZON", str(DEFAULT_PRED_LEN)))
+# Display currency for the demo portfolio UI. Internal ledger stays in USD
+# (Yahoo quotes are USD for US tickers); IDR is a display conversion only.
+# SIMULATION_CURRENCY=USD|IDR
+SIMULATION_CURRENCY = (os.getenv("SIMULATION_CURRENCY", "USD") or "USD").upper()
+# USD→IDR rate used when SIMULATION_CURRENCY=IDR. Override after checking
+# a live FX quote, or leave default.
+SIMULATION_USDIDR = float(os.getenv("SIMULATION_USDIDR", "16000"))
+# Tickers scanned for "suggested buys" on the demo page (comma-separated).
+SIMULATION_SUGGEST_UNIVERSE = os.getenv(
+    "SIMULATION_SUGGEST_UNIVERSE",
+    "AAPL,MSFT,NVDA,GOOGL,AMZN,META,TSLA,JPM,V,XOM",
+)
 WATCHLIST_NOTES_PATH = os.path.join(DATA_DIR, "watchlist_notes.json")
 WATCHLIST_ENTRY_ZONES_PATH = os.path.join(DATA_DIR, "watchlist_entry_zones.json")
 CONVERSATION_DIR = os.path.join(DATA_DIR, "conversations")

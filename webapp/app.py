@@ -898,14 +898,61 @@ def valuation_result(job_id):
 
 
 # ---------------------------------------------------------------------------
-# Simulation -- paper trading with demo money (assistant/simulation.py).
-# "Buy" a ticker at its real current price with fake cash, let it sit, and
-# come back once the forecast's horizon has passed to see whether Kronos's
-# call actually played out against real future prices -- a forward-looking
-# complement to the historical walk-forward backtest above, not a
-# replacement for it.
+# Simulation -- Pluang-style paper portfolio (assistant/simulation.py).
+# Fake cash, real fills, Kronos forecast + market-context snapshot at buy,
+# graded when the forecast horizon arrives.
 # ---------------------------------------------------------------------------
 _simulation_jobs = JobManager()
+
+
+@app.route("/simulation")
+def simulation_page():
+    """Fast render only. Suggested ideas load async from /simulation/ideas
+    so opening Demo trade never waits on multiple Kronos forecasts."""
+    try:
+        portfolio = simulation_store.get_portfolio(_user_id())
+    except Exception:
+        portfolio = {
+            "starting_cash": 100000, "cash": 100000, "positions": [],
+            "closed_trades": [], "positions_value": 0.0, "total_value": 100000.0,
+            "total_return_pct": 0.0, "closed_trade_count": 0,
+            "win_rate_pct": None, "forecast_accuracy_pct": None,
+        }
+    return render_template(
+        "simulation.html",
+        active="simulation",
+        portfolio=portfolio,
+        ideas=[],
+        money=simulation_store.format_money,
+        currency=simulation_store.currency_meta(),
+    )
+
+
+@app.route("/simulation/ideas")
+def simulation_ideas():
+    try:
+        ideas = simulation_store.suggest_buys(_user_id(), limit=5)
+        return jsonify({"ideas": ideas})
+    except Exception as e:
+        return jsonify({"ideas": [], "error": str(e)})
+
+
+@app.route("/simulation/preview", methods=["POST"])
+def simulation_preview():
+    """Pre-trade ticket: quote + forecast + context — no cash movement."""
+    ticker = ""
+    if request.is_json and request.json:
+        ticker = (request.json.get("ticker") or "").strip().upper()
+    if not ticker:
+        ticker = (request.form.get("ticker") or "").strip().upper()
+    if not ticker:
+        return jsonify({"error": "Enter a ticker first."}), 400
+    try:
+        return jsonify(simulation_store.preview_buy(ticker))
+    except simulation_store.SimulationError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": f"Preview failed: {e}"}), 500
 
 
 def _run_simulation_buy_job(user_id, ticker, amount_type, amount):
@@ -960,7 +1007,7 @@ def simulation_sell():
             shares = float(raw_shares)
         except ValueError:
             flash("Enter a valid number of shares.", "error")
-            return redirect(url_for("backtest") + "#simulation")
+            return redirect(url_for("simulation_page"))
 
     try:
         simulation_store.sell(_user_id(), ticker, position_id=position_id, shares=shares)
@@ -969,14 +1016,14 @@ def simulation_sell():
         flash(str(e), "error")
     except Exception as e:
         flash(f"Sell failed: {e}", "error")
-    return redirect(url_for("backtest") + "#simulation")
+    return redirect(url_for("simulation_page"))
 
 
 @app.route("/backtest/simulation/reset", methods=["POST"])
 def simulation_reset():
     simulation_store.reset_portfolio(_user_id())
     flash("Demo portfolio reset.", "ok")
-    return redirect(url_for("backtest") + "#simulation")
+    return redirect(url_for("simulation_page"))
 
 
 # ---------------------------------------------------------------------------
