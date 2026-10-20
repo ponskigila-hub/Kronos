@@ -50,7 +50,7 @@ _misses = 0
 
 
 def make_key(x_df, x_timestamp, pred_len, n_runs, lookback, T, top_p,
-             sample_count, anchor_to_last_close):
+             sample_count, anchor_to_last_close, drift_blend=0.0):
     """
     Build a stable fingerprint of everything that determines Kronos's
     output: the exact history window fed to the model (via a vectorized
@@ -71,6 +71,7 @@ def make_key(x_df, x_timestamp, pred_len, n_runs, lookback, T, top_p,
         int(pred_len), int(n_runs), int(lookback),
         round(float(T), 4), round(float(top_p), 4), int(sample_count),
         bool(anchor_to_last_close),
+        round(float(drift_blend), 4),
     )
     return hashlib.md5("|".join(str(p) for p in parts).encode()).hexdigest()
 

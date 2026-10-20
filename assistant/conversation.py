@@ -27,7 +27,9 @@ class ConversationContext:
         self.last_intent = None
         self.last_topic = None
         self.history = []              # list of {"role": "user"/"assistant", "text": ...}
-        self.beginner_mode = False     # explanation register -- see assistant.nlp.detect_mode
+        # Default to beginner mode so first-time users get plain-language
+        # explanations; returning users keep their saved preference.
+        self.beginner_mode = True
         self._path = os.path.join(CONVERSATION_DIR, f"{self.user_id}.json")
         self._load()
 
@@ -42,7 +44,7 @@ class ConversationContext:
                 self.last_intent = data.get("last_intent")
                 self.last_topic = data.get("last_topic")
                 self.history = data.get("history", [])[-20:]
-                self.beginner_mode = data.get("beginner_mode", False)
+                self.beginner_mode = data.get("beginner_mode", True)
             except (json.JSONDecodeError, OSError):
                 pass
 

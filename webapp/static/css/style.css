@@ -1506,3 +1506,84 @@ textarea:focus { border-color: var(--gold-dim); }
   .ticker-chart-title { font-size: 19px; }
   .ticker-chart-price { font-size: 22px; }
 }
+
+/* --------------------------------------------------------------------------
+   Beginner-friendly tips & horizon presets
+   -------------------------------------------------------------------------- */
+.tip-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  margin: 0 0 20px;
+  background: var(--ink-2);
+  border: var(--border-width) solid var(--line);
+  border-left: var(--border-width-heavy) solid var(--gold);
+  border-radius: var(--radius);
+  color: var(--bone);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.tip-banner-warn {
+  border-left-color: var(--ai);
+  background: color-mix(in srgb, var(--ai) 6%, var(--ink-1));
+}
+.tip-banner-body { flex: 1; }
+.tip-banner-body strong { color: var(--bone); }
+.tip-banner-body em { font-style: italic; color: var(--gold); }
+.tip-banner-close {
+  flex-shrink: 0;
+  width: 28px; height: 28px;
+  border: none; background: transparent;
+  color: var(--bone-dim); font-size: 20px; line-height: 1;
+  cursor: pointer; border-radius: var(--radius);
+}
+.tip-banner-close:hover { color: var(--bone); background: var(--ink-3); }
+
+.horizon-presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 8px;
+}
+.horizon-label {
+  font-size: 12.5px;
+  color: var(--bone-dim);
+  margin-right: 4px;
+}
+.preset-chip {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: var(--border-width) solid var(--line);
+  background: var(--ink-1);
+  color: var(--bone);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.preset-chip:hover {
+  border-color: var(--gold-dim);
+  color: var(--gold);
+}
+.preset-chip.active {
+  border-color: var(--gold);
+  background: color-mix(in srgb, var(--gold) 12%, var(--ink-1));
+  color: var(--gold);
+}
+.field-hint {
+  font-size: 12.5px;
+  color: var(--bone-dim);
+  margin: 0 0 16px;
+  line-height: 1.45;
+}
+.field-hint strong { color: var(--bone); }
+
+[data-theme="dark"] .tip-banner-warn {
+  background: color-mix(in srgb, var(--ai) 12%, var(--ink-1));
+}
+[data-theme="dark"] .preset-chip.active {
+  background: color-mix(in srgb, var(--gold) 18%, var(--ink-1));
+}
