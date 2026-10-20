@@ -26,7 +26,8 @@ def _trend_label(pct_change):
 
 
 def build_explanation(ticker, ind_df, forecast_result, news_summary=None,
-                       beginner=False, earnings_warning=None, regime_note=None):
+                       beginner=False, earnings_warning=None, regime_note=None,
+                       context_signal=None):
     """
     ind_df: output of assistant.indicators.compute_indicators on the
             historical data (NOT the forecast).
@@ -42,6 +43,8 @@ def build_explanation(ticker, ind_df, forecast_result, news_summary=None,
               accuracy in that regime -- from
               assistant.core_assistant's regime lookup. Appended verbatim
               if set.
+    context_signal: optional assistant.context_signal.ContextSignal that
+              blends news + fundamentals into the narrative and risk band.
     """
     stats = summarize_latest(ind_df)
     sr = support_resistance(ind_df)
@@ -150,21 +153,24 @@ def build_explanation(ticker, ind_df, forecast_result, news_summary=None,
         lines.append(f"Across {forecast_result['n_runs']} independent sampling runs, the forecast "
                       f"range at the horizon is roughly {low_end:.2f} to {high_end:.2f}.")
 
-    # News
-    if news_summary and news_summary.get("label") != "no data":
-        lines.append(
-            f"Recent news sentiment is {news_summary['label']} "
-            f"({news_summary['positive']} positive / {news_summary['negative']} negative / "
-            f"{news_summary['neutral']} neutral headlines)."
-        )
-
-    # Earnings caution
-    if earnings_warning is not None:
-        lines.append(
-            f"Heads up: {ticker} has an earnings report expected around {earnings_warning} -- "
-            f"that falls within this forecast window, and earnings reports often cause bigger, "
-            f"harder-to-predict price moves than the model accounts for."
-        )
+    # News + fundamentals context (preferred path when context_signal is provided)
+    if context_signal is not None:
+        from .context_signal import format_context_block
+        lines.append(format_context_block(context_signal, beginner=beginner))
+    else:
+        # Legacy fallback when callers have not wired context_signal yet
+        if news_summary and news_summary.get("label") != "no data":
+            lines.append(
+                f"Recent news sentiment is {news_summary['label']} "
+                f"({news_summary['positive']} positive / {news_summary['negative']} negative / "
+                f"{news_summary['neutral']} neutral headlines)."
+            )
+        if earnings_warning is not None:
+            lines.append(
+                f"Heads up: {ticker} has an earnings report expected around {earnings_warning} -- "
+                f"that falls within this forecast window, and earnings reports often cause bigger, "
+                f"harder-to-predict price moves than the model accounts for."
+            )
 
     if regime_note:
         lines.append(regime_note)
@@ -175,6 +181,7 @@ def build_explanation(ticker, ind_df, forecast_result, news_summary=None,
         "trend": trend,
         "stats": stats,
         "support_resistance": sr,
+        "context_signal": context_signal.to_dict() if context_signal is not None else None,
     }
 
 

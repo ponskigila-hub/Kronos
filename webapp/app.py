@@ -157,19 +157,64 @@ def _run_forecast_ticker_job(job_id, ticker, pred_len, lookback, detailed):
             image_path = charts.build_forecast_png(ticker, hist_df, fc)
 
         last_close = float(hist_df["close"].iloc[-1])
+        # Raw Kronos % before context adjustments (for signal alignment)
+        raw_close = float(fc["pred_df"]["close"].iloc[-1])
+        pct_raw = (raw_close - last_close) / last_close * 100 if last_close else 0.0
+
+        context_block = ""
+        ctx_dict = None
+        try:
+            from assistant.context_signal import (
+                build_context_signal, widen_forecast_bands, format_context_block,
+                apply_analyst_nudge,
+            )
+            _items, news_summary = news_mod.get_news(ticker)
+            earnings_warning = fundamentals.earnings_within_horizon(ticker, pred_len)
+            try:
+                analyst = fundamentals.get_analyst_targets(ticker)
+            except Exception:
+                analyst = None
+            try:
+                fund_data = fundamentals.get_fundamentals(ticker)
+            except Exception:
+                fund_data = None
+            ctx = build_context_signal(
+                news_summary=news_summary,
+                earnings_date=earnings_warning,
+                analyst=analyst,
+                fundamentals=fund_data,
+                pred_len=pred_len,
+                kronos_pct_change=pct_raw,
+            )
+            if not ctx.earnings_gate and not detailed:
+                fc, nudged = apply_analyst_nudge(fc, analyst)
+                ctx.analyst_nudge_applied = nudged
+            if ctx.band_widen_factor > 1.0 and not detailed:
+                fc = widen_forecast_bands(fc, ctx.band_widen_factor)
+            # Rebuild chart after path/band adjustments
+            if not detailed:
+                image_path = charts.build_forecast_png(ticker, hist_df, fc)
+            context_block = " " + format_context_block(ctx, beginner=True)
+            ctx_dict = ctx.to_dict()
+        except Exception:
+            context_block = ""
+
         if detailed and fc.get("mean_df") is not None:
             forecast_close = float(fc["mean_df"]["close"].iloc[-1])
         else:
             forecast_close = float(fc["pred_df"]["close"].iloc[-1])
-        pct = (forecast_close - last_close) / last_close * 100
+        pct = (forecast_close - last_close) / last_close * 100 if last_close else 0.0
+
         result_text = (
             f"{ticker}: {last_close:.2f} -> {forecast_close:.2f} over {pred_len} trading days "
             f"({pct:+.2f}%). Lookback used: {fc['lookback_used']} days."
         )
         if detailed:
             result_text += f" ({fc['n_runs']} sampled paths shown.)"
+        result_text += context_block
         _finish_forecast_job(job_id, status="done", result={
             "text": result_text, "ticker": ticker, "image_path": image_path,
+            "context_signal": ctx_dict,
         })
     except TickerNotFoundError as e:
         _finish_forecast_job(job_id, status="error", error=str(e))
@@ -741,6 +786,7 @@ def forecast_job(job_id):
         "text": result["text"],
         "ticker": result["ticker"],
         "image_url": _to_url(result.get("image_path")),
+        "context_signal": result.get("context_signal"),
     })
 
 
@@ -852,14 +898,61 @@ def valuation_result(job_id):
 
 
 # ---------------------------------------------------------------------------
-# Simulation -- paper trading with demo money (assistant/simulation.py).
-# "Buy" a ticker at its real current price with fake cash, let it sit, and
-# come back once the forecast's horizon has passed to see whether Kronos's
-# call actually played out against real future prices -- a forward-looking
-# complement to the historical walk-forward backtest above, not a
-# replacement for it.
+# Simulation -- Pluang-style paper portfolio (assistant/simulation.py).
+# Fake cash, real fills, Kronos forecast + market-context snapshot at buy,
+# graded when the forecast horizon arrives.
 # ---------------------------------------------------------------------------
 _simulation_jobs = JobManager()
+
+
+@app.route("/simulation")
+def simulation_page():
+    """Fast render only. Suggested ideas load async from /simulation/ideas
+    so opening Demo trade never waits on multiple Kronos forecasts."""
+    try:
+        portfolio = simulation_store.get_portfolio(_user_id())
+    except Exception:
+        portfolio = {
+            "starting_cash": 100000, "cash": 100000, "positions": [],
+            "closed_trades": [], "positions_value": 0.0, "total_value": 100000.0,
+            "total_return_pct": 0.0, "closed_trade_count": 0,
+            "win_rate_pct": None, "forecast_accuracy_pct": None,
+        }
+    return render_template(
+        "simulation.html",
+        active="simulation",
+        portfolio=portfolio,
+        ideas=[],
+        money=simulation_store.format_money,
+        currency=simulation_store.currency_meta(),
+    )
+
+
+@app.route("/simulation/ideas")
+def simulation_ideas():
+    try:
+        ideas = simulation_store.suggest_buys(_user_id(), limit=5)
+        return jsonify({"ideas": ideas})
+    except Exception as e:
+        return jsonify({"ideas": [], "error": str(e)})
+
+
+@app.route("/simulation/preview", methods=["POST"])
+def simulation_preview():
+    """Pre-trade ticket: quote + forecast + context — no cash movement."""
+    ticker = ""
+    if request.is_json and request.json:
+        ticker = (request.json.get("ticker") or "").strip().upper()
+    if not ticker:
+        ticker = (request.form.get("ticker") or "").strip().upper()
+    if not ticker:
+        return jsonify({"error": "Enter a ticker first."}), 400
+    try:
+        return jsonify(simulation_store.preview_buy(ticker))
+    except simulation_store.SimulationError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": f"Preview failed: {e}"}), 500
 
 
 def _run_simulation_buy_job(user_id, ticker, amount_type, amount):
@@ -914,7 +1007,7 @@ def simulation_sell():
             shares = float(raw_shares)
         except ValueError:
             flash("Enter a valid number of shares.", "error")
-            return redirect(url_for("backtest") + "#simulation")
+            return redirect(url_for("simulation_page"))
 
     try:
         simulation_store.sell(_user_id(), ticker, position_id=position_id, shares=shares)
@@ -923,14 +1016,14 @@ def simulation_sell():
         flash(str(e), "error")
     except Exception as e:
         flash(f"Sell failed: {e}", "error")
-    return redirect(url_for("backtest") + "#simulation")
+    return redirect(url_for("simulation_page"))
 
 
 @app.route("/backtest/simulation/reset", methods=["POST"])
 def simulation_reset():
     simulation_store.reset_portfolio(_user_id())
     flash("Demo portfolio reset.", "ok")
-    return redirect(url_for("backtest") + "#simulation")
+    return redirect(url_for("simulation_page"))
 
 
 # ---------------------------------------------------------------------------

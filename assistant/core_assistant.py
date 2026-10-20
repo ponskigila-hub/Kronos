@@ -205,20 +205,55 @@ class StockAssistant:
                      "chart": None, "data": {}}
 
         ticker = tickers[0]
-        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+        # Parallel: price history + news + earnings + analyst + fundamentals
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as pool:
             hist_future = pool.submit(data_fetcher.fetch_history, ticker)
             news_future = pool.submit(news.get_news, ticker)
             earnings_future = pool.submit(fundamentals.earnings_within_horizon, ticker, self.pred_len)
+            analyst_future = pool.submit(fundamentals.get_analyst_targets, ticker)
+            fund_future = pool.submit(fundamentals.get_fundamentals, ticker)
             hist_df = hist_future.result()
             news_items, news_summary = news_future.result()
             earnings_warning = earnings_future.result()
+            try:
+                analyst = analyst_future.result()
+            except Exception:
+                analyst = None
+            try:
+                fund_data = fund_future.result()
+            except Exception:
+                fund_data = None
 
         ind_df = indicators.compute_indicators(hist_df)
         fc = forecaster.run_forecast(hist_df, pred_len=self.pred_len, n_runs=self.n_forecast_runs)
+
+        # News + fundamentals → context signal, light analyst nudge, risk band
+        from .context_signal import (
+            build_context_signal, widen_forecast_bands, apply_analyst_nudge,
+        )
+        pred_close = float(fc["pred_df"]["close"].iloc[-1])
+        last_close = float(hist_df["close"].iloc[-1])
+        kronos_pct = (pred_close - last_close) / last_close * 100 if last_close else 0.0
+        ctx = build_context_signal(
+            news_summary=news_summary,
+            earnings_date=earnings_warning,
+            analyst=analyst,
+            fundamentals=fund_data,
+            pred_len=self.pred_len,
+            kronos_pct_change=kronos_pct,
+        )
+        # Skip aggressive nudge across earnings gate — consensus is also noisy pre-print
+        if not ctx.earnings_gate:
+            fc, nudged = apply_analyst_nudge(fc, analyst)
+            ctx.analyst_nudge_applied = nudged
+        if ctx.band_widen_factor > 1.0:
+            fc = widen_forecast_bands(fc, ctx.band_widen_factor)
+
         regime_note = self._regime_note(ticker, hist_df)
         explanation = explain.build_explanation(
             ticker, ind_df, fc, news_summary,
-            beginner=context.beginner_mode, earnings_warning=earnings_warning, regime_note=regime_note,
+            beginner=context.beginner_mode, earnings_warning=earnings_warning,
+            regime_note=regime_note, context_signal=ctx,
         )
         explanation["text"] = llm.polish_explanation(
             explanation["text"], ticker=ticker, beginner=context.beginner_mode,
@@ -235,6 +270,7 @@ class StockAssistant:
         return {"text": explanation["text"], "chart": fig, "image_path": image_path, "data": {
             "ticker": ticker, "forecast": fc["pred_df"].to_dict(orient="list"),
             "sparkline": self._sparkline(hist_df),
+            "context_signal": ctx.to_dict(),
         }}
 
     def _detailed_forecast(self, context, tickers):

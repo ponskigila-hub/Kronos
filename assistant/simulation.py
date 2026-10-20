@@ -30,7 +30,14 @@ import pandas as pd
 from . import storage, data_fetcher, fundamentals, forecaster
 from .data_fetcher import TickerNotFoundError
 from .ticker_utils import validate_ticker
-from .config import SIMULATION_PATH, SIMULATION_STARTING_CASH, SIMULATION_FORECAST_HORIZON
+from .config import (
+    SIMULATION_PATH,
+    SIMULATION_STARTING_CASH,
+    SIMULATION_FORECAST_HORIZON,
+    SIMULATION_CURRENCY,
+    SIMULATION_USDIDR,
+    SIMULATION_SUGGEST_UNIVERSE,
+)
 
 _lock = threading.Lock()
 
@@ -40,6 +47,53 @@ _lock = threading.Lock()
 # label, kept consistent so "what Kronos predicted" means the same thing
 # here as everywhere else in the app.
 FLAT_THRESHOLD_PCT = 0.5
+
+
+# ---------------------------------------------------------------------------
+# Display currency (USD ledger → optional IDR labels)
+# ---------------------------------------------------------------------------
+def currency_meta():
+    """UI helpers: code, symbol, and FX used for display conversion."""
+    code = SIMULATION_CURRENCY if SIMULATION_CURRENCY in ("USD", "IDR") else "USD"
+    if code == "IDR":
+        return {
+            "code": "IDR",
+            "symbol": "Rp",
+            "usd_rate": float(SIMULATION_USDIDR),  # 1 USD = this many IDR
+            "note": f"Display only · 1 USD ≈ Rp{SIMULATION_USDIDR:,.0f}",
+        }
+    return {"code": "USD", "symbol": "$", "usd_rate": 1.0, "note": ""}
+
+
+def to_display(amount_usd):
+    """Convert an internal USD amount to the configured display currency."""
+    meta = currency_meta()
+    if amount_usd is None:
+        return None
+    return float(amount_usd) * meta["usd_rate"]
+
+
+def format_money(amount_usd, decimals=None):
+    """Format USD ledger amount for the active display currency."""
+    try:
+        meta = currency_meta()
+        val = to_display(amount_usd)
+        if val is None:
+            return "—"
+        val = float(val)
+        if decimals is None:
+            decimals = 0 if meta["code"] == "IDR" else 2
+        if meta["code"] == "IDR":
+            # Rp16.000 style (dot as thousands sep); no decimals by default
+            rounded = int(round(val)) if decimals == 0 else round(val, decimals)
+            if decimals == 0:
+                return f"Rp{rounded:,}".replace(",", ".")
+            whole, frac = f"{rounded:.{decimals}f}".split(".")
+            whole = f"{int(whole):,}".replace(",", ".")
+            return f"Rp{whole},{frac}"
+        return f"${val:,.{decimals}f}"
+    except Exception:
+        return "—"
 
 
 class SimulationError(Exception):
@@ -86,12 +140,53 @@ def _snapshot_forecast(ticker, hist_df):
     """Run a real Kronos forecast (benefits from assistant.forecast_cache
     like every other forecast in the app) and record just what's needed
     to grade it later: the predicted price at the horizon, the implied
-    trend, and the calendar date that horizon actually lands on."""
+    trend, and the calendar date that horizon actually lands on.
+
+    Also snapshots a market-context signal (news + analyst + earnings) so
+    the Pluang-style demo portfolio can show *why* the buy was interesting
+    at the time — not only the price path.
+    """
     fc = forecaster.run_forecast(hist_df, pred_len=SIMULATION_FORECAST_HORIZON, n_runs=1)
     entry_price = float(hist_df["close"].iloc[-1])
     forecast_price = float(fc["pred_df"]["close"].iloc[-1])
     expected_return_pct = (forecast_price - entry_price) / entry_price * 100
     target_date = fc["pred_df"]["timestamps"].iloc[-1]
+
+    context = None
+    try:
+        from . import news as news_mod
+        from . import fundamentals as fund_mod
+        from .context_signal import build_context_signal, apply_analyst_nudge
+
+        _items, news_summary = news_mod.get_news(ticker)
+        earnings = fund_mod.earnings_within_horizon(ticker, SIMULATION_FORECAST_HORIZON)
+        try:
+            analyst = fund_mod.get_analyst_targets(ticker)
+        except Exception:
+            analyst = None
+        try:
+            fund_data = fund_mod.get_fundamentals(ticker)
+        except Exception:
+            fund_data = None
+        ctx = build_context_signal(
+            news_summary=news_summary,
+            earnings_date=earnings,
+            analyst=analyst,
+            fundamentals=fund_data,
+            pred_len=SIMULATION_FORECAST_HORIZON,
+            kronos_pct_change=expected_return_pct,
+        )
+        # Light nudge on the stored target price when not gated by earnings
+        if not ctx.earnings_gate:
+            fc2, nudged = apply_analyst_nudge(fc, analyst)
+            if nudged:
+                forecast_price = float(fc2["pred_df"]["close"].iloc[-1])
+                expected_return_pct = (forecast_price - entry_price) / entry_price * 100
+                ctx.analyst_nudge_applied = True
+        context = ctx.to_dict()
+    except Exception:
+        context = None
+
     return {
         "horizon_days": SIMULATION_FORECAST_HORIZON,
         "made_at_price": round(entry_price, 4),
@@ -100,6 +195,7 @@ def _snapshot_forecast(ticker, hist_df):
         "trend": ("bullish" if expected_return_pct > FLAT_THRESHOLD_PCT
                    else "bearish" if expected_return_pct < -FLAT_THRESHOLD_PCT else "flat"),
         "target_date": target_date.isoformat(),
+        "context": context,
     }
 
 
@@ -344,3 +440,158 @@ def reset_portfolio(user_id):
         data[str(user_id)] = _new_portfolio()
         _save(data)
     return data[str(user_id)]
+
+
+def preview_buy(ticker):
+    """
+    Pluang-style pre-trade ticket: live quote + Kronos forecast snapshot +
+    market context — without debiting cash or opening a position.
+
+    Returns a dict safe to JSON-serialize for the /simulation/preview API.
+    """
+    is_valid, symbol = validate_ticker(ticker)
+    if not is_valid:
+        raise SimulationError(f"'{ticker}' does not look like a valid ticker.")
+    ticker = symbol
+
+    hist_df = data_fetcher.fetch_history(ticker, lookback_days=SIMULATION_FORECAST_HORIZON + 400)
+    price = _current_price(ticker)
+    if price <= 0:
+        raise SimulationError(f"Couldn't get a usable price for '{ticker}'.")
+
+    quote = None
+    try:
+        quote = fundamentals.get_live_price(ticker)
+    except Exception:
+        quote = None
+
+    forecast = _snapshot_forecast(ticker, hist_df)
+    meta = currency_meta()
+
+    return {
+        "ticker": ticker,
+        "price_usd": round(price, 4),
+        "price_display": format_money(price),
+        "quote": quote,
+        "forecast": forecast,
+        "context": forecast.get("context"),
+        "horizon_days": forecast.get("horizon_days"),
+        "currency": meta,
+        "warnings": _preview_warnings(forecast),
+    }
+
+
+def _preview_warnings(forecast):
+    warnings = []
+    ctx = (forecast or {}).get("context") or {}
+    if ctx.get("earnings_gate"):
+        warnings.append(
+            "Earnings gate: a report is near — point forecasts are unreliable across the print."
+        )
+    if ctx.get("event_risk") == "high":
+        warnings.append("Elevated event risk — prefer smaller size or wait.")
+    trend = (forecast or {}).get("trend")
+    label = ctx.get("label") or ""
+    if trend == "bullish" and "bear" in label:
+        warnings.append("Kronos is bullish but news/analyst context leans cautious — size carefully.")
+    if trend == "bearish" and "bull" in label:
+        warnings.append("Kronos is bearish while context leans positive — conflicting signals.")
+    return warnings
+
+
+def suggest_buys(user_id=None, limit=5):
+    """
+    Lightweight 'ideas' list for the demo page:
+      1) Watchlist tickers (if any) scored by a quick context+forecast skim
+      2) Fallback universe from SIMULATION_SUGGEST_UNIVERSE
+
+    Intentionally avoids a full Kronos-enabled S&P screen (too slow for a
+    page load). Each idea still gets a real context signal + short forecast
+    so suggestions stay consistent with the buy-preview pipeline.
+    """
+    tickers = []
+    if user_id is not None:
+        try:
+            from . import watchlist as watchlist_store
+            wl = watchlist_store.get(user_id) or []
+            for t in wl:
+                if t and t not in tickers:
+                    tickers.append(str(t).upper())
+        except Exception:
+            pass
+
+    for t in (SIMULATION_SUGGEST_UNIVERSE or "").split(","):
+        t = t.strip().upper()
+        if t and t not in tickers:
+            tickers.append(t)
+
+    tickers = tickers[:12]  # hard cap work per page load
+    ideas = []
+    for t in tickers:
+        try:
+            hist_df = data_fetcher.fetch_history(t, lookback_days=max(120, SIMULATION_FORECAST_HORIZON + 40))
+            price = float(hist_df["close"].iloc[-1])
+            # Cheap trend proxy from history (avoid full multi-run Kronos for every idea)
+            fc = forecaster.run_forecast(hist_df, pred_len=min(SIMULATION_FORECAST_HORIZON, 14), n_runs=1)
+            fprice = float(fc["pred_df"]["close"].iloc[-1])
+            exp = (fprice - price) / price * 100
+            trend = ("bullish" if exp > FLAT_THRESHOLD_PCT
+                     else "bearish" if exp < -FLAT_THRESHOLD_PCT else "flat")
+
+            from . import news as news_mod
+            from .context_signal import build_context_signal
+            _items, news_summary = news_mod.get_news(t)
+            try:
+                analyst = fundamentals.get_analyst_targets(t)
+            except Exception:
+                analyst = None
+            try:
+                earnings = fundamentals.earnings_within_horizon(t, SIMULATION_FORECAST_HORIZON)
+            except Exception:
+                earnings = None
+            ctx = build_context_signal(
+                news_summary=news_summary,
+                earnings_date=earnings,
+                analyst=analyst,
+                fundamentals=None,
+                pred_len=SIMULATION_FORECAST_HORIZON,
+                kronos_pct_change=exp,
+            )
+            # Prefer bullish / lean-bullish context and non-bearish Kronos
+            score = ctx.score + (0.25 if trend == "bullish" else 0.0) - (0.35 if trend == "bearish" else 0.0)
+            if ctx.earnings_gate:
+                score -= 0.4
+            if score < 0.05 and trend != "bullish":
+                continue
+            ideas.append({
+                "ticker": t,
+                "price_usd": round(price, 4),
+                "price_display": format_money(price),
+                "expected_return_pct": round(exp, 2),
+                "trend": trend,
+                "context_label": ctx.label,
+                "context_score": ctx.score,
+                "event_risk": ctx.event_risk,
+                "earnings_gate": ctx.earnings_gate,
+                "score": round(score, 3),
+                "reason": _idea_reason(trend, ctx),
+            })
+        except Exception:
+            continue
+
+    ideas.sort(key=lambda x: x["score"], reverse=True)
+    return ideas[:limit]
+
+
+def _idea_reason(trend, ctx):
+    bits = []
+    if trend == "bullish":
+        bits.append("Kronos leans up")
+    elif trend == "flat":
+        bits.append("Kronos roughly flat")
+    else:
+        bits.append("Kronos leans down")
+    bits.append(f"context {ctx.label}")
+    if ctx.earnings_gate:
+        bits.append("earnings soon")
+    return " · ".join(bits)

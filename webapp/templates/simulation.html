@@ -1,0 +1,432 @@
+{% extends "base.html" %}
+{% block title %}Kronos — Demo portfolio{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <p class="eyebrow">Paper trading · Pluang-style</p>
+  <h1 class="page-title">Demo portfolio</h1>
+  <p class="page-desc">
+    Fake cash, real prices. Preview a ticket (quote + Kronos + context), then confirm the buy.
+    After the forecast horizon, see whether the call was right.
+    <strong>No real money. Ever.</strong>
+    {% if currency and currency.code == 'IDR' %}
+    <br><span class="sim-muted">{{ currency.note }} · ledger still USD internally</span>
+    {% endif %}
+  </p>
+</div>
+
+{% set p = portfolio %}
+
+<div class="sim-hero card">
+  <div class="sim-hero-main">
+    <div class="sim-hero-label">Total portfolio value</div>
+    <div class="sim-hero-value {{ 'up' if p.total_return_pct >= 0 else 'down' }}">
+      {{ money(p.total_value) }}
+    </div>
+    <div class="sim-hero-sub">
+      <span class="{{ 'pnl-up' if p.total_return_pct >= 0 else 'pnl-down' }}">
+        {{ "%+.2f"|format(p.total_return_pct) }}% all-time
+      </span>
+      <span class="sim-dot">·</span>
+      Cash {{ money(p.cash) }}
+      <span class="sim-dot">·</span>
+      Invested {{ money(p.positions_value) }}
+    </div>
+  </div>
+  <div class="sim-hero-kpis">
+    <div class="sim-kpi">
+      <div class="sim-kpi-label">Open</div>
+      <div class="sim-kpi-val">{{ p.positions|length }}</div>
+    </div>
+    <div class="sim-kpi">
+      <div class="sim-kpi-label">Closed</div>
+      <div class="sim-kpi-val">{{ p.closed_trade_count or 0 }}</div>
+    </div>
+    <div class="sim-kpi">
+      <div class="sim-kpi-label">Win rate</div>
+      <div class="sim-kpi-val">{% if p.win_rate_pct is not none %}{{ p.win_rate_pct }}%{% else %}—{% endif %}</div>
+    </div>
+    <div class="sim-kpi">
+      <div class="sim-kpi-label">Forecast hit</div>
+      <div class="sim-kpi-val">{% if p.forecast_accuracy_pct is not none %}{{ p.forecast_accuracy_pct }}%{% else %}—{% endif %}</div>
+    </div>
+  </div>
+  <form method="post" action="{{ url_for('simulation_reset') }}"
+        onsubmit="return confirm('Reset demo portfolio? All positions will be cleared.');"
+        class="sim-reset-form">
+    <button type="submit" class="btn btn-ghost btn-small">Reset</button>
+  </form>
+</div>
+
+<div class="card sim-ideas-card" id="simIdeasCard">
+  <p class="card-title" style="margin-top:0;">Suggested ideas</p>
+  <p class="page-desc" style="margin:0 0 12px;">
+    From your watchlist + a small liquid universe. Loaded in the background so this page opens instantly.
+  </p>
+  <div id="simIdeasStatus" class="sim-muted">Loading ideas…</div>
+  <div class="sim-ideas-grid" id="simIdeasGrid"></div>
+</div>
+
+<div class="card sim-buy-card">
+  <p class="card-title" style="margin-top:0;">Buy pipeline</p>
+  <p class="page-desc" style="margin:0 0 14px;">
+    <strong>1.</strong> Ticker → <strong>Preview</strong>
+    → <strong>2.</strong> Review quote / forecast / context
+    → <strong>3.</strong> Confirm buy
+  </p>
+
+  <div class="field-row">
+    <div class="field">
+      <label for="sim_ticker">Ticker</label>
+      <input type="text" id="sim_ticker" placeholder="AAPL, TSLA, BBCA.JK…" required>
+    </div>
+    <div class="field">
+      <label for="sim_amount_type">Order by</label>
+      <select id="sim_amount_type">
+        <option value="dollars" selected>Amount (USD ledger)</option>
+        <option value="shares">Number of shares</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="sim_amount">Amount</label>
+      <input type="number" id="sim_amount" step="any" min="0.01" value="1000" required>
+    </div>
+  </div>
+  <div class="horizon-presets" style="margin-bottom:12px;">
+    <span class="horizon-label">Quick USD:</span>
+    <button type="button" class="preset-chip sim-amt" data-amt="100">100</button>
+    <button type="button" class="preset-chip sim-amt" data-amt="500">500</button>
+    <button type="button" class="preset-chip sim-amt active" data-amt="1000">1,000</button>
+    <button type="button" class="preset-chip sim-amt" data-amt="5000">5,000</button>
+  </div>
+  <div style="display:flex; gap:10px; flex-wrap:wrap;">
+    <button class="btn btn-ghost" type="button" id="simPreviewBtn">Preview ticket</button>
+    <button class="btn" type="button" id="simConfirmBtn" disabled>Confirm buy</button>
+  </div>
+  <div id="simBuyError" class="flash flash-error" style="display:none; margin-top:12px;"></div>
+
+  <div id="simPreviewPanel" class="sim-preview" style="display:none;">
+    <div class="sim-preview-head">
+      <h3 id="simPrevTicker">—</h3>
+      <div class="mono" id="simPrevPrice">—</div>
+    </div>
+    <div class="context-badges" id="simPrevBadges"></div>
+    <div class="earnings-gate-banner" id="simPrevGate" style="display:none;" role="alert"></div>
+    <div class="sim-preview-grid">
+      <div>
+        <div class="sim-kpi-label">Kronos horizon</div>
+        <div id="simPrevHorizon" class="mono">—</div>
+      </div>
+      <div>
+        <div class="sim-kpi-label">Expected move</div>
+        <div id="simPrevMove" class="mono">—</div>
+      </div>
+      <div>
+        <div class="sim-kpi-label">Target price</div>
+        <div id="simPrevTarget" class="mono">—</div>
+      </div>
+      <div>
+        <div class="sim-kpi-label">Session</div>
+        <div id="simPrevSession">—</div>
+      </div>
+    </div>
+    <ul id="simPrevWarnings" class="sim-warnings"></ul>
+    <p class="sim-muted" id="simPrevNote"></p>
+  </div>
+</div>
+
+<div class="card">
+  <p class="card-title" style="margin-top:0;">Holdings</p>
+  {% if p.positions %}
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Ticker</th><th>Shares</th><th>Entry</th><th>Mark</th><th>Value</th><th>P&amp;L</th><th>Kronos</th><th>Context</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for pos in p.positions %}
+        {% set mtm = pos.get('current_price') or pos.entry_price %}
+        {% set val = mtm * pos.shares %}
+        {% set pnl = pos.get('unrealized_pnl', val - pos.cost_basis) %}
+        {% set pnl_pct = pos.get('unrealized_pnl_pct', (pnl / pos.cost_basis * 100) if pos.cost_basis else 0) %}
+        {% set fc = pos.get('forecast') or {} %}
+        {% set ctx = (fc.get('context') or {}) %}
+        <tr>
+          <td><strong>{{ pos.ticker }}</strong></td>
+          <td class="mono">{{ "%.4f"|format(pos.shares) }}</td>
+          <td class="mono">{{ money(pos.entry_price) }}</td>
+          <td class="mono">{{ money(mtm) }}</td>
+          <td class="mono">{{ money(val) }}</td>
+          <td class="mono {{ 'pnl-up' if pnl >= 0 else 'pnl-down' }}">{{ money(pnl) }} ({{ "%+.1f"|format(pnl_pct) }}%)</td>
+          <td>
+            <span class="ctx-badge {{ 'badge-bull' if fc.get('trend')=='bullish' else ('badge-bear' if fc.get('trend')=='bearish' else 'badge-neutral') }}">
+              {{ fc.get('trend', '—') }} {{ "%+.1f"|format(fc.get('expected_return_pct', 0)) }}%
+            </span>
+            <div class="sim-muted">to {{ (fc.get('target_date') or '—')[:10] }}</div>
+          </td>
+          <td>
+            {% if ctx %}
+            <span class="ctx-badge {{ 'badge-bull' if 'bull' in (ctx.label or '') else ('badge-bear' if 'bear' in (ctx.label or '') else 'badge-neutral') }}">{{ ctx.label or '—' }}</span>
+            {% if ctx.earnings_gate %}<span class="ctx-badge badge-risk-high">earnings</span>{% endif %}
+            {% else %}<span class="sim-muted">—</span>{% endif %}
+          </td>
+          <td>
+            <form method="post" action="{{ url_for('simulation_sell') }}" style="display:inline;">
+              <input type="hidden" name="ticker" value="{{ pos.ticker }}">
+              <input type="hidden" name="position_id" value="{{ pos.id }}">
+              <button type="submit" class="btn btn-ghost btn-small">Sell</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="page-desc" style="margin:0;">No open positions yet.</p>
+  {% endif %}
+</div>
+
+{% if p.closed_trades %}
+<div class="card">
+  <p class="card-title" style="margin-top:0;">Trade history</p>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead><tr><th>Ticker</th><th>Shares</th><th>Entry → Exit</th><th>Realized P&amp;L</th><th>Grade</th></tr></thead>
+      <tbody>
+        {% for t in p.closed_trades|reverse %}
+        <tr>
+          <td><strong>{{ t.ticker }}</strong></td>
+          <td class="mono">{{ "%.4f"|format(t.shares) }}</td>
+          <td class="mono">{{ money(t.entry_price) }} → {{ money(t.get('exit_price', 0)) }}</td>
+          <td class="mono {{ 'pnl-up' if t.get('realized_pnl', 0) >= 0 else 'pnl-down' }}">{{ money(t.get('realized_pnl', 0)) }}</td>
+          <td>{% if t.get('graded') %}{{ '✓ direction' if t.graded.get('direction_correct') else '✗ missed' }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var tickerInput = document.getElementById("sim_ticker");
+  var typeSel = document.getElementById("sim_amount_type");
+  var amtInput = document.getElementById("sim_amount");
+  var previewBtn = document.getElementById("simPreviewBtn");
+  var confirmBtn = document.getElementById("simConfirmBtn");
+  var errBox = document.getElementById("simBuyError");
+  var panel = document.getElementById("simPreviewPanel");
+  var previewReady = false;
+  var lastPreviewTicker = "";
+
+  document.querySelectorAll(".sim-amt").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      if (typeSel) typeSel.value = "dollars";
+      if (amtInput) amtInput.value = chip.getAttribute("data-amt");
+      document.querySelectorAll(".sim-amt").forEach(function (c) { c.classList.remove("active"); });
+      chip.classList.add("active");
+    });
+  });
+
+  document.querySelectorAll(".sim-idea-preview").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      if (tickerInput) tickerInput.value = btn.getAttribute("data-ticker");
+      runPreview();
+      var card = document.querySelector(".sim-buy-card");
+      if (card) window.scrollTo({ top: card.offsetTop - 20, behavior: "smooth" });
+    });
+  });
+
+  function showErr(msg) {
+    if (!errBox) return;
+    errBox.style.display = msg ? "block" : "none";
+    errBox.textContent = msg || "";
+  }
+
+  function runPreview() {
+    var ticker = (tickerInput && tickerInput.value || "").trim().toUpperCase();
+    if (!ticker) { showErr("Enter a ticker first."); return; }
+    showErr("");
+    previewReady = false;
+    lastPreviewTicker = "";
+    if (confirmBtn) confirmBtn.disabled = true;
+    if (previewBtn) { previewBtn.disabled = true; previewBtn.textContent = "Loading…"; }
+    if (window.KronosLoading) window.KronosLoading.show("Building pre-trade ticket…");
+
+    var fd = new FormData();
+    fd.append("ticker", ticker);
+    fetch("{{ url_for('simulation_preview') }}", { method: "POST", body: fd })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+      .then(function (res) {
+        if (window.KronosLoading) window.KronosLoading.hide();
+        if (previewBtn) { previewBtn.disabled = false; previewBtn.textContent = "Preview ticket"; }
+        if (!res.ok) throw new Error(res.body.error || "Preview failed");
+        renderPreview(res.body);
+        previewReady = true;
+        lastPreviewTicker = res.body.ticker;
+        if (confirmBtn) confirmBtn.disabled = false;
+      })
+      .catch(function (err) {
+        if (window.KronosLoading) window.KronosLoading.hide();
+        if (previewBtn) { previewBtn.disabled = false; previewBtn.textContent = "Preview ticket"; }
+        if (panel) panel.style.display = "none";
+        showErr(String(err.message || err));
+      });
+  }
+
+  function renderPreview(data) {
+    if (!panel) return;
+    panel.style.display = "block";
+    document.getElementById("simPrevTicker").textContent = data.ticker;
+    document.getElementById("simPrevPrice").textContent = data.price_display || data.price_usd;
+    var fc = data.forecast || {};
+    var ctx = data.context || fc.context || {};
+    document.getElementById("simPrevHorizon").textContent = (fc.horizon_days || "—") + " days → " + ((fc.target_date || "").slice(0, 10) || "—");
+    var move = fc.expected_return_pct;
+    var moveEl = document.getElementById("simPrevMove");
+    moveEl.textContent = (move >= 0 ? "+" : "") + (move != null ? Number(move).toFixed(2) : "—") + "% · " + (fc.trend || "");
+    moveEl.className = "mono " + (move >= 0 ? "pnl-up" : "pnl-down");
+    document.getElementById("simPrevTarget").textContent = fc.forecast_price != null ? fc.forecast_price : "—";
+    var q = data.quote || {};
+    document.getElementById("simPrevSession").textContent = q.session_label || "Latest available";
+
+    var badges = document.getElementById("simPrevBadges");
+    var label = ctx.label || "neutral";
+    var lc = label.indexOf("bull") >= 0 ? "badge-bull" : (label.indexOf("bear") >= 0 ? "badge-bear" : "badge-neutral");
+    var risk = ctx.event_risk || "normal";
+    var rc = risk === "high" ? "badge-risk-high" : (risk === "elevated" ? "badge-risk-mid" : "badge-risk-ok");
+    badges.innerHTML =
+      '<span class="ctx-badge ' + lc + '">Context: ' + label + "</span>" +
+      '<span class="ctx-badge ' + rc + '">Event risk: ' + risk + "</span>" +
+      (ctx.analyst_nudge_applied ? '<span class="ctx-badge badge-nudge">Analyst nudge</span>' : "");
+
+    var gate = document.getElementById("simPrevGate");
+    if (ctx.earnings_gate) {
+      gate.style.display = "block";
+      gate.innerHTML = "<strong>Earnings gate.</strong> Report near" +
+        (ctx.earnings_date ? " (" + ctx.earnings_date + ")" : "") +
+        " — pre-event scenario only.";
+    } else {
+      gate.style.display = "none";
+      gate.innerHTML = "";
+    }
+
+    var ul = document.getElementById("simPrevWarnings");
+    ul.innerHTML = "";
+    (data.warnings || []).forEach(function (w) {
+      var li = document.createElement("li");
+      li.textContent = w;
+      ul.appendChild(li);
+    });
+    document.getElementById("simPrevNote").textContent =
+      "Confirm buy fills at a live quote and locks this forecast snapshot into the position.";
+  }
+
+  if (previewBtn) previewBtn.addEventListener("click", runPreview);
+
+  // Load suggested ideas async (does not block page open)
+  (function loadIdeas() {
+    var status = document.getElementById("simIdeasStatus");
+    var grid = document.getElementById("simIdeasGrid");
+    if (!grid) return;
+    fetch("{{ url_for('simulation_ideas') }}")
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var ideas = data.ideas || [];
+        if (status) {
+          status.textContent = ideas.length ? "" : (data.error ? ("Ideas unavailable: " + data.error) : "No ideas right now — try Preview on a ticker you like.");
+        }
+        grid.innerHTML = "";
+        ideas.forEach(function (idea) {
+          var div = document.createElement("div");
+          div.className = "sim-idea";
+          var tc = idea.trend === "bullish" ? "badge-bull" : (idea.trend === "bearish" ? "badge-bear" : "badge-neutral");
+          var cc = (idea.context_label || "").indexOf("bull") >= 0 ? "badge-bull" : ((idea.context_label || "").indexOf("bear") >= 0 ? "badge-bear" : "badge-neutral");
+          div.innerHTML =
+            '<div class="sim-idea-top"><strong>' + idea.ticker + '</strong><span class="mono">' + (idea.price_display || "") + "</span></div>" +
+            '<div class="sim-idea-meta">' +
+              '<span class="ctx-badge ' + tc + '">' + idea.trend + " " + (idea.expected_return_pct >= 0 ? "+" : "") + Number(idea.expected_return_pct).toFixed(1) + "%</span>" +
+              '<span class="ctx-badge ' + cc + '">' + (idea.context_label || "") + "</span>" +
+              (idea.earnings_gate ? '<span class="ctx-badge badge-risk-high">earnings</span>' : "") +
+            "</div>" +
+            '<div class="sim-muted" style="margin:6px 0 10px;">' + (idea.reason || "") + "</div>" +
+            '<button type="button" class="btn btn-ghost btn-small sim-idea-preview" data-ticker="' + idea.ticker + '">Preview</button>';
+          grid.appendChild(div);
+        });
+        grid.querySelectorAll(".sim-idea-preview").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            if (tickerInput) tickerInput.value = btn.getAttribute("data-ticker");
+            runPreview();
+            var card = document.querySelector(".sim-buy-card");
+            if (card) window.scrollTo({ top: card.offsetTop - 20, behavior: "smooth" });
+          });
+        });
+      })
+      .catch(function () {
+        if (status) status.textContent = "Could not load ideas (page still works for manual Preview/Buy).";
+      });
+  })();
+
+
+
+  if (confirmBtn) confirmBtn.addEventListener("click", function () {
+    var ticker = (tickerInput && tickerInput.value || "").trim().toUpperCase();
+    if (!previewReady || ticker !== lastPreviewTicker) {
+      showErr("Run Preview on this ticker first.");
+      return;
+    }
+    var amount = parseFloat(amtInput && amtInput.value);
+    if (!(amount > 0)) { showErr("Enter a valid amount."); return; }
+    showErr("");
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = "Buying…";
+    if (window.KronosLoading) window.KronosLoading.show("Filling order…");
+
+    var fd = new FormData();
+    fd.append("ticker", ticker);
+    fd.append("amount_type", typeSel ? typeSel.value : "dollars");
+    fd.append("amount", amount);
+    fetch("{{ url_for('simulation_buy') }}", { method: "POST", body: fd })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+      .then(function (res) {
+        if (!res.ok) throw new Error(res.body.error || "Buy failed");
+        var jobId = res.body.job_id;
+        function poll() {
+          fetch("/backtest/simulation/job/" + jobId)
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              if (data.status === "pending") { setTimeout(poll, 1200); return; }
+              if (window.KronosLoading) window.KronosLoading.hide();
+              confirmBtn.disabled = false;
+              confirmBtn.textContent = "Confirm buy";
+              if (data.status === "done") {
+                window.location.href = "{{ url_for('simulation_page') }}";
+              } else {
+                showErr(data.message || data.error || "Buy failed");
+              }
+            })
+            .catch(function (err) {
+              if (window.KronosLoading) window.KronosLoading.hide();
+              confirmBtn.disabled = false;
+              confirmBtn.textContent = "Confirm buy";
+              showErr(String(err.message || err));
+            });
+        }
+        poll();
+      })
+      .catch(function (err) {
+        if (window.KronosLoading) window.KronosLoading.hide();
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = "Confirm buy";
+        showErr(String(err.message || err));
+      });
+  });
+})();
+</script>
+{% endblock %}
