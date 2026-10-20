@@ -85,6 +85,8 @@
     <h2>Forecast result</h2>
     <span class="result-tag" id="resultTag">{{ result_ticker }}</span>
   </div>
+  <div class="context-badges" id="contextBadges" style="display:none;"></div>
+  <div class="earnings-gate-banner" id="earningsGate" style="display:none;" role="alert"></div>
   {% if image_url %}
   <div class="chart-frame" id="chartFrame"><img src="{{ image_url }}" alt="Forecast chart for {{ result_ticker }}"></div>
   {% endif %}
@@ -96,6 +98,8 @@
     <h2>Forecast result</h2>
     <span class="result-tag" id="resultTag"></span>
   </div>
+  <div class="context-badges" id="contextBadges" style="display:none;"></div>
+  <div class="earnings-gate-banner" id="earningsGate" style="display:none;" role="alert"></div>
   <div class="chart-frame" id="chartFrame" style="display:none;"></div>
   <div class="result-text" id="resultText"></div>
 </div>

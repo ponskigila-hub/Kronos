@@ -81,9 +81,56 @@
     form.prepend(el);
   }
 
+  function renderContextBadges(ctx) {
+    const badges = document.getElementById("contextBadges");
+    const gate = document.getElementById("earningsGate");
+    if (!badges) return;
+    if (!ctx) {
+      badges.style.display = "none";
+      badges.innerHTML = "";
+      if (gate) { gate.style.display = "none"; gate.innerHTML = ""; }
+      return;
+    }
+    const labelClass = {
+      bullish: "badge-bull",
+      "lean bullish": "badge-bull",
+      neutral: "badge-neutral",
+      "lean bearish": "badge-bear",
+      bearish: "badge-bear",
+    }[ctx.label] || "badge-neutral";
+    const riskClass = ctx.event_risk === "high" ? "badge-risk-high"
+      : ctx.event_risk === "elevated" ? "badge-risk-mid" : "badge-risk-ok";
+    let html = "";
+    html += '<span class="ctx-badge ' + labelClass + '">Context: ' + (ctx.label || "neutral") + "</span>";
+    html += '<span class="ctx-badge ' + riskClass + '">Event risk: ' + (ctx.event_risk || "normal") + "</span>";
+    html += '<span class="ctx-badge badge-neutral">Context conf: ' + (ctx.confidence || "—") + "</span>";
+    if (ctx.analyst_nudge_applied) {
+      html += '<span class="ctx-badge badge-nudge">Analyst nudge on</span>';
+    }
+    if (ctx.band_widen_factor && ctx.band_widen_factor > 1) {
+      html += '<span class="ctx-badge badge-neutral">Band ×' + ctx.band_widen_factor + "</span>";
+    }
+    badges.innerHTML = html;
+    badges.style.display = "flex";
+
+    if (gate) {
+      if (ctx.earnings_gate) {
+        gate.style.display = "block";
+        gate.innerHTML =
+          "<strong>Earnings gate active.</strong> A report is near" +
+          (ctx.earnings_date ? " (" + ctx.earnings_date + ")" : "") +
+          " — treat this path as a <em>pre-event scenario</em>, not an actionable target.";
+      } else {
+        gate.style.display = "none";
+        gate.innerHTML = "";
+      }
+    }
+  }
+
   function showResult(data) {
     if (resultTag) resultTag.textContent = data.ticker || "";
     if (resultText) resultText.textContent = data.text || "";
+    renderContextBadges(data.context_signal || null);
     if (chartFrame) {
       if (data.image_url) {
         chartFrame.style.display = "";

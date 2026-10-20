@@ -1587,3 +1587,67 @@ textarea:focus { border-color: var(--gold-dim); }
 [data-theme="dark"] .preset-chip.active {
   background: color-mix(in srgb, var(--gold) 18%, var(--ink-1));
 }
+
+/* Context signal badges + earnings gate */
+.context-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.ctx-badge {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: var(--border-width) solid var(--line);
+  background: var(--ink-2);
+  color: var(--bone);
+  letter-spacing: 0.01em;
+}
+.badge-bull {
+  border-color: color-mix(in srgb, var(--teal) 50%, var(--line));
+  background: color-mix(in srgb, var(--teal) 12%, var(--ink-1));
+  color: var(--teal);
+}
+.badge-bear {
+  border-color: color-mix(in srgb, var(--red) 50%, var(--line));
+  background: color-mix(in srgb, var(--red) 10%, var(--ink-1));
+  color: var(--red);
+}
+.badge-neutral {
+  color: var(--bone-dim);
+}
+.badge-risk-high {
+  border-color: var(--red);
+  background: color-mix(in srgb, var(--red) 14%, var(--ink-1));
+  color: var(--red);
+}
+.badge-risk-mid {
+  border-color: var(--gold);
+  background: color-mix(in srgb, var(--gold) 12%, var(--ink-1));
+  color: var(--gold);
+}
+.badge-risk-ok {
+  border-color: color-mix(in srgb, var(--teal) 40%, var(--line));
+  color: var(--teal);
+}
+.badge-nudge {
+  border-color: var(--ai);
+  background: color-mix(in srgb, var(--ai) 10%, var(--ink-1));
+  color: var(--ai);
+}
+.earnings-gate-banner {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: var(--border-width) solid var(--red);
+  border-left: var(--border-width-heavy) solid var(--red);
+  background: color-mix(in srgb, var(--red) 8%, var(--ink-1));
+  color: var(--bone);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.earnings-gate-banner strong { color: var(--red); }
+.earnings-gate-banner em { font-style: italic; }

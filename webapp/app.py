@@ -157,19 +157,64 @@ def _run_forecast_ticker_job(job_id, ticker, pred_len, lookback, detailed):
             image_path = charts.build_forecast_png(ticker, hist_df, fc)
 
         last_close = float(hist_df["close"].iloc[-1])
+        # Raw Kronos % before context adjustments (for signal alignment)
+        raw_close = float(fc["pred_df"]["close"].iloc[-1])
+        pct_raw = (raw_close - last_close) / last_close * 100 if last_close else 0.0
+
+        context_block = ""
+        ctx_dict = None
+        try:
+            from assistant.context_signal import (
+                build_context_signal, widen_forecast_bands, format_context_block,
+                apply_analyst_nudge,
+            )
+            _items, news_summary = news_mod.get_news(ticker)
+            earnings_warning = fundamentals.earnings_within_horizon(ticker, pred_len)
+            try:
+                analyst = fundamentals.get_analyst_targets(ticker)
+            except Exception:
+                analyst = None
+            try:
+                fund_data = fundamentals.get_fundamentals(ticker)
+            except Exception:
+                fund_data = None
+            ctx = build_context_signal(
+                news_summary=news_summary,
+                earnings_date=earnings_warning,
+                analyst=analyst,
+                fundamentals=fund_data,
+                pred_len=pred_len,
+                kronos_pct_change=pct_raw,
+            )
+            if not ctx.earnings_gate and not detailed:
+                fc, nudged = apply_analyst_nudge(fc, analyst)
+                ctx.analyst_nudge_applied = nudged
+            if ctx.band_widen_factor > 1.0 and not detailed:
+                fc = widen_forecast_bands(fc, ctx.band_widen_factor)
+            # Rebuild chart after path/band adjustments
+            if not detailed:
+                image_path = charts.build_forecast_png(ticker, hist_df, fc)
+            context_block = " " + format_context_block(ctx, beginner=True)
+            ctx_dict = ctx.to_dict()
+        except Exception:
+            context_block = ""
+
         if detailed and fc.get("mean_df") is not None:
             forecast_close = float(fc["mean_df"]["close"].iloc[-1])
         else:
             forecast_close = float(fc["pred_df"]["close"].iloc[-1])
-        pct = (forecast_close - last_close) / last_close * 100
+        pct = (forecast_close - last_close) / last_close * 100 if last_close else 0.0
+
         result_text = (
             f"{ticker}: {last_close:.2f} -> {forecast_close:.2f} over {pred_len} trading days "
             f"({pct:+.2f}%). Lookback used: {fc['lookback_used']} days."
         )
         if detailed:
             result_text += f" ({fc['n_runs']} sampled paths shown.)"
+        result_text += context_block
         _finish_forecast_job(job_id, status="done", result={
             "text": result_text, "ticker": ticker, "image_path": image_path,
+            "context_signal": ctx_dict,
         })
     except TickerNotFoundError as e:
         _finish_forecast_job(job_id, status="error", error=str(e))
@@ -741,6 +786,7 @@ def forecast_job(job_id):
         "text": result["text"],
         "ticker": result["ticker"],
         "image_url": _to_url(result.get("image_path")),
+        "context_signal": result.get("context_signal"),
     })
 
 
