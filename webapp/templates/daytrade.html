@@ -1,0 +1,371 @@
+{% extends "base.html" %}
+{% block title %}Kronos — Day Trade{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <p class="eyebrow">Intraday toolkit · no broker · no Claude</p>
+  <h1 class="page-title">Day Trade desk</h1>
+  <p class="page-desc">
+    Chart scanner, entry timer, exit planner, and risk sizing — pure Python on free market data.
+    <strong>Nothing here places an order.</strong> Use Demo trade for paper fills.
+  </p>
+</div>
+
+<div class="tip-banner tip-banner-warn">
+  <div class="tip-banner-body">
+    <strong>Disclaimer:</strong> Day trading loses money for most retail traders.
+    These tools mark chart rules and risk numbers only — not financial advice.
+  </div>
+</div>
+
+<div class="card">
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="ticket" type="button">Trade ticket</button>
+    <button class="tab-btn" data-tab="scanner" type="button">Scanner</button>
+    <button class="tab-btn" data-tab="entry" type="button">Entry timer</button>
+    <button class="tab-btn" data-tab="exit" type="button">Exit &amp; size</button>
+  </div>
+
+  {# ---- Trade ticket (pipeline) ---- #}
+  <div class="tab-panel active" id="tab-ticket">
+    <p class="page-desc" style="margin-top:0;">
+      One symbol end-to-end: ORB entry check → stop/target from opening range → shares for your risk %.
+    </p>
+    <div class="field-row">
+      <div class="field">
+        <label for="tk_ticker">Ticker</label>
+        <input type="text" id="tk_ticker" placeholder="TSLA" value="TSLA">
+      </div>
+      <div class="field">
+        <label for="tk_equity">Account equity ($)</label>
+        <input type="number" id="tk_equity" value="100000" min="1000" step="1000">
+      </div>
+      <div class="field">
+        <label for="tk_risk">Risk per trade (%)</label>
+        <input type="number" id="tk_risk" value="0.5" min="0.05" max="5" step="0.05">
+      </div>
+    </div>
+    <button class="btn" type="button" id="tkRun">Build ticket</button>
+    <div id="tkErr" class="flash flash-error" style="display:none;margin-top:12px;"></div>
+    <div id="tkOut" class="sim-preview" style="display:none;margin-top:16px;"></div>
+  </div>
+
+  {# ---- Scanner ---- #}
+  <div class="tab-panel" id="tab-scanner">
+    <p class="page-desc" style="margin-top:0;">
+      Daily setups on a liquid universe: <code>new_high_20</code>, <code>bull_flag</code>,
+      <code>reclaim_ma20</code>, <code>oversold</code>, <code>oversold_bounce</code>.
+      Or scan opening-range breakouts (best during US regular hours).
+    </p>
+    <div class="field-row">
+      <div class="field">
+        <label for="sc_mode">Mode</label>
+        <select id="sc_mode">
+          <option value="daily" selected>Daily patterns</option>
+          <option value="orb">Opening-range breakout (intraday)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="sc_symbols">Symbols (optional, comma-separated)</label>
+        <input type="text" id="sc_symbols" placeholder="Leave blank for default liquid list">
+      </div>
+    </div>
+    <button class="btn" type="button" id="scRun">Run scan</button>
+    <div id="scErr" class="flash flash-error" style="display:none;margin-top:12px;"></div>
+    <div id="scOut" style="margin-top:16px;"></div>
+  </div>
+
+  {# ---- Entry ---- #}
+  <div class="tab-panel" id="tab-entry">
+    <p class="page-desc" style="margin-top:0;">
+      Watches for a <strong>completed bar close</strong> above the opening-range high (or a custom level).
+      A wick is not an entry.
+    </p>
+    <div class="field-row">
+      <div class="field">
+        <label for="en_ticker">Ticker</label>
+        <input type="text" id="en_ticker" placeholder="AAPL" value="AAPL">
+      </div>
+      <div class="field">
+        <label for="en_setup">Setup</label>
+        <select id="en_setup">
+          <option value="orb" selected>Opening range breakout</option>
+          <option value="level">Close above level</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="en_level">Level (if setup = level)</label>
+        <input type="number" id="en_level" step="0.01" placeholder="e.g. 190.50">
+      </div>
+      <div class="field">
+        <label for="en_interval">Bar size</label>
+        <select id="en_interval">
+          <option value="5m" selected>5 minute</option>
+          <option value="1m">1 minute</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn" type="button" id="enRun">Check entry</button>
+    <div id="enErr" class="flash flash-error" style="display:none;margin-top:12px;"></div>
+    <div id="enOut" class="sim-preview" style="display:none;margin-top:16px;"></div>
+  </div>
+
+  {# ---- Exit & size ---- #}
+  <div class="tab-panel" id="tab-exit">
+    <p class="page-desc" style="margin-top:0;">
+      Stop under entry, target as an R-multiple. Optional: size shares so a stop-out costs a fixed % of equity.
+    </p>
+    <div class="field-row">
+      <div class="field">
+        <label for="ex_ticker">Ticker</label>
+        <input type="text" id="ex_ticker" placeholder="AAPL" value="AAPL">
+      </div>
+      <div class="field">
+        <label for="ex_entry">Entry price</label>
+        <input type="number" id="ex_entry" step="0.01" placeholder="190.00">
+      </div>
+      <div class="field">
+        <label for="ex_stop_rule">Stop rule</label>
+        <select id="ex_stop_rule">
+          <option value="or_low" selected>Opening-range low</option>
+          <option value="pct">% under entry</option>
+          <option value="price">Fixed price</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="ex_stop_param">Stop param (% or price)</label>
+        <input type="number" id="ex_stop_param" step="0.01" placeholder="for pct/price">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="ex_target_r">Target (R multiple)</label>
+        <input type="number" id="ex_target_r" value="2" min="0.5" max="10" step="0.5">
+      </div>
+      <div class="field">
+        <label for="ex_equity">Equity for sizing ($)</label>
+        <input type="number" id="ex_equity" value="100000">
+      </div>
+      <div class="field">
+        <label for="ex_risk">Risk %</label>
+        <input type="number" id="ex_risk" value="0.5" step="0.05">
+      </div>
+    </div>
+    <button class="btn" type="button" id="exRun">Plan exit &amp; size</button>
+    <div id="exErr" class="flash flash-error" style="display:none;margin-top:12px;"></div>
+    <div id="exOut" class="sim-preview" style="display:none;margin-top:16px;"></div>
+  </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  // Tabs
+  document.querySelectorAll(".tab-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelectorAll(".tab-btn").forEach(function (b) { b.classList.remove("active"); });
+      document.querySelectorAll(".tab-panel").forEach(function (p) { p.classList.remove("active"); });
+      btn.classList.add("active");
+      var panel = document.getElementById("tab-" + btn.dataset.tab);
+      if (panel) panel.classList.add("active");
+    });
+  });
+
+  function showErr(el, msg) {
+    if (!el) return;
+    el.style.display = msg ? "block" : "none";
+    el.textContent = msg || "";
+  }
+
+  function postJSON(url, body) {
+    return fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {})
+    }).then(function (r) {
+      return r.json().then(function (j) { return { ok: r.ok, body: j }; });
+    });
+  }
+
+  function badge(status) {
+    var c = "badge-neutral";
+    if (status === "triggered") c = "badge-bull";
+    if (status === "expired" || status === "no-data") c = "badge-bear";
+    return '<span class="ctx-badge ' + c + '">' + status + "</span>";
+  }
+
+  // ---- Ticket ----
+  var tkRun = document.getElementById("tkRun");
+  if (tkRun) tkRun.addEventListener("click", function () {
+    var err = document.getElementById("tkErr");
+    var out = document.getElementById("tkOut");
+    showErr(err, "");
+    out.style.display = "none";
+    tkRun.disabled = true;
+    if (window.KronosLoading) window.KronosLoading.show("Building day-trade ticket…");
+    postJSON("{{ url_for('daytrade_ticket') }}", {
+      ticker: document.getElementById("tk_ticker").value,
+      equity: parseFloat(document.getElementById("tk_equity").value),
+      risk_pct: parseFloat(document.getElementById("tk_risk").value)
+    }).then(function (res) {
+      if (window.KronosLoading) window.KronosLoading.hide();
+      tkRun.disabled = false;
+      if (!res.ok) throw new Error(res.body.error || "Failed");
+      var d = res.body;
+      var en = d.entry_check || {};
+      var xp = d.exit_plan || {};
+      var sz = d.size || {};
+      var html = "<div class='sim-preview-head'><h3>" + (d.ticker || "") + "</h3>" + badge(en.status || "—") + "</div>";
+      html += "<div class='sim-preview-grid'>";
+      html += "<div><div class='sim-kpi-label'>Entry status</div><div class='mono'>" + (en.status || "—") + "</div><div class='sim-muted'>" + (en.reason || en.phase || "") + "</div></div>";
+      var tr = en.trigger || {};
+      html += "<div><div class='sim-kpi-label'>Trigger</div><div class='mono'>" + (tr.price != null ? tr.price : "—") + "</div><div class='sim-muted'>" + (tr.time || "") + "</div></div>";
+      html += "<div><div class='sim-kpi-label'>Stop → Target</div><div class='mono'>" + (xp.stop != null ? xp.stop : "—") + " → " + (xp.target != null ? xp.target : "—") + "</div><div class='sim-muted'>R=" + (xp.reward_risk != null ? xp.reward_risk : "—") + "</div></div>";
+      html += "<div><div class='sim-kpi-label'>Size</div><div class='mono'>" + (sz.shares != null ? sz.shares + " sh" : "—") + "</div><div class='sim-muted'>risk $" + (sz.risk_dollars != null ? sz.risk_dollars : "—") + "</div></div>";
+      html += "</div>";
+      if (en.opening_range) {
+        html += "<p class='sim-muted'>Opening range: " + en.opening_range.low + " – " + en.opening_range.high + "</p>";
+      }
+      html += "<p class='sim-muted'>No order is sent. Use Demo trade if you want a paper fill.</p>";
+      out.innerHTML = html;
+      out.style.display = "block";
+    }).catch(function (e) {
+      if (window.KronosLoading) window.KronosLoading.hide();
+      tkRun.disabled = false;
+      showErr(err, String(e.message || e));
+    });
+  });
+
+  // ---- Scanner ----
+  var scRun = document.getElementById("scRun");
+  if (scRun) scRun.addEventListener("click", function () {
+    var err = document.getElementById("scErr");
+    var out = document.getElementById("scOut");
+    showErr(err, "");
+    out.innerHTML = "";
+    scRun.disabled = true;
+    if (window.KronosLoading) window.KronosLoading.show("Scanning charts…");
+    var syms = (document.getElementById("sc_symbols").value || "").trim();
+    postJSON("{{ url_for('daytrade_scan') }}", {
+      mode: document.getElementById("sc_mode").value,
+      symbols: syms ? syms.split(/[\s,]+/) : null
+    }).then(function (res) {
+      if (window.KronosLoading) window.KronosLoading.hide();
+      scRun.disabled = false;
+      if (!res.ok) throw new Error(res.body.error || "Scan failed");
+      var d = res.body;
+      var hits = d.hits || [];
+      var html = "<p class='sim-muted'>Mode <strong>" + (d.mode || "") + "</strong> · scanned " + (d.scanned || 0) + " · hits " + hits.length + "</p>";
+      if (!hits.length) {
+        html += "<p class='page-desc'>No setups matched. Try again during the session or widen the symbol list.</p>";
+      } else {
+        html += "<div class='table-wrap'><table class='data-table'><thead><tr><th>Symbol</th><th>Setups / status</th><th>Price</th><th>Extra</th><th></th></tr></thead><tbody>";
+        hits.forEach(function (h) {
+          var sym = h.symbol || h.ticker || "—";
+          var setups = (h.setups && h.setups.join) ? h.setups.join(", ") : (h.status || "—");
+          var price = h.close != null ? h.close : (h.price != null ? h.price : "—");
+          var extra = h.rsi != null ? ("RSI " + h.rsi) : (h.reason || "");
+          html += "<tr><td><strong>" + sym + "</strong></td><td>" + setups + "</td><td class='mono'>" + price + "</td><td class='sim-muted'>" + extra + "</td>";
+          html += "<td><button type='button' class='btn btn-ghost btn-small dt-use' data-t='" + sym + "'>Ticket</button></td></tr>";
+        });
+        html += "</tbody></table></div>";
+      }
+      if (d.note) html += "<p class='sim-muted'>" + d.note + "</p>";
+      out.innerHTML = html;
+      out.querySelectorAll(".dt-use").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          document.getElementById("tk_ticker").value = btn.getAttribute("data-t");
+          document.querySelectorAll(".tab-btn").forEach(function (b) { b.classList.toggle("active", b.dataset.tab === "ticket"); });
+          document.querySelectorAll(".tab-panel").forEach(function (p) { p.classList.toggle("active", p.id === "tab-ticket"); });
+        });
+      });
+    }).catch(function (e) {
+      if (window.KronosLoading) window.KronosLoading.hide();
+      scRun.disabled = false;
+      showErr(err, String(e.message || e));
+    });
+  });
+
+  // ---- Entry ----
+  var enRun = document.getElementById("enRun");
+  if (enRun) enRun.addEventListener("click", function () {
+    var err = document.getElementById("enErr");
+    var out = document.getElementById("enOut");
+    showErr(err, "");
+    out.style.display = "none";
+    enRun.disabled = true;
+    if (window.KronosLoading) window.KronosLoading.show("Checking entry…");
+    var level = document.getElementById("en_level").value;
+    postJSON("{{ url_for('daytrade_entry') }}", {
+      ticker: document.getElementById("en_ticker").value,
+      setup: document.getElementById("en_setup").value,
+      interval: document.getElementById("en_interval").value,
+      level: level === "" ? null : parseFloat(level)
+    }).then(function (res) {
+      if (window.KronosLoading) window.KronosLoading.hide();
+      enRun.disabled = false;
+      if (!res.ok) throw new Error(res.body.error || "Failed");
+      var d = res.body;
+      var html = "<div class='sim-preview-head'><h3>" + (d.symbol || "") + "</h3>" + badge(d.status || "—") + "</div>";
+      html += "<p>" + (d.reason || d.phase || "") + "</p>";
+      if (d.opening_range) {
+        html += "<p class='mono'>OR: " + d.opening_range.low + " – " + d.opening_range.high + "</p>";
+      }
+      if (d.trigger) {
+        html += "<p class='mono pnl-up'>Triggered @ " + d.trigger.price + " (" + (d.trigger.time || "") + ")</p>";
+      }
+      if (d.last) {
+        html += "<p class='sim-muted'>Last bar close: " + (d.last.close != null ? d.last.close : JSON.stringify(d.last)) + "</p>";
+      }
+      out.innerHTML = html;
+      out.style.display = "block";
+    }).catch(function (e) {
+      if (window.KronosLoading) window.KronosLoading.hide();
+      enRun.disabled = false;
+      showErr(err, String(e.message || e));
+    });
+  });
+
+  // ---- Exit ----
+  var exRun = document.getElementById("exRun");
+  if (exRun) exRun.addEventListener("click", function () {
+    var err = document.getElementById("exErr");
+    var out = document.getElementById("exOut");
+    showErr(err, "");
+    out.style.display = "none";
+    exRun.disabled = true;
+    if (window.KronosLoading) window.KronosLoading.show("Planning exit…");
+    var stopParam = document.getElementById("ex_stop_param").value;
+    postJSON("{{ url_for('daytrade_exit') }}", {
+      ticker: document.getElementById("ex_ticker").value,
+      entry: parseFloat(document.getElementById("ex_entry").value),
+      stop_rule: document.getElementById("ex_stop_rule").value,
+      stop_param: stopParam === "" ? null : parseFloat(stopParam),
+      target_param: parseFloat(document.getElementById("ex_target_r").value),
+      equity: parseFloat(document.getElementById("ex_equity").value),
+      risk_pct: parseFloat(document.getElementById("ex_risk").value)
+    }).then(function (res) {
+      if (window.KronosLoading) window.KronosLoading.hide();
+      exRun.disabled = false;
+      if (!res.ok) throw new Error(res.body.error || "Failed");
+      var d = res.body;
+      var xp = d.plan || d;
+      var sz = d.size || {};
+      var html = "<div class='sim-preview-grid'>";
+      html += "<div><div class='sim-kpi-label'>Entry</div><div class='mono'>" + (xp.entry != null ? xp.entry : "—") + "</div></div>";
+      html += "<div><div class='sim-kpi-label'>Stop</div><div class='mono pnl-down'>" + (xp.stop != null ? xp.stop : "—") + "</div><div class='sim-muted'>" + (xp.stop_label || "") + "</div></div>";
+      html += "<div><div class='sim-kpi-label'>Target</div><div class='mono pnl-up'>" + (xp.target != null ? xp.target : "—") + "</div><div class='sim-muted'>" + (xp.target_label || "") + "</div></div>";
+      html += "<div><div class='sim-kpi-label'>R / size</div><div class='mono'>" + (xp.reward_risk != null ? xp.reward_risk : "—") + "R</div><div class='sim-muted'>" + (sz.shares != null ? sz.shares + " sh · $" + sz.cost : "") + "</div></div>";
+      html += "</div>";
+      out.innerHTML = html;
+      out.style.display = "block";
+    }).catch(function (e) {
+      if (window.KronosLoading) window.KronosLoading.hide();
+      exRun.disabled = false;
+      showErr(err, String(e.message || e));
+    });
+  });
+})();
+</script>
+{% endblock %}

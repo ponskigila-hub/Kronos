@@ -1237,6 +1237,148 @@ def watchlist_entry_zone():
     return jsonify({"ticker": ticker, "entry_zone": zone})
 
 
+# ---------------------------------------------------------------------------
+# Invest / long-term position plan (entry zone + sell targets)
+# ---------------------------------------------------------------------------
+@app.route("/invest")
+def invest_page():
+    return render_template("invest.html", active="invest")
+
+
+@app.route("/invest/plan", methods=["POST"])
+def invest_plan():
+    from assistant import position_plan as pp
+    payload = request.get_json(silent=True) or {}
+    ticker = (payload.get("ticker") or "").strip().upper()
+    if not ticker:
+        return jsonify({"error": "Enter a ticker."}), 400
+    try:
+        pred_len = int(payload.get("pred_len") or 42)
+    except (TypeError, ValueError):
+        pred_len = 42
+    try:
+        equity = float(payload.get("equity") or 100000)
+        risk_pct = float(payload.get("risk_pct") or 1.0)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Equity and risk must be numbers."}), 400
+    try:
+        plan = pp.build_position_plan(
+            ticker, pred_len=pred_len, equity=equity, risk_pct=risk_pct,
+        )
+        return jsonify(plan)
+    except pp.PositionPlanError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": f"Plan failed: {e}"}), 500
+
+
+# ---------------------------------------------------------------------------
+# Day Trade desk (vendored pure-Python toolkit — no Claude, no broker)
+# ---------------------------------------------------------------------------
+@app.route("/daytrade")
+def daytrade_page():
+    return render_template("daytrade.html", active="daytrade")
+
+
+@app.route("/daytrade/ticket", methods=["POST"])
+def daytrade_ticket():
+    from assistant.daytrade import service as dt
+    payload = request.get_json(silent=True) or {}
+    ticker = (payload.get("ticker") or "").strip().upper()
+    if not ticker:
+        return jsonify({"error": "Enter a ticker."}), 400
+    try:
+        equity = float(payload.get("equity") or 100000)
+        risk_pct = float(payload.get("risk_pct") or 0.5)
+        result = dt.pipeline_ticket(ticker, equity=equity, risk_pct=risk_pct)
+        return jsonify(result)
+    except dt.DayTradeError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": f"Ticket failed: {e}"}), 500
+
+
+@app.route("/daytrade/scan", methods=["POST"])
+def daytrade_scan():
+    from assistant.daytrade import service as dt
+    payload = request.get_json(silent=True) or {}
+    mode = (payload.get("mode") or "daily").lower()
+    symbols = payload.get("symbols")
+    if symbols and isinstance(symbols, str):
+        symbols = [s for s in symbols.replace(",", " ").split() if s]
+    try:
+        if mode == "orb":
+            result = dt.scan_orb_quick(symbols=symbols)
+        else:
+            result = dt.scan_daily_setups(symbols=symbols)
+        return jsonify(result)
+    except dt.DayTradeError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": f"Scan failed: {e}"}), 500
+
+
+@app.route("/daytrade/entry", methods=["POST"])
+def daytrade_entry():
+    from assistant.daytrade import service as dt
+    payload = request.get_json(silent=True) or {}
+    ticker = (payload.get("ticker") or "").strip().upper()
+    if not ticker:
+        return jsonify({"error": "Enter a ticker."}), 400
+    try:
+        result = dt.check_entry(
+            ticker,
+            setup=payload.get("setup") or "orb",
+            interval=payload.get("interval") or "5m",
+            or_minutes=int(payload.get("or_minutes") or 15),
+            level=payload.get("level"),
+            min_volume_x=payload.get("min_volume_x"),
+        )
+        return jsonify(result)
+    except dt.DayTradeError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": f"Entry check failed: {e}"}), 500
+
+
+@app.route("/daytrade/exit", methods=["POST"])
+def daytrade_exit():
+    from assistant.daytrade import service as dt
+    payload = request.get_json(silent=True) or {}
+    ticker = (payload.get("ticker") or "").strip().upper() or "TICK"
+    try:
+        entry = float(payload.get("entry"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Entry price required."}), 400
+    stop_rule = payload.get("stop_rule") or "or_low"
+    stop_param = payload.get("stop_param")
+    try:
+        plan = dt.plan_exit(
+            ticker,
+            entry,
+            stop_rule=stop_rule,
+            stop_param=float(stop_param) if stop_param is not None else None,
+            target_rule="r",
+            target_param=float(payload.get("target_param") or 2.0),
+        )
+        size = None
+        try:
+            stop = float(plan.get("stop"))
+            size = dt.suggest_size(
+                float(payload.get("equity") or 100000),
+                float(payload.get("risk_pct") or 0.5),
+                entry,
+                stop,
+            )
+        except Exception:
+            size = None
+        return jsonify({"plan": plan, "size": size})
+    except dt.DayTradeError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": f"Exit plan failed: {e}"}), 500
+
+
 if __name__ == "__main__":
     port = int(os.getenv("WEBAPP_PORT", "5050"))
     debug = os.getenv("WEBAPP_DEBUG", "true").lower() in ("1", "true", "yes")
