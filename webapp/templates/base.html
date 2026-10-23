@@ -35,6 +35,8 @@
       <a href="{{ url_for('screener') }}" class="{{ 'active' if active == 'screener' }}">Screener</a>
       <a href="{{ url_for('backtest') }}" class="{{ 'active' if active == 'backtest' }}">Backtest</a>
       <a href="{{ url_for('simulation_page') }}" class="{{ 'active' if active == 'simulation' }}">Demo trade</a>
+      <a href="{{ url_for('invest_page') }}" class="{{ 'active' if active == 'invest' }}">Invest</a>
+      <a href="{{ url_for('daytrade_page') }}" class="{{ 'active' if active == 'daytrade' }}">Day Trade</a>
       <a href="{{ url_for('valuation') }}" class="{{ 'active' if active == 'valuation' }}">Valuation</a>
       <a href="{{ url_for('watchlist') }}" class="{{ 'active' if active == 'watchlist' }}">Watchlist</a>
     </nav>

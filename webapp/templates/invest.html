@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+{% block title %}Kronos — Invest (long-term){% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <p class="eyebrow">Swing &amp; long-term · entry zone + sell targets</p>
+  <h1 class="page-title">Position plan</h1>
+  <p class="page-desc">
+    Not day-trading. For a multi-week / multi-month hold we suggest a
+    <strong>buy zone</strong>, a protective <strong>stop</strong>, and staged
+    <strong>sell targets</strong> from structure + Kronos + analyst consensus.
+    Nothing places an order.
+  </p>
+</div>
+
+<div class="card">
+  <div class="field-row">
+    <div class="field">
+      <label for="inv_ticker">Ticker</label>
+      <input type="text" id="inv_ticker" placeholder="AAPL, BBCA.JK…" value="AAPL">
+    </div>
+    <div class="field">
+      <label for="inv_horizon">Horizon (trading days)</label>
+      <select id="inv_horizon">
+        <option value="21">~1 month (21)</option>
+        <option value="42" selected>~2 months (42)</option>
+        <option value="63">~3 months (63)</option>
+        <option value="90">~4 months (90)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="inv_equity">Account equity ($)</label>
+      <input type="number" id="inv_equity" value="100000" step="1000">
+    </div>
+    <div class="field">
+      <label for="inv_risk">Risk to stop (%)</label>
+      <input type="number" id="inv_risk" value="1" min="0.25" max="5" step="0.25">
+    </div>
+  </div>
+  <button class="btn" type="button" id="invRun">Build position plan</button>
+  <div id="invErr" class="flash flash-error" style="display:none;margin-top:12px;"></div>
+</div>
+
+<div id="invOut" style="display:none;">
+
+  <div class="sim-hero card" style="margin-top:16px;">
+    <div class="sim-hero-main">
+      <div class="sim-hero-label">Last price</div>
+      <div class="sim-hero-value" id="outPrice">—</div>
+      <div class="sim-hero-sub">
+        <span id="outStanceBadge" class="ctx-badge badge-neutral">—</span>
+        <span class="sim-dot">·</span>
+        <span id="outStanceNote" class="sim-muted"></span>
+      </div>
+    </div>
+    <div class="sim-hero-kpis">
+      <div class="sim-kpi">
+        <div class="sim-kpi-label">Kronos</div>
+        <div class="sim-kpi-val" id="outKronos">—</div>
+      </div>
+      <div class="sim-kpi">
+        <div class="sim-kpi-label">Analyst mean</div>
+        <div class="sim-kpi-val" id="outAnalyst">—</div>
+      </div>
+      <div class="sim-kpi">
+        <div class="sim-kpi-label">Horizon</div>
+        <div class="sim-kpi-val" id="outHorizon">—</div>
+      </div>
+      <div class="sim-kpi">
+        <div class="sim-kpi-label">Suggested size</div>
+        <div class="sim-kpi-val" id="outSize">—</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <p class="card-title" style="margin-top:0;">Entry zone (buy area)</p>
+    <div class="sim-preview-grid">
+      <div>
+        <div class="sim-kpi-label">Zone low</div>
+        <div class="mono" id="outEntryLow">—</div>
+      </div>
+      <div>
+        <div class="sim-kpi-label">Ideal limit</div>
+        <div class="mono pnl-up" id="outEntryIdeal">—</div>
+      </div>
+      <div>
+        <div class="sim-kpi-label">Zone high</div>
+        <div class="mono" id="outEntryHigh">—</div>
+      </div>
+      <div>
+        <div class="sim-kpi-label">Stop (invalidation)</div>
+        <div class="mono pnl-down" id="outStop">—</div>
+      </div>
+    </div>
+    <p class="sim-muted" id="outEntryBasis"></p>
+  </div>
+
+  <div class="card">
+    <p class="card-title" style="margin-top:0;">Sell targets (scale out)</p>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Target</th>
+            <th>Price</th>
+            <th>From ideal</th>
+            <th>Basis</th>
+          </tr>
+        </thead>
+        <tbody id="outTargets"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <p class="card-title" style="margin-top:0;">What to do</p>
+    <ul id="outActions" class="sim-warnings" style="list-style:disc;"></ul>
+    <p class="sim-muted" id="outDisclaimer" style="margin-top:12px;"></p>
+  </div>
+
+  <div class="card">
+    <p class="card-title" style="margin-top:0;">Fundamental checklist</p>
+    <p class="page-desc" style="margin:0 0 10px;" id="outCheckSummary"></p>
+    <div class="sim-hero-kpis" style="margin-bottom:12px;">
+      <div class="sim-kpi">
+        <div class="sim-kpi-label">Score</div>
+        <div class="sim-kpi-val" id="outCheckScore">—</div>
+      </div>
+      <div class="sim-kpi">
+        <div class="sim-kpi-label">Sector</div>
+        <div class="sim-kpi-val" id="outCheckSector" style="font-size:14px;">—</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr><th>Check</th><th>Status</th><th>Detail</th></tr>
+        </thead>
+        <tbody id="outCheckItems"></tbody>
+      </table>
+    </div>
+    <p class="sim-muted" style="margin-top:8px;">Heuristics only — sector norms differ. Not a buy/sell grade.</p>
+  </div>
+
+  <div class="card">
+    <p class="card-title" style="margin-top:0;">Key levels</p>
+    <div class="sim-preview-grid" id="outLevels"></div>
+  </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var STORAGE_KEY = "kronos_invest_plan_v1";
+  var run = document.getElementById("invRun");
+  var err = document.getElementById("invErr");
+  var out = document.getElementById("invOut");
+
+  function showErr(msg) {
+    err.style.display = msg ? "block" : "none";
+    err.textContent = msg || "";
+  }
+
+  function stanceClass(s) {
+    if (s === "constructive" || s === "neutral-positive") return "badge-bull";
+    if (s === "defensive") return "badge-bear";
+    return "badge-neutral";
+  }
+
+  function statusBadge(st) {
+    var c = "badge-neutral";
+    var label = st || "na";
+    if (st === "pass") c = "badge-bull";
+    else if (st === "fail") c = "badge-bear";
+    else if (st === "caution") c = "badge-risk-mid";
+    return '<span class="ctx-badge ' + c + '">' + label + "</span>";
+  }
+
+  function renderPlan(d) {
+    if (!d) return;
+    document.getElementById("outPrice").textContent = d.as_of_price != null ? d.as_of_price : "—";
+    var badge = document.getElementById("outStanceBadge");
+    badge.textContent = d.stance || "—";
+    badge.className = "ctx-badge " + stanceClass(d.stance);
+    document.getElementById("outStanceNote").textContent = d.stance_note || "";
+    var k = d.kronos || {};
+    document.getElementById("outKronos").textContent =
+      (k.horizon_close != null ? k.horizon_close : "—") +
+      (k.pct != null ? " (" + (k.pct >= 0 ? "+" : "") + k.pct + "%)" : "");
+    var a = d.analyst || {};
+    document.getElementById("outAnalyst").textContent = a.mean != null ? a.mean : "—";
+    document.getElementById("outHorizon").textContent = (d.horizon_days || "—") + "d";
+    var sz = d.size || {};
+    document.getElementById("outSize").textContent =
+      sz.shares != null ? (sz.shares + " sh") : "—";
+
+    var en = d.entry || {};
+    document.getElementById("outEntryLow").textContent = en.zone_low != null ? en.zone_low : "—";
+    document.getElementById("outEntryIdeal").textContent = en.ideal != null ? en.ideal : "—";
+    document.getElementById("outEntryHigh").textContent = en.zone_high != null ? en.zone_high : "—";
+    document.getElementById("outStop").textContent = (d.stop && d.stop.price != null) ? d.stop.price : "—";
+    document.getElementById("outEntryBasis").textContent =
+      (en.basis || "") + (d.stop && d.stop.basis ? " · Stop: " + d.stop.basis : "");
+
+    var tb = document.getElementById("outTargets");
+    tb.innerHTML = "";
+    (d.targets || []).forEach(function (t) {
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td><strong>" + t.id + "</strong> " + (t.label || "") + "</td>" +
+        "<td class='mono pnl-up'>" + (t.price != null ? t.price : "—") + "</td>" +
+        "<td class='mono'>" + (t.pct_from_ideal != null ? ("+" + t.pct_from_ideal + "%") : "—") + "</td>" +
+        "<td class='sim-muted'>" + (t.basis || "") + "</td>";
+      tb.appendChild(tr);
+    });
+
+    var ul = document.getElementById("outActions");
+    ul.innerHTML = "";
+    (d.actions || []).forEach(function (line) {
+      var li = document.createElement("li");
+      li.textContent = line;
+      ul.appendChild(li);
+    });
+    document.getElementById("outDisclaimer").textContent = d.disclaimer || "";
+
+    // Checklist
+    var ck = d.checklist || {};
+    document.getElementById("outCheckSummary").textContent = ck.summary || "";
+    document.getElementById("outCheckScore").textContent =
+      ck.score != null ? (ck.score + "/100") : "—";
+    document.getElementById("outCheckSector").textContent =
+      ck.sector || ck.industry || "—";
+    var cbody = document.getElementById("outCheckItems");
+    cbody.innerHTML = "";
+    (ck.items || []).forEach(function (it) {
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + (it.label || it.id) + "</td>" +
+        "<td>" + statusBadge(it.status) + "</td>" +
+        "<td class='sim-muted'>" + (it.detail || "") + "</td>";
+      cbody.appendChild(tr);
+    });
+
+    var lv = d.levels || {};
+    var grid = document.getElementById("outLevels");
+    var keys = [
+      ["sma20", "SMA 20"], ["sma50", "SMA 50"], ["sma200", "SMA 200"],
+      ["atr", "ATR"], ["rsi", "RSI"], ["swing_low_20", "20d low"],
+      ["swing_high_20", "20d high"], ["bb_low", "BB low"], ["bb_up", "BB up"]
+    ];
+    grid.innerHTML = keys.map(function (pair) {
+      return "<div><div class='sim-kpi-label'>" + pair[1] + "</div><div class='mono'>" +
+        (lv[pair[0]] != null ? lv[pair[0]] : "—") + "</div></div>";
+    }).join("");
+
+    // Restore form fields if present
+    if (d.ticker) document.getElementById("inv_ticker").value = d.ticker;
+    if (d.horizon_days) {
+      var sel = document.getElementById("inv_horizon");
+      var opt = Array.prototype.find.call(sel.options, function (o) { return o.value == String(d.horizon_days); });
+      if (opt) sel.value = String(d.horizon_days);
+    }
+
+    out.style.display = "block";
+  }
+
+  function savePlan(d) {
+    try {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ savedAt: Date.now(), plan: d }));
+    } catch (e) {}
+  }
+
+  function loadSaved() {
+    try {
+      var raw = sessionStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      var obj = JSON.parse(raw);
+      return obj && obj.plan ? obj.plan : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Restore last plan when returning to this tab/page
+  var saved = loadSaved();
+  if (saved) {
+    renderPlan(saved);
+  }
+
+  run.addEventListener("click", function () {
+    showErr("");
+    run.disabled = true;
+    if (window.KronosLoading) window.KronosLoading.show("Building long-term position plan…");
+
+    fetch("{{ url_for('invest_plan') }}", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ticker: document.getElementById("inv_ticker").value,
+        pred_len: parseInt(document.getElementById("inv_horizon").value, 10),
+        equity: parseFloat(document.getElementById("inv_equity").value),
+        risk_pct: parseFloat(document.getElementById("inv_risk").value)
+      })
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+      .then(function (res) {
+        if (window.KronosLoading) window.KronosLoading.hide();
+        run.disabled = false;
+        if (!res.ok) throw new Error(res.body.error || "Plan failed");
+        savePlan(res.body);
+        renderPlan(res.body);
+        out.scrollIntoView({ behavior: "smooth", block: "start" });
+      })
+      .catch(function (e) {
+        if (window.KronosLoading) window.KronosLoading.hide();
+        run.disabled = false;
+        showErr(String(e.message || e));
+      });
+  });
+})();
+</script>
+{% endblock %}

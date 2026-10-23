@@ -20,6 +20,7 @@ The core forecasting engine is the open-source Kronos model. This project wraps 
 | **Stock screener** | Universe (S&P 500 / NASDAQ-100 / Dow / custom) → metrics → filters → score → optional Kronos re-rank |
 | **Watchlist** | Per-user favorites + correlation matrix |
 | **Backtesting** | Walk-forward validation, baselines (naive, drift, MA, linear, ARIMA), metrics, regime analysis |
+| **Day Trade desk** | Scanner, entry timer, exit planner, risk sizing (pure Python, no Claude, no broker) |
 | **Paper trading** | Demo “buy at today’s price and track” against future real prices |
 | **Relative valuation** | Peer multiples (P/E, EV/EBITDA, etc.) with scenario ranges |
 | **Charts** | Interactive Plotly (history + forecast overlay, indicators, correlation) |
