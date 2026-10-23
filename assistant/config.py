@@ -81,6 +81,7 @@ FORECAST_CACHE_MAX_ENTRIES = int(os.getenv("FORECAST_CACHE_MAX_ENTRIES", "256"))
 # Data storage
 # ---------------------------------------------------------------------------
 DATA_DIR = os.path.join(BASE_DIR, "assistant_data")
+DATABASE_PATH = os.getenv("KRONOS_DATABASE_PATH", os.path.join(DATA_DIR, "kronos.db"))
 WATCHLIST_PATH = os.path.join(DATA_DIR, "watchlists.json")
 SCREENER_HISTORY_PATH = os.path.join(DATA_DIR, "screener_history.json")
 # How many past screen runs to keep per user. Each entry only stores the
