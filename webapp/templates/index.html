@@ -1,123 +1,151 @@
 {% extends "base.html" %}
-{% block title %}Kronos — Dashboard{% endblock %}
+{% block title %}Kronos — AI research desk{% endblock %}
+{% block body_class %}page-home{% endblock %}
+{% block main_class %}main-home{% endblock %}
 {% block content %}
 
-<section class="hero">
-  <div>
-    <div class="hero-kicker"><span class="pulse-dot"></span>Local market intelligence <span class="hero-kicker-rule"></span> Ready when you are</div>
-    <h1>Time-series forecasting<br>for markets, <em>made conversational.</em></h1>
-    <p>Kronos reads price history the way a language model reads text. New here? Start with a short chat — ask “Forecast AAPL for 7 days” and get a plain-language outlook. No finance degree required.</p>
-    <div class="hero-ctas">
-      <a class="btn" href="{{ url_for('chat') }}">Start chatting</a>
-      <a class="btn btn-ghost" href="{{ url_for('forecast') }}">Quick forecast</a>
-    </div>
+<section class="hero hero-cinematic hero-photo">
+  {# Pure photos only — no text baked into the art #}
+  <div class="hero-bg" aria-hidden="true">
+    <img src="{{ url_for('static', filename='img/hero-light.png') }}" alt="" class="hero-bg-img hero-bg-light">
+    <img src="{{ url_for('static', filename='img/hero-dark.png') }}" alt="" class="hero-bg-img hero-bg-dark">
+    <div class="hero-bg-shade"></div>
   </div>
-  <div class="hero-art-wrap">
-    <span class="hero-art-label">K / 01</span>
-    {% include "_clockface.html" %}
-    <div class="hero-clock-readout" aria-live="polite">
-      <span></span>
-      <span class="hero-clock-time" id="localTime">--:--:--</span>
-      <span class="hero-clock-zone" id="localZone">Your local time</span>
+
+  <div class="hero-copy">
+    <p class="hero-eyebrow">Kronos Intelligence · research, not orders</p>
+    <h1 class="hero-title">
+      See the<br>path.<br>
+      <span class="hero-accent">Plan the<br>position.</span>
+    </h1>
+    <p class="hero-lead">
+      Foundation-model forecasts, news context, entry zones, and sell targets —
+      in one calm desk. No broker. No Claude dependency. Your decision.
+    </p>
+    <div class="hero-cta">
+      <a class="btn btn-lg btn-hero-primary" href="{{ url_for('invest_page') }}">Build invest plan <span aria-hidden="true">→</span></a>
+      <a class="btn btn-ghost btn-lg btn-hero-secondary" href="{{ url_for('forecast') }}">Run a forecast <span aria-hidden="true">→</span></a>
     </div>
-    <span class="hero-art-caption">Your time<br>moves the hands</span>
+    <div class="hero-markets">
+      <div class="hero-mkt">
+        <span class="mkt-dot" id="heroUsDot"></span>
+        <div>
+          <div class="hero-mkt-name">US session</div>
+          <div class="hero-mkt-meta"><span id="heroUsStatus">—</span> · <span id="heroUsTime"></span> ET</div>
+        </div>
+      </div>
+      <div class="hero-mkt">
+        <span class="mkt-dot" id="heroIdDot"></span>
+        <div>
+          <div class="hero-mkt-name">IDX session</div>
+          <div class="hero-mkt-meta"><span id="heroIdStatus">—</span> · <span id="heroIdTime"></span> WIB</div>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
 
-<a class="scroll-cue" href="#ways-in"><span>Explore the desk</span><span class="scroll-cue-line"></span></a>
-
-<div class="section" id="ways-in" style="padding-top:28px;">
-  <div class="section-head"><div><p class="eyebrow">Inside the workspace</p><h2>One desk. Five ways to think.</h2></div></div>
-  <div class="feature-grid">
-    <a class="feature-card" href="{{ url_for('screener') }}" style="--i:0;">
-      <span class="feature-num">01</span>
-      <span class="feature-icon" aria-hidden="true">
-        <svg viewBox="0 0 40 40" fill="none">
-          <circle cx="18" cy="18" r="11" stroke="currentColor" stroke-width="2"/>
-          <circle cx="18" cy="18" r="5.5" stroke="currentColor" stroke-width="1.6" opacity="0.55"/>
-          <line x1="26" y1="26" x2="34.5" y2="34.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
-        </svg>
-      </span>
-      <div class="feature-copy"><h3>Screen the market</h3><p>Start broad. Rank a universe of stocks on trend, momentum, volatility, liquidity, and risk, then isolate the setups that deserve your attention.</p><span class="feature-detail">Find the signal before the noise.</span></div>
-      <span class="feature-arrow">Screen the market &rarr;</span>
+<section class="home-section">
+  <div class="home-section-head">
+    <h2>Workflow</h2>
+    <p>From idea to paper size — without a crowded toolbar.</p>
+  </div>
+  <div class="workflow-grid">
+    <a class="workflow-card" href="{{ url_for('screener') }}">
+      <span class="workflow-step">01</span>
+      <h3>Research</h3>
+      <p>Screen setups, read news, check valuation vs peers.</p>
     </a>
-    <a class="feature-card" href="{{ url_for('chat') }}" style="--i:1;">
-      <span class="feature-num">02</span>
-      <span class="feature-icon" aria-hidden="true">
-        <svg viewBox="0 0 40 40" fill="none">
-          <path d="M7 10.5a3 3 0 0 1 3-3h20a3 3 0 0 1 3 3v13a3 3 0 0 1-3 3H17l-6.5 6v-6H10a3 3 0 0 1-3-3v-13Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-          <path class="feature-icon-wave" d="M12 17.5l3-4 3 7 3-9 3 6 3-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </span>
-      <div class="feature-copy"><h3>Ask Kronos directly</h3><p>Use the language you already think in. Ask for a forecast, a comparison, or the reason behind a move and get a grounded explanation back.</p><span class="feature-detail">Plain language in. Market context out.</span></div>
-      <span class="feature-arrow">Start chatting &rarr;</span>
+    <a class="workflow-card" href="{{ url_for('invest_page') }}">
+      <span class="workflow-step">02</span>
+      <h3>Plan</h3>
+      <p>Entry zone, stop, T1–T3 targets, fundamental checklist.</p>
     </a>
-    <a class="feature-card" href="{{ url_for('forecast') }}" style="--i:2;">
-      <span class="feature-num">03</span>
-      <span class="feature-icon" aria-hidden="true">
-        <svg viewBox="0 0 40 40" fill="none">
-          <path d="M6 30V13M14 30V19M22 30v-9M30 30V9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" class="feature-icon-bars"/>
-          <path d="M4 24l7-8 6 5 9-13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
-        </svg>
-      </span>
-      <div class="feature-copy"><h3>Ticker or your own CSV</h3><p>Move from a ticker to a forecast in moments, or bring your own OHLCV history when you need full control over the data.</p><span class="feature-detail">Your data, your horizon, your call.</span></div>
-      <span class="feature-arrow">Run a forecast &rarr;</span>
+    <a class="workflow-card" href="{{ url_for('simulation_page') }}">
+      <span class="workflow-step">03</span>
+      <h3>Paper</h3>
+      <p>Demo portfolio with real prices — grade the forecast later.</p>
     </a>
-    <a class="feature-card" href="{{ url_for('backtest') }}" style="--i:3;">
-      <span class="feature-num">04</span>
-      <span class="feature-icon" aria-hidden="true">
-        <svg viewBox="0 0 40 40" fill="none">
-          <circle cx="19" cy="21" r="12" stroke="currentColor" stroke-width="2"/>
-          <path d="M19 14v7l5 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feature-icon-hand"/>
-          <path d="M13 5.5h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-      </span>
-      <div class="feature-copy"><h3>Verify with a backtest</h3><p>Confidence comes from checking the work. Compare Kronos against naive and statistical baselines across historical windows before trusting a pattern.</p><span class="feature-detail">Test the idea before the trade.</span></div>
-      <span class="feature-arrow">Run a backtest &rarr;</span>
-    </a>
-    <a class="feature-card" href="{{ url_for('news') }}" style="--i:4;">
-      <span class="feature-num">05</span>
-      <span class="feature-icon" aria-hidden="true">
-        <svg viewBox="0 0 40 40" fill="none">
-          <rect x="6" y="9" width="28" height="22" rx="2.5" stroke="currentColor" stroke-width="2"/>
-          <line x1="11" y1="16" x2="29" y2="16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" class="feature-icon-line" style="--d:0"/>
-          <line x1="11" y1="21" x2="25" y2="21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" class="feature-icon-line" style="--d:1"/>
-          <line x1="11" y1="26" x2="21" y2="26" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" class="feature-icon-line" style="--d:2"/>
-        </svg>
-      </span>
-      <div class="feature-copy"><h3>Track the headlines</h3><p>Pair price action with the story around it. Look up a ticker, scan the latest headlines, and see sentiment grouped as positive, negative, or neutral.</p><span class="feature-detail">Keep the story in the frame.</span></div>
-      <span class="feature-arrow">See the news &rarr;</span>
+    <a class="workflow-card" href="{{ url_for('backtest') }}">
+      <span class="workflow-step">04</span>
+      <h3>Validate</h3>
+      <p>Walk-forward history before you trust a pattern.</p>
     </a>
   </div>
-</div>
+</section>
 
-<div class="section">
-  <div class="section-head">
-    <h2>Your watchlist</h2>
-    {% if watchlist %}<a class="section-link" href="{{ url_for('watchlist') }}">Manage watchlist &rarr;</a>{% endif %}
+<section class="home-section">
+  <div class="home-section-head">
+    <h2>Toolkit</h2>
+    <p>Grouped the way you work — open a group in the nav for the rest.</p>
   </div>
+  <div class="toolkit-grid">
+    <a class="toolkit-card" href="{{ url_for('forecast') }}">
+      <div class="toolkit-icon" aria-hidden="true">◈</div>
+      <h3>Forecast</h3>
+      <p>Kronos multi-step path with news &amp; analyst context.</p>
+    </a>
+    <a class="toolkit-card" href="{{ url_for('invest_page') }}">
+      <div class="toolkit-icon" aria-hidden="true">◎</div>
+      <h3>Invest plan</h3>
+      <p>Long-term entry zone and staged sell targets.</p>
+    </a>
+    <a class="toolkit-card" href="{{ url_for('daytrade_page') }}">
+      <div class="toolkit-icon" aria-hidden="true">⌁</div>
+      <h3>Day trade desk</h3>
+      <p>ORB scanner, entry timer, exit &amp; risk size.</p>
+    </a>
+    <a class="toolkit-card" href="{{ url_for('chat') }}">
+      <div class="toolkit-icon" aria-hidden="true">◐</div>
+      <h3>Chat</h3>
+      <p>Ask in plain language — beginner mode by default.</p>
+    </a>
+    <a class="toolkit-card" href="{{ url_for('watchlist') }}">
+      <div class="toolkit-icon" aria-hidden="true">✦</div>
+      <h3>Watchlist</h3>
+      <p>Track names, notes, and entry zones.</p>
+    </a>
+    <a class="toolkit-card" href="{{ url_for('valuation') }}">
+      <div class="toolkit-icon" aria-hidden="true">☰</div>
+      <h3>Valuation</h3>
+      <p>Relative multiples vs a peer set.</p>
+    </a>
+  </div>
+</section>
 
-  {% if watchlist %}
-    <div class="kpi-row" style="margin-bottom:26px;">
-      <div>
-        <div class="kpi-value"><span class="kpi-accent">{{ watchlist|length }}</span></div>
-        <div class="kpi-label">{{ 'ticker' if watchlist|length == 1 else 'tickers' }} tracked</div>
-      </div>
-    </div>
-    <table class="data-table">
-      <thead><tr><th>Ticker</th><th></th></tr></thead>
-      <tbody>
-        {% for t in watchlist %}
-        <tr><td>{{ t }}</td><td><a href="{{ url_for('chat') }}?prefill=forecast+{{ t }}">forecast &rarr;</a></td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  {% else %}
-    <p class="empty-state">Nothing saved yet. Add tickers from the <a href="{{ url_for('watchlist') }}">watchlist</a> page or say "add AAPL to my watchlist" in chat.</p>
-  {% endif %}
-</div>
+<section class="home-section home-disclaimer">
+  <p>
+    Kronos is a <strong>research aid</strong>. It does not place orders, guarantee returns,
+    or replace your own judgment. Markets can remain irrational longer than any model path.
+  </p>
+</section>
 
 {% endblock %}
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+<script>
+(function () {
+  function syncHero() {
+    var usS = document.getElementById("usStatus");
+    var idS = document.getElementById("idStatus");
+    var usT = document.getElementById("usTime");
+    var idT = document.getElementById("idTime");
+    var usD = document.getElementById("usDot");
+    var idD = document.getElementById("idDot");
+    if (document.getElementById("heroUsStatus") && usS) {
+      document.getElementById("heroUsStatus").textContent = usS.textContent;
+      document.getElementById("heroUsTime").textContent = usT ? usT.textContent : "";
+      if (usD && document.getElementById("heroUsDot"))
+        document.getElementById("heroUsDot").className = usD.className;
+    }
+    if (document.getElementById("heroIdStatus") && idS) {
+      document.getElementById("heroIdStatus").textContent = idS.textContent;
+      document.getElementById("heroIdTime").textContent = idT ? idT.textContent : "";
+      if (idD && document.getElementById("heroIdDot"))
+        document.getElementById("heroIdDot").className = idD.className;
+    }
+  }
+  syncHero();
+  setInterval(syncHero, 5000);
+})();
+</script>
 {% endblock %}

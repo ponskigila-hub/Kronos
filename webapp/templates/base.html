@@ -6,9 +6,6 @@
   <meta name="theme-color" content="#9c6d1e">
   <title>{% block title %}Kronos{% endblock %}</title>
   <script>
-    // Apply the saved/preferred theme before first paint to avoid a flash
-    // of the wrong color scheme. Kept tiny and inline (not an external
-    // file) so it runs synchronously before CSS/body render.
     (function () {
       try {
         var t = localStorage.getItem('kronos-theme');
@@ -19,29 +16,97 @@
   </script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
   <header class="topbar">
     <a href="{{ url_for('index') }}" class="brand">
       {% include "_brandmark.html" %}
       <span class="brand-word">Kronos</span>
     </a>
 
-    <nav class="nav" id="nav">
-      <span class="nav-indicator" id="navIndicator" aria-hidden="true"></span>
-      <a href="{{ url_for('index') }}" class="{{ 'active' if active == 'home' }}">Dashboard</a>
-      <a href="{{ url_for('chat') }}" class="{{ 'active' if active == 'chat' }}">Chat</a>
-      <a href="{{ url_for('forecast') }}" class="{{ 'active' if active == 'forecast' }}">Forecast</a>
-      <a href="{{ url_for('news') }}" class="{{ 'active' if active == 'news' }}">News</a>
-      <a href="{{ url_for('screener') }}" class="{{ 'active' if active == 'screener' }}">Screener</a>
-      <a href="{{ url_for('backtest') }}" class="{{ 'active' if active == 'backtest' }}">Backtest</a>
-      <a href="{{ url_for('simulation_page') }}" class="{{ 'active' if active == 'simulation' }}">Demo trade</a>
-      <a href="{{ url_for('invest_page') }}" class="{{ 'active' if active == 'invest' }}">Invest</a>
-      <a href="{{ url_for('daytrade_page') }}" class="{{ 'active' if active == 'daytrade' }}">Day Trade</a>
-      <a href="{{ url_for('valuation') }}" class="{{ 'active' if active == 'valuation' }}">Valuation</a>
-      <a href="{{ url_for('watchlist') }}" class="{{ 'active' if active == 'watchlist' }}">Watchlist</a>
+    <nav class="nav" id="nav" aria-label="Primary">
+      <a href="{{ url_for('index') }}" class="nav-link {{ 'active' if active == 'home' }}">Home</a>
+
+      <div class="nav-group {{ 'active' if active in ['forecast','news','screener','valuation'] }}">
+        <button type="button" class="nav-group-btn" aria-expanded="false" aria-haspopup="true">
+          Research
+          <svg class="nav-chevron" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5L6 7.5L9 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </button>
+        <div class="nav-dropdown" role="menu">
+          <a href="{{ url_for('forecast') }}" class="{{ 'active' if active == 'forecast' }}" role="menuitem">
+            <span class="nav-dd-title">Forecast</span>
+            <span class="nav-dd-desc">Kronos path + context</span>
+          </a>
+          <a href="{{ url_for('screener') }}" class="{{ 'active' if active == 'screener' }}" role="menuitem">
+            <span class="nav-dd-title">Screener</span>
+            <span class="nav-dd-desc">Find candidates by rules</span>
+          </a>
+          <a href="{{ url_for('news') }}" class="{{ 'active' if active == 'news' }}" role="menuitem">
+            <span class="nav-dd-title">News</span>
+            <span class="nav-dd-desc">Headlines &amp; sentiment</span>
+          </a>
+          <a href="{{ url_for('valuation') }}" class="{{ 'active' if active == 'valuation' }}" role="menuitem">
+            <span class="nav-dd-title">Valuation</span>
+            <span class="nav-dd-desc">Relative peer check</span>
+          </a>
+        </div>
+      </div>
+
+      <div class="nav-group {{ 'active' if active in ['invest','watchlist','simulation'] }}">
+        <button type="button" class="nav-group-btn" aria-expanded="false" aria-haspopup="true">
+          Portfolio
+          <svg class="nav-chevron" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5L6 7.5L9 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </button>
+        <div class="nav-dropdown" role="menu">
+          <a href="{{ url_for('invest_page') }}" class="{{ 'active' if active == 'invest' }}" role="menuitem">
+            <span class="nav-dd-title">Invest plan</span>
+            <span class="nav-dd-desc">Entry zone &amp; sell targets</span>
+          </a>
+          <a href="{{ url_for('watchlist') }}" class="{{ 'active' if active == 'watchlist' }}" role="menuitem">
+            <span class="nav-dd-title">Watchlist</span>
+            <span class="nav-dd-desc">Names you follow</span>
+          </a>
+          <a href="{{ url_for('simulation_page') }}" class="{{ 'active' if active == 'simulation' }}" role="menuitem">
+            <span class="nav-dd-title">Demo trade</span>
+            <span class="nav-dd-desc">Paper portfolio</span>
+          </a>
+        </div>
+      </div>
+
+      <div class="nav-group {{ 'active' if active in ['daytrade','backtest'] }}">
+        <button type="button" class="nav-group-btn" aria-expanded="false" aria-haspopup="true">
+          Desk
+          <svg class="nav-chevron" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5L6 7.5L9 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </button>
+        <div class="nav-dropdown" role="menu">
+          <a href="{{ url_for('daytrade_page') }}" class="{{ 'active' if active == 'daytrade' }}" role="menuitem">
+            <span class="nav-dd-title">Day trade</span>
+            <span class="nav-dd-desc">Scanner, entry, exits</span>
+          </a>
+          <a href="{{ url_for('backtest') }}" class="{{ 'active' if active == 'backtest' }}" role="menuitem">
+            <span class="nav-dd-title">Backtest</span>
+            <span class="nav-dd-desc">Walk-forward history</span>
+          </a>
+        </div>
+      </div>
+
+      <a href="{{ url_for('chat') }}" class="nav-link {{ 'active' if active == 'chat' }}">Chat</a>
     </nav>
 
     <div class="topbar-actions">
+      <div class="market-clocks" id="marketClocks" title="Session status in your local time">
+        <div class="mkt-pill" data-mkt="us">
+          <span class="mkt-dot" id="usDot"></span>
+          <span class="mkt-label">US</span>
+          <span class="mkt-status" id="usStatus">—</span>
+          <span class="mkt-time" id="usTime"></span>
+        </div>
+        <div class="mkt-pill" data-mkt="id">
+          <span class="mkt-dot" id="idDot"></span>
+          <span class="mkt-label">IDX</span>
+          <span class="mkt-status" id="idStatus">—</span>
+          <span class="mkt-time" id="idTime"></span>
+        </div>
+      </div>
       {% include "_theme_toggle.html" %}
       <button class="hamburger" id="navToggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav">
         <span></span><span></span><span></span>
@@ -50,36 +115,23 @@
   </header>
   <div class="nav-backdrop" id="navBackdrop"></div>
 
-  <main>
+  <main class="main {% block main_class %}{% endblock %}">
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
-        {% for category, message in messages %}
-          <div class="flash flash-{{ 'error' if category == 'error' else 'ok' }}">{{ message }}</div>
-        {% endfor %}
+        <div class="flash-stack">
+          {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
       {% endif %}
     {% endwith %}
     {% block content %}{% endblock %}
   </main>
 
-  <footer class="site-footer">
-    <div class="site-footer-inner">
-      <div><span class="dot"></span>{{ kronos_model_id or 'NeoQuasar/Kronos-base' }} &middot; local app &middot; public ticker/news queries go to configured data providers</div>
-      <div class="integrations-status">
-        <span class="integration-badge {{ 'on' if integrations.news_extra_configured else 'off' }}"
-              title="{{ integrations.news_source_label }}">
-          <span class="dot"></span>News: {{ 'extra source configured' if integrations.news_extra_configured else 'Yahoo Finance only' }}
-        </span>
-        <span class="integration-badge {{ 'on' if integrations.ai_wording_enabled else 'off' }}"
-              title="{{ 'Explanations are polished by Gemini before showing.' if integrations.ai_wording_enabled else 'Explanations are rule-based (set GEMINI_API_KEY to enable AI wording).' }}">
-          <span class="dot"></span>AI wording: {{ 'enhanced' if integrations.ai_wording_enabled else 'rule-based' }}
-        </span>
-      </div>
-    </div>
-  </footer>
-
   <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
   <script src="{{ url_for('static', filename='js/loading.js') }}"></script>
   <script src="{{ url_for('static', filename='js/nav.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/markets.js') }}"></script>
   <script src="{{ url_for('static', filename='js/app.js') }}"></script>
   <script src="{{ url_for('static', filename='js/ticker-chart.js') }}"></script>
   {% block scripts %}{% endblock %}
