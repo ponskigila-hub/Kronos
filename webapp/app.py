@@ -30,6 +30,7 @@ from assistant import data_fetcher, indicators, forecaster as forecaster_mod, ch
 from assistant import portfolio_analysis, fundamentals, watchlist_extras
 from assistant import news as news_mod, llm as llm_mod
 from assistant import storage as storage_mod
+from assistant import db as db_mod
 from assistant.screener import engine as screener_engine
 from assistant.screener import universe as screener_universe
 from assistant.screener import presets as screener_presets
@@ -65,6 +66,14 @@ def _make_session_permanent():
 
 
 bot = StockAssistant()
+
+# SQLite primary store (watchlist, simulation, notes, …). Idempotent;
+# also imports legacy assistant_data/*.json on first run.
+try:
+    _db_path = db_mod.init_db(migrate_json=True)
+    print(f"[kronos] SQLite ready: {_db_path}")
+except Exception as _db_err:
+    print(f"[kronos] SQLite init failed (falling back to JSON files): {_db_err}")
 
 # ---------------------------------------------------------------------------
 # Background chat jobs
