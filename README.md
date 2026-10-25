@@ -19,7 +19,7 @@ The core forecasting engine is the open-source Kronos model. This project wraps 
 | **Fundamentals** | Key ratios, earnings dates, analyst consensus (via yfinance) + invest-plan checklist |
 | **Stock screener** | Universe (S&P 500 / NASDAQ-100 / Dow / custom) → metrics → filters → score → optional Kronos re-rank |
 | **Watchlist** | Per-user favorites, **per-ticker notes**, **entry zones** (buy range), **correlation matrix** + heatmap |
-| **Backtesting** | Walk-forward validation, baselines (naive, drift, MA, linear, ARIMA), metrics, regime analysis |
+| **Backtesting** | Walk-forward validation, baselines (naive, drift, MA, linear, ARIMA), metrics, regime analysis; **Diebold–Mariano** pairwise significance (`backtesting/significance.py`) |
 | **Invest plan** | Long-term entry zone, stop, T1–T3 targets, fundamental checklist |
 | **Day Trade desk** | Scanner, entry timer, exit planner, risk sizing (pure Python, no Claude, no broker) |
 | **Paper trading** | Demo portfolio (preview, buys, P&amp;L) against live prices |
@@ -72,7 +72,7 @@ cp .env.example .env
 # 4. Run
 python chat_cli.py                      # terminal chat
 # or
-python webapp/app.py                    # web UI at http://127.0.0.1:5000
+python webapp/app.py                    # web UI at http://127.0.0.1:5050 (override with WEBAPP_PORT)
 ```
 
 First forecast downloads Kronos weights from Hugging Face and caches them locally.
@@ -167,6 +167,7 @@ Universe → concurrent download (cached) → metrics → filters → weighted s
 - Multiple baseline forecasters sharing the same `predict_fn` interface (naive, drift, moving average, linear regression, ARIMA).
 - Metrics: MAE, RMSE, MAPE, directional accuracy, Sharpe-like stats, drawdown, etc.
 - Regime splitting and residual diagnostics (normality, autocorrelation, heteroscedasticity).
+- **Diebold–Mariano** test for paired forecast-error comparison vs baselines (see `backtesting/significance.py` and `BACKTEST_README.md`).
 - See `BACKTEST_README.md` for full details.
 
 ### 8. Additional modules
