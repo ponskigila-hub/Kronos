@@ -1,10 +1,6 @@
 """
-Shared persistence helpers for watchlist.py, watchlist_extras.py,
-simulation.py, and screener stores.
-
-Primary store is SQLite (assistant_data/kronos.db via assistant.db).
-JSON files under assistant_data/ are still written as a durable mirror
-and for the existing backup/restore UI.
+Small shared JSON persistence helpers, used by watchlist.py,
+watchlist_extras.py, and screener/config_store.py (saved screener setups).
 
 Two reliability upgrades over a bare `json.dump(open(path, "w"))`:
 
@@ -49,52 +45,22 @@ _tracked_paths = set()  # every path saved via this module this run -- what gets
 
 
 def load_json(path):
-    """Load a document by path.
-
-    Order: SQLite (primary) → on-disk JSON file → rotating file backups.
-    First hit wins; file hits are promoted into SQLite so subsequent reads
-    stay on the database.
-    """
-    try:
-        from . import db as db_mod
-        data = db_mod.kv_get(path)
-        if data is not None:
-            return data if isinstance(data, dict) else data
-    except Exception:
-        data = None
-
+    """Load a JSON file, recovering from the newest backup if the primary
+    file is missing, empty, or corrupt. Returns {} if nothing is recoverable."""
     data = _try_load(path)
     if data is not None:
-        try:
-            from . import db as db_mod
-            db_mod.kv_set(path, data)
-        except Exception:
-            pass
         return data
-
     for backup_path in _backups_for(path):
         data = _try_load(backup_path)
         if data is not None:
-            try:
-                from . import db as db_mod
-                db_mod.kv_set(path, data)
-            except Exception:
-                pass
             return data
     return {}
 
 
 def save_json(path, data):
-    """Persist `data` to SQLite (primary) and keep an atomic JSON file +
-    rotating backup for restore UI / disaster recovery."""
+    """Atomically write `data` as JSON to `path`, then rotate a backup."""
     with _write_lock:
         _tracked_paths.add(path)
-        try:
-            from . import db as db_mod
-            db_mod.kv_set(path, data)
-        except Exception:
-            # DB failure must not block the request — file path still works.
-            pass
         _atomic_write(path, data)
         _write_backup(path, data)
 
