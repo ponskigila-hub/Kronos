@@ -13,19 +13,17 @@ The core forecasting engine is the open-source Kronos model. This project wraps 
 | Feature | Description |
 |---------|-------------|
 | **Kronos forecasting** | Multi-horizon OHLCV predictions with optional multi-sample paths & confidence bands |
-| **Conversational chat** | Rule-based intents (forecast, compare, why, risks, news, fundamentals, backtest, watchlist, …). Optional **Gemini** for free-form chat + smoother explanations when `GEMINI_API_KEY` is set |
+| **Conversational chat** | Natural-language intents (forecast, compare, why, risks, news, fundamentals, backtest, watchlist, …) |
 | **Technical indicators** | SMA/EMA, RSI, MACD, Bollinger, ATR, support/resistance, regime detection |
 | **News & sentiment** | Aggregated headlines (yfinance primary, optional Finnhub/NewsAPI) with simple sentiment |
-| **Fundamentals** | Key ratios, earnings dates, analyst consensus (via yfinance) + invest-plan checklist |
+| **Fundamentals** | Key ratios, earnings dates, analyst consensus (via yfinance) |
 | **Stock screener** | Universe (S&P 500 / NASDAQ-100 / Dow / custom) → metrics → filters → score → optional Kronos re-rank |
-| **Watchlist** | Per-user favorites, **per-ticker notes**, **entry zones** (buy range), **correlation matrix** + heatmap |
-| **Backtesting** | Walk-forward validation, baselines (naive, drift, MA, linear, ARIMA), metrics, regime analysis; **Diebold–Mariano** pairwise significance (`backtesting/significance.py`) |
-| **Invest plan** | Long-term entry zone, stop, T1–T3 targets, fundamental checklist |
+| **Watchlist** | Per-user favorites + correlation matrix |
+| **Backtesting** | Walk-forward validation, baselines (naive, drift, MA, linear, ARIMA), metrics, regime analysis |
 | **Day Trade desk** | Scanner, entry timer, exit planner, risk sizing (pure Python, no Claude, no broker) |
-| **Paper trading** | Demo portfolio (preview, buys, P&amp;L) against live prices |
+| **Paper trading** | Demo “buy at today’s price and track” against future real prices |
 | **Relative valuation** | Peer multiples (P/E, EV/EBITDA, etc.) with scenario ranges |
 | **Charts** | Interactive Plotly (history + forecast overlay, indicators, correlation) |
-| **Persistence** | **SQLite** primary (`assistant_data/kronos.db`) + JSON file mirror & rotating backups |
 | **Multi-interface** | Web app (primary), CLI chat, Discord bot, WhatsApp (Twilio) — all share the same `StockAssistant` core |
 
 ---
@@ -51,7 +49,7 @@ The core forecasting engine is the open-source Kronos model. This project wraps 
 └── DEPLOYMENT.md           # Deploy webapp / bots
 ```
 
-Runtime data (watchlists, notes, entry zones, conversation history, forecast cache, paper positions) is stored under `assistant_data/` (created on first run, git-ignored). **Primary store is SQLite** (`assistant_data/kronos.db` via `assistant/db.py`); JSON files are still written as a durable mirror and for the backup/restore UI. Legacy `*.json` files are imported automatically on first DB init.
+Runtime data (watchlists, conversation history, forecast cache, paper positions) is stored under `assistant_data/` (created on first run, git-ignored).
 
 ---
 
@@ -72,7 +70,7 @@ cp .env.example .env
 # 4. Run
 python chat_cli.py                      # terminal chat
 # or
-python webapp/app.py                    # web UI at http://127.0.0.1:5050 (override with WEBAPP_PORT)
+python webapp/app.py                    # web UI at http://127.0.0.1:5000
 ```
 
 First forecast downloads Kronos weights from Hugging Face and caches them locally.
@@ -143,10 +141,7 @@ StockAssistant.handle_message()
 
 ### 4. Explainability
 - Rule-based narrative generator (`assistant/explain.py`) that turns indicator readings + forecast delta + news into readable text.
-- Optional **Gemini** when `GEMINI_API_KEY` is set:
-  - `polish_explanation()` — rewrites rule-based forecast notes into smoother prose (numbers/facts unchanged).
-  - `general_chat()` — answers free-form questions that did not match a structured intent (e.g. “how does this app work?”), steered toward real app features (screener, forecast, …).
-  - Without a key, or on any API failure/timeout, the app stays fully rule-based offline.
+- Optional Gemini polish when `GEMINI_API_KEY` is set (content still grounded in the rule-based facts).
 - Beginner vs advanced language mode.
 
 ### 5. NLP / intent routing
@@ -167,14 +162,12 @@ Universe → concurrent download (cached) → metrics → filters → weighted s
 - Multiple baseline forecasters sharing the same `predict_fn` interface (naive, drift, moving average, linear regression, ARIMA).
 - Metrics: MAE, RMSE, MAPE, directional accuracy, Sharpe-like stats, drawdown, etc.
 - Regime splitting and residual diagnostics (normality, autocorrelation, heteroscedasticity).
-- **Diebold–Mariano** test for paired forecast-error comparison vs baselines (see `backtesting/significance.py` and `BACKTEST_README.md`).
 - See `BACKTEST_README.md` for full details.
 
 ### 8. Additional modules
 - **Relative valuation**: peer-group multiples, not DCF; transparent and offline-testable.
 - **Paper trading simulation**: “buy” at real price today, track P&L against future real prices (complements historical backtests).
-- **Portfolio helpers**: correlation matrix + heatmap for the watchlist, basic multi-ticker analysis.
-- **Watchlist annotations**: per-ticker free-text notes and entry zones (low/high buy range) on the Watchlist page (`assistant/watchlist_extras.py`).
+- **Portfolio helpers**: correlation, basic multi-ticker analysis.
 
 ### 9. Web & integrations
 - Flask webapp with background job queue for long-running forecasts (so the browser can leave the chat page).
@@ -182,22 +175,6 @@ Universe → concurrent download (cached) → metrics → filters → weighted s
 - Discord & WhatsApp bots are pure adapters over `StockAssistant.handle_message()`.
 
 ---
-
-### SQLite persistence
-
-| Piece | Role |
-|-------|------|
-| `assistant/db.py` | Connection, schema, one-time JSON→SQLite migration |
-| `assistant/storage.py` | `load_json` / `save_json` — **SQLite first**, then file, then backups |
-| `assistant_data/kronos.db` | Primary database file |
-| `kv_documents` table | Document store keyed by the same paths as the old JSON files |
-| JSON mirror + `assistant_data/backups/` | Crash-safe mirror and restore UI |
-
-Inspect:
-
-```bash
-sqlite3 assistant_data/kronos.db "SELECT path FROM kv_documents;"
-```
 
 ## Configuration
 
@@ -210,9 +187,7 @@ All settings are overridable via environment variables (see `.env.example`):
 | `KRONOS_MAX_CONTEXT` | `512` | Context length |
 | `DEFAULT_PRED_LEN` | `30` | Forecast horizon (days) |
 | `MARKET_DATA_PROVIDER` | `yfinance` | Primary OHLCV source |
-| `GEMINI_API_KEY` | — | Optional. Enables Gemini: (1) polish forecast explanations, (2) free-form chat when no rule-based intent matches |
-| `GEMINI_MODEL` | `gemini-2.5-flash` | Model id for the Gemini client |
-| `KRONOS_DATABASE_PATH` | `assistant_data/kronos.db` | SQLite database path |
+| `GEMINI_API_KEY` | — | Optional LLM polish for explanations |
 | `FINNHUB_API_KEY` / `NEWSAPI_API_KEY` | — | Optional news fallbacks |
 | `TWELVEDATA_API_KEY` | — | Optional secondary market-data provider |
 
