@@ -1,75 +1,139 @@
 {% extends "base.html" %}
-{% block title %}Kronos — Chat{% endblock %}
+{% block title %}Kronos — Research Chat{% endblock %}
 {% block content %}
 
-<div class="page-head" style="display:flex; align-items:flex-end; justify-content:space-between; gap:24px; flex-wrap:wrap;">
-  <div>
-    <p class="eyebrow">Conversational</p>
-    <h1 class="page-title">Talk to Kronos</h1>
-    <p class="page-desc">Ask in plain language — forecast a stock, compare two tickers, check news, or add to your watchlist. No finance jargon required.</p>
+<div class="research-hero" id="researchHero">
+  <p class="research-eyebrow">Stock market research</p>
+  <h1 class="research-title">Tell it how you research.</h1>
+  <p class="research-sub">Pick a research style, then ask in plain language — forecast, compare, news, or fundamentals. Not a broker. Not trade execution.</p>
+
+  <div class="style-chips" id="styleChips" role="tablist" aria-label="Research style">
+    <button type="button" class="style-chip active" data-style="overview" data-prompt="Give me a research overview of AAPL: recent price trend, forecast horizon 14 days, key risks, and what the model is uncertain about.">Overview</button>
+    <button type="button" class="style-chip" data-style="forecast" data-prompt="Forecast AAPL for 14 days and explain the path in plain language, including the uncertainty band.">Forecast</button>
+    <button type="button" class="style-chip" data-style="compare" data-prompt="Compare NVDA and AMD on recent trend, forecast direction, and which looks more stretched.">Compare</button>
+    <button type="button" class="style-chip" data-style="longterm" data-prompt="Build a longer-horizon research view on MSFT: entry zone ideas, invalidation, and fundamental checklist.">Long-term</button>
+    <button type="button" class="style-chip" data-style="news" data-prompt="What is the recent news tone around TSLA and does it conflict with the price forecast?">News &amp; context</button>
+    <button type="button" class="style-chip" data-style="risk" data-prompt="What are the main risks for AMZN over the next 2 weeks according to volatility, earnings, and the forecast band?">Risks</button>
   </div>
-  <div class="mode-toggle">
-    <label style="margin-bottom:4px;">Explanation style</label>
-    <div class="toggle-pair" id="modeToggle">
-      <button type="button" class="toggle-btn" data-mode="advanced">Advanced</button>
-      <button type="button" class="toggle-btn active" data-mode="beginner">Beginner</button>
+
+  <form class="composer" id="chatForm" autocomplete="off">
+    <label class="sr-only" for="chatInput">Research prompt</label>
+    <textarea
+      id="chatInput"
+      class="composer-input"
+      rows="3"
+      placeholder="e.g. I research US tech stocks. Forecast AAPL for 2 weeks, show uncertainty, and flag if news disagrees…"
+      required></textarea>
+
+    <div class="composer-toolbar">
+      <div class="composer-tags" id="composerTags">
+        <span class="composer-tag" id="tagStyle">Overview</span>
+        <span class="composer-tag muted" id="tagMode">Beginner</span>
+      </div>
+      <div class="composer-actions">
+        <div class="mode-mini" id="modeToggle" title="Explanation style">
+          <button type="button" class="toggle-btn mode-mini-btn" data-mode="advanced">Advanced</button>
+          <button type="button" class="mode-mini-btn active" data-mode="beginner">Beginner</button>
+        </div>
+        <button class="composer-send" type="submit" aria-label="Send">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 19V5M12 5l-6 6M12 5l6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="ticker-suggest" id="tickerSuggest"></div>
+  </form>
+
+  <div class="quick-row" id="suggestions">
+    <button class="suggestion-chip quick-chip" type="button">What can you do?</button>
+    <button class="suggestion-chip quick-chip" type="button">Forecast AAPL for 7 days</button>
+    <button class="suggestion-chip quick-chip" type="button">Compare NVDA and AMD</button>
+    <button class="suggestion-chip quick-chip" type="button">Is TSLA risky right now?</button>
+    <button class="suggestion-chip quick-chip" type="button">My watchlist</button>
+  </div>
+</div>
+
+<div class="chat-wrap research-chat" id="chatWrap">
+  <div class="chat-log" id="chatLog">
+    <div class="msg msg-bot">
+      <div class="msg-bubble">
+        Hi — I’m <strong>Kronos</strong>, your stock-market research assistant.
+        I can forecast from price history, show uncertainty bands, pull news/context, compare tickers, and outline longer-horizon research plans.
+        <br><br>
+        Pick a style above, or type something like <strong>“Forecast TSLA for 14 days”</strong>.
+      </div>
     </div>
   </div>
 </div>
 
 <div class="tip-banner" id="chatTip">
   <div class="tip-banner-body">
-    <strong>New here?</strong>
-    Start with a simple ask like <em>“Forecast AAPL for 7 days”</em>.
-    Shorter horizons (7–14 days) tend to be more useful than long ones.
-    Switch to <strong>Beginner</strong> mode for plain-language explanations.
+    <strong>Research tip:</strong>
+    Shorter horizons (7–14 days) are usually more useful than very long ones.
+    Treat forecasts as scenarios with uncertainty — not buy/sell orders.
   </div>
   <button type="button" class="tip-banner-close" id="chatTipClose" aria-label="Dismiss tip">×</button>
 </div>
 
-<div class="chat-wrap">
-  <div class="chat-log" id="chatLog">
-    <div class="msg msg-bot">
-      <div class="msg-bubble">
-        Hi — I’m Kronos. I can forecast stock prices from history, explain the outlook in plain language, compare tickers, and more.
-        <br><br>
-        Try one of the suggestions below, or type something like <strong>“Forecast TSLA”</strong> or <strong>“What can you do?”</strong>
-      </div>
-    </div>
-  </div>
-  <div class="suggestions" id="suggestions">
-    <button class="suggestion-chip" type="button">What can you do?</button>
-    <button class="suggestion-chip" type="button">Forecast AAPL for 7 days</button>
-    <button class="suggestion-chip" type="button">Compare NVDA and AMD</button>
-    <button class="suggestion-chip" type="button">Is TSLA risky right now?</button>
-    <button class="suggestion-chip" type="button">My watchlist</button>
-  </div>
-  <form class="chat-input-row" id="chatForm" autocomplete="off">
-    <div class="ticker-input-wrap">
-      <input type="text" id="chatInput" placeholder="e.g. Forecast AAPL for 2 weeks…" autocomplete="off" required>
-      <div class="ticker-suggest" id="tickerSuggest"></div>
-    </div>
-    <button class="btn" type="submit">Send</button>
-  </form>
-</div>
-
 {% endblock %}
+
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
 <script>
-  (function () {
-    var tip = document.getElementById("chatTip");
-    var close = document.getElementById("chatTipClose");
-    if (!tip || !close) return;
+(function () {
+  var tip = document.getElementById("chatTip");
+  var close = document.getElementById("chatTipClose");
+  if (tip && close) {
     try {
-      if (localStorage.getItem("kronos-chat-tip-dismissed") === "1") {
-        tip.style.display = "none";
-      }
+      if (localStorage.getItem("kronos-chat-tip-dismissed") === "1") tip.hidden = true;
     } catch (e) {}
     close.addEventListener("click", function () {
-      tip.style.display = "none";
+      tip.hidden = true;
       try { localStorage.setItem("kronos-chat-tip-dismissed", "1"); } catch (e) {}
     });
-  })();
+  }
+
+  var input = document.getElementById("chatInput");
+  var tagStyle = document.getElementById("tagStyle");
+  var chips = document.querySelectorAll("#styleChips .style-chip");
+  chips.forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      chips.forEach(function (c) { c.classList.remove("active"); });
+      chip.classList.add("active");
+      if (tagStyle) tagStyle.textContent = chip.textContent.trim();
+      if (input && chip.getAttribute("data-prompt")) {
+        input.value = chip.getAttribute("data-prompt");
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+      }
+    });
+  });
+
+  // Auto-grow textarea
+  if (input) {
+    input.addEventListener("input", function () {
+      input.style.height = "auto";
+      input.style.height = Math.min(input.scrollHeight, 160) + "px";
+    });
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        var form = document.getElementById("chatForm");
+        if (form) form.requestSubmit();
+      }
+    });
+  }
+  // Keep mode tag in sync
+  var tagMode = document.getElementById("tagMode");
+  var modeToggle = document.getElementById("modeToggle");
+  if (modeToggle && tagMode) {
+    modeToggle.addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-mode]");
+      if (!btn) return;
+      tagMode.textContent = btn.dataset.mode === "beginner" ? "Beginner" : "Advanced";
+    });
+  }
+})();
 </script>
 {% endblock %}

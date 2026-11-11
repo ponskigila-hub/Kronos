@@ -1,4 +1,13 @@
 (function () {
+  try {
+    const pre = sessionStorage.getItem('kronos-research-prompt');
+    if (pre) {
+      sessionStorage.removeItem('kronos-research-prompt');
+      const inp = document.getElementById('chatInput');
+      if (inp) { inp.value = pre; inp.focus(); }
+    }
+  } catch (e) {}
+
   const log = document.getElementById("chatLog");
   const form = document.getElementById("chatForm");
   const input = document.getElementById("chatInput");
@@ -25,6 +34,37 @@
     return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">
       <polyline points="${coords.join(" ")}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
     </svg>`;
+  }
+
+
+  function renderResearchCard(evidence, scenarios) {
+    if (!evidence && !(scenarios && scenarios.length)) return "";
+    const e = evidence || {};
+    const sc = scenarios || [];
+    const unc = e.uncertainty_pct != null ? Number(e.uncertainty_pct).toFixed(1) + "%" : "—";
+    const scenHtml = sc.map((s) => {
+      const pct = s.pct_from_last != null
+        ? ` <span class="${s.pct_from_last >= 0 ? "pos" : "neg"}">(${s.pct_from_last >= 0 ? "+" : ""}${Number(s.pct_from_last).toFixed(1)}%)</span>`
+        : "";
+      const price = s.price != null ? Number(s.price).toFixed(2) : "—";
+      return `<div class="scenario-row"><span>${s.label}</span><strong>${price}</strong>${pct}</div>`;
+    }).join("");
+    const bits = [
+      e.as_of ? `<span>As of ${e.as_of}</span>` : "",
+      e.lookback_used != null ? `<span>Lookback ${e.lookback_used}d</span>` : "",
+      e.market_regime ? `<span>Regime ${String(e.market_regime).replace(/_/g, " ")}</span>` : "",
+      e.news_label ? `<span>News ${e.news_label}</span>` : "",
+      e.earnings_gate ? `<span class="warn">Earnings gate</span>` : "",
+    ].filter(Boolean).join("");
+    return `<div class="research-card">
+      <div class="research-card-head">
+        <strong>Research card${e.ticker ? " · " + e.ticker : ""}</strong>
+        <span class="unc-pill">Uncertainty ${unc}</span>
+      </div>
+      <div class="research-meta">${bits}</div>
+      ${scenHtml ? `<div class="scenario-list">${scenHtml}</div>` : ""}
+      <p class="research-disclaimer">${e.disclaimer || "Research scenario only — not a trade recommendation."}</p>
+    </div>`;
   }
 
   // ------------------------------------------------------- scroll-to-bottom
@@ -88,13 +128,22 @@
     wrap.appendChild(btn);
   }
 
-  function addMessage(role, text, imageUrl, sparkline) {
+  function addMessage(role, text, imageUrl, sparkline, research) {
     const wrap = document.createElement("div");
     wrap.className = "msg " + (role === "user" ? "msg-user" : "msg-bot") + " msg-animate";
     const bubble = document.createElement("div");
     bubble.className = "msg-bubble";
     bubble.textContent = text;
     wrap.appendChild(bubble);
+
+    if (role !== "user" && research) {
+      const cardHtml = renderResearchCard(research.evidence, research.scenarios);
+      if (cardHtml) {
+        const card = document.createElement("div");
+        card.innerHTML = cardHtml;
+        wrap.appendChild(card.firstChild);
+      }
+    }
 
     if (role !== "user") {
       bubble.classList.add("bot-bubble");
@@ -185,7 +234,10 @@
         if (data.status === "error") {
           addMessage("bot", data.text || "⚠️ Something went wrong.");
         } else {
-          addMessage("bot", data.text || "(no response)", data.image_url, data.sparkline);
+          addMessage("bot", data.text || "(no response)", data.image_url, data.sparkline, {
+            evidence: data.evidence,
+            scenarios: data.scenarios,
+          });
           setSuggestions(data.suggestions);
         }
         setSending(false);

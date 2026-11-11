@@ -15,6 +15,8 @@ headroom for the rest of the system.
 """
 import threading
 
+# Kronos classes are imported lazily inside get_predictor() so unit tests
+# of pure helpers (drift, uncertainty) do not require torch/huggingface_hub.
 from .config import KRONOS_MODEL_ID, KRONOS_TOKENIZER_ID, KRONOS_MAX_CONTEXT, KRONOS_CPU_THREADS
 
 _lock = threading.Lock()
@@ -22,13 +24,11 @@ _predictor = None
 
 
 def get_predictor():
+    from model import Kronos, KronosTokenizer, KronosPredictor
     global _predictor
     if _predictor is None:
         with _lock:
             if _predictor is None:  # re-check inside the lock
-                # Delay heavyweight model imports until a forecast is requested.
-                from model import Kronos, KronosTokenizer, KronosPredictor
-
                 if KRONOS_CPU_THREADS:
                     import torch
                     if not torch.cuda.is_available() and not (

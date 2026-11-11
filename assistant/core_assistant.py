@@ -227,10 +227,10 @@ class StockAssistant:
         ind_df = indicators.compute_indicators(hist_df)
         fc = forecaster.run_forecast(hist_df, pred_len=self.pred_len, n_runs=self.n_forecast_runs)
 
-        # News + fundamentals → interpretation/context and uncertainty width;
-        # the built-in forecast point path is not covariate-nudged.
+        # News + fundamentals → context signal, light analyst nudge, risk band
         from .context_signal import (
-            build_context_signal, widen_forecast_bands,
+            build_context_signal, widen_forecast_bands, apply_analyst_nudge,
+            apply_context_covariate_nudge,
         )
         pred_close = float(fc["pred_df"]["close"].iloc[-1])
         last_close = float(hist_df["close"].iloc[-1])
@@ -243,7 +243,13 @@ class StockAssistant:
             pred_len=self.pred_len,
             kronos_pct_change=kronos_pct,
             hist_df=hist_df,
+            ind_df=ind_df,
         )
+        # Skip aggressive nudge across earnings gate — consensus is also noisy pre-print
+        if not ctx.earnings_gate:
+            fc, nudged = apply_analyst_nudge(fc, analyst)
+            ctx.analyst_nudge_applied = nudged
+        fc, _cov = apply_context_covariate_nudge(fc, ctx)
         if ctx.band_widen_factor > 1.0:
             fc = widen_forecast_bands(fc, ctx.band_widen_factor)
 
@@ -265,10 +271,27 @@ class StockAssistant:
             explanation["text"],
         )
 
+        # Research desk: evidence + scenarios for chat / UI cards
+        try:
+            from . import research as research_mod
+            evidence = research_mod.build_evidence(
+                ticker, hist_df, fc, context_signal=ctx, news_summary=news_summary,
+                earnings_date=earnings_warning, lookback_used=fc.get("lookback_used"),
+            )
+            scenarios = research_mod.build_scenarios(fc, last_close=last_close)
+            card_text = research_mod.format_research_card_text(evidence, scenarios)
+            if card_text:
+                explanation["text"] = (explanation["text"] or "").rstrip() + "\n\n" + card_text
+        except Exception:
+            evidence, scenarios = None, None
+
         return {"text": explanation["text"], "chart": fig, "image_path": image_path, "data": {
             "ticker": ticker, "forecast": fc["pred_df"].to_dict(orient="list"),
             "sparkline": self._sparkline(hist_df),
             "context_signal": ctx.to_dict(),
+            "evidence": evidence,
+            "scenarios": scenarios,
+            "uncertainty_pct": fc.get("uncertainty_pct"),
         }}
 
     def _detailed_forecast(self, context, tickers):
@@ -588,6 +611,5 @@ class StockAssistant:
         if reply:
             return {"text": reply, "chart": None, "data": {}}
 
-        return {"text": "I didn't quite catch that. Try \"Forecast AAPL\", \"Compare NVDA and AMD\", "
-                         "\"My watchlist\", or \"Screen the market\" for ranked ideas.",
-                 "chart": None, "data": {}}
+        return {"text": "I didn't quite catch that. Try \"Forecast AAPL\", \"Compare NVDA AMD\", or \"News for MSFT\".",
+                "chart": None, "data": {}}

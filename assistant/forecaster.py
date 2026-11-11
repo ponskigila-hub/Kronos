@@ -18,6 +18,7 @@ from .config import (
     DEFAULT_KRONOS_SAMPLE_COUNT,
     DEFAULT_KRONOS_T,
     FORECAST_DRIFT_BLEND,
+    FORECAST_VOL_DAMPING,
 )
 from . import forecast_cache
 
@@ -29,16 +30,90 @@ def _future_dates(last_date, pred_len):
     return pd.date_range(start=last_date + pd.offsets.BDay(1), periods=pred_len, freq="B")
 
 
-def _drift_path(last_close, hist_closes, pred_len):
-    """Simple linear drift baseline from recent average daily change."""
+def _mean_daily_change(hist_closes, window):
+    """Average daily price change over the last `window` steps, or None if short."""
+    if len(hist_closes) < window + 1:
+        return None
+    recent = hist_closes[-(window + 1):]
+    return float(np.mean(np.diff(recent)))
+
+
+def _vol_ratio(hist_closes):
+    """Recent EWMA vol / 60d return std. 1.0 when data is too short."""
+    if len(hist_closes) < 5:
+        return 1.0
+    rets = np.diff(hist_closes) / np.clip(hist_closes[:-1], 1e-12, None)
+    rets = rets[np.isfinite(rets)]
+    if len(rets) < 5:
+        return 1.0
+    # EWMA variance (span ~10)
+    alpha = 2.0 / (10.0 + 1.0)
+    var = float(rets[0] ** 2)
+    for r in rets[1:]:
+        var = alpha * float(r) ** 2 + (1.0 - alpha) * var
+    recent = float(np.sqrt(max(var, 0.0)))
+    tail = rets[-min(60, len(rets)):]
+    base = float(np.std(tail, ddof=1)) if len(tail) > 1 else recent
+    if base <= 1e-12:
+        return 1.0
+    return recent / base
+
+
+def _daily_return_sigma(hist_closes):
+    """Sample std of simple daily returns (price units relative)."""
+    if len(hist_closes) < 3:
+        return 0.0
+    rets = np.diff(hist_closes) / np.clip(hist_closes[:-1], 1e-12, None)
+    rets = rets[np.isfinite(rets)]
+    if len(rets) < 2:
+        return 0.0
+    return float(np.std(rets, ddof=1))
+
+
+def _drift_path(last_close, hist_closes, pred_len, vol_damping=None):
+    """Multi-horizon volatility-adjusted linear drift baseline.
+
+    Weighted mean of daily changes over 5d (0.50), 20d (0.35), and 60d (0.15).
+    When recent EWMA vol rises vs the 60-day baseline, the slope is damped by
+    1 / (1 + FORECAST_VOL_DAMPING * vol_ratio) so spikes are not extrapolated.
+    """
     if len(hist_closes) < 2:
         return np.full(pred_len, last_close)
-    # Use last ~20 trading days for a local drift estimate (more reactive
-    # than full-history mean, less noisy than 1-day return).
-    window = min(20, len(hist_closes) - 1)
-    recent = hist_closes[-(window + 1) :]
-    avg_drift = float(np.mean(np.diff(recent)))
+
+    if vol_damping is None:
+        vol_damping = FORECAST_VOL_DAMPING
+
+    windows = ((5, 0.50), (20, 0.35), (60, 0.15))
+    parts = []
+    for window, weight in windows:
+        mean_ch = _mean_daily_change(hist_closes, window)
+        if mean_ch is not None:
+            parts.append((weight, mean_ch))
+
+    if not parts:
+        # Fallback: mean of all available daily changes
+        avg_drift = float(np.mean(np.diff(hist_closes)))
+    else:
+        w_sum = sum(w for w, _ in parts)
+        avg_drift = sum(w * d for w, d in parts) / w_sum
+
+    ratio = _vol_ratio(hist_closes)
+    damp = 1.0 / (1.0 + float(vol_damping) * float(ratio)) if vol_damping else 1.0
+    avg_drift = avg_drift * damp
     return last_close + avg_drift * np.arange(1, pred_len + 1)
+
+
+def confidence_scale_from_uncertainty(uncertainty_pct):
+    """Map forecast uncertainty_pct to a [0.5, 1.0] position-size scale."""
+    if uncertainty_pct is None:
+        return 1.0
+    try:
+        u = float(uncertainty_pct)
+    except (TypeError, ValueError):
+        return 1.0
+    if u > 15.0:
+        return max(0.5, 1.0 - (u - 15.0) / 30.0)
+    return 1.0
 
 
 def _blend_with_drift(pred_df, last_close, hist_closes, alpha):
@@ -84,61 +159,6 @@ def _anchor_to_last_close(pred_df, last_close):
     return pred_df
 
 
-def _historical_volatility_band(pred_df, hist_closes):
-    """Approximate a price range from recent daily log-return volatility.
-
-    This is an analytical range, not a calibrated model confidence interval.
-    It deliberately leaves the central forecast path unchanged.
-    """
-    prices = np.asarray(hist_closes, dtype=float)
-    prices = prices[np.isfinite(prices) & (prices > 0)]
-    log_returns = np.diff(np.log(prices))
-    # Use the latest 20 returns, or all available returns for short histories.
-    log_returns = log_returns[-20:]
-    sigma = float(np.std(log_returns, ddof=1)) if len(log_returns) >= 2 else 0.0
-    t = np.arange(1, len(pred_df) + 1, dtype=float)
-    spread = pred_df["close"].to_numpy(dtype=float) * 1.28 * sigma * np.sqrt(t)
-    return (
-        pd.DataFrame({"timestamps": pred_df["timestamps"].to_numpy(),
-                      "close": pred_df["close"].to_numpy(dtype=float) - spread}),
-        pd.DataFrame({"timestamps": pred_df["timestamps"].to_numpy(),
-                      "close": pred_df["close"].to_numpy(dtype=float) + spread}),
-    )
-
-
-def uncertainty_pct_from_bands(low_df, high_df, reference_close):
-    """Full horizon-end band width as a percent of the last observed close.
-
-    This is a sizing/context statistic, not a calibrated probability. Sampled
-    multi-run bands and the single-run historical-volatility band are distinct
-    estimates and should not be interpreted as equivalent confidence levels.
-    """
-    try:
-        reference_close = float(reference_close)
-        if reference_close <= 0 or low_df is None or high_df is None:
-            return None
-        low = float(low_df["close"].iloc[-1])
-        high = float(high_df["close"].iloc[-1])
-        if not np.isfinite([reference_close, low, high]).all():
-            return None
-        return round(max(0.0, high - low) / reference_close * 100.0, 4)
-    except (KeyError, IndexError, TypeError, ValueError, ZeroDivisionError):
-        return None
-
-
-def confidence_scale_from_uncertainty(uncertainty_pct):
-    """Conservative [0.5, 1.0] risk-budget multiplier from band width (% points)."""
-    try:
-        value = float(uncertainty_pct)
-        if not np.isfinite(value):
-            return 1.0
-    except (TypeError, ValueError):
-        return 1.0
-    if value <= 15.0:
-        return 1.0
-    return round(max(0.5, 1.0 - (value - 15.0) / 30.0), 4)
-
-
 def run_forecast(hist_df, pred_len=None, n_runs=None, lookback=None, T=None, top_p=0.9,
                   sample_count=None, anchor_to_last_close=True):
     """
@@ -159,9 +179,8 @@ def run_forecast(hist_df, pred_len=None, n_runs=None, lookback=None, T=None, top
         {
           "pred_df": DataFrame[timestamps, open, high, low, close, volume, amount],  (median across runs)
           "mean_df": DataFrame[timestamps, close] or None (mean across runs, if n_runs > 1),
-          "low_df":  DataFrame (sampled percentile or historical-volatility range),
-          "high_df": DataFrame (sampled percentile or historical-volatility range),
-          "band_source": "sampled" or "analytical_vol",
+          "low_df":  DataFrame or None (10th percentile close, if n_runs > 1),
+          "high_df": DataFrame or None (90th percentile close, if n_runs > 1),
           "all_runs": list of DataFrames, one per sampled path (always has
                        at least 1; useful for a spaghetti-style plot),
           "lookback_used": int,
@@ -191,7 +210,7 @@ def run_forecast(hist_df, pred_len=None, n_runs=None, lookback=None, T=None, top
     cache_key = forecast_cache.make_key(
         x_df, x_timestamp, pred_len, n_runs, lookback, T, top_p,
         sample_count, anchor_to_last_close, drift_blend=drift_blend,
-        band_version=2,
+        vol_damping=FORECAST_VOL_DAMPING,
     )
     cached = forecast_cache.get(cache_key)
     if cached is not None:
@@ -220,7 +239,7 @@ def run_forecast(hist_df, pred_len=None, n_runs=None, lookback=None, T=None, top
 
     main_pred = runs[0]
     low_df = high_df = mean_df = None
-    band_source = "sampled" if len(runs) > 1 else "analytical_vol"
+    uncertainty_pct = 0.0
 
     if len(runs) > 1:
         stacked_close = np.stack([r["close"].values for r in runs], axis=0)
@@ -231,34 +250,42 @@ def run_forecast(hist_df, pred_len=None, n_runs=None, lookback=None, T=None, top
 
         main_pred = main_pred.copy()
         main_pred["close"] = median_close
-        # Keep OHLC consistent with median close (shift by delta from first run)
         if "open" in main_pred.columns:
             delta = median_close - runs[0]["close"].values
             for col in ("open", "high", "low"):
                 if col in main_pred.columns:
                     main_pred[col] = main_pred[col].values.astype(float) + delta
 
-        low_df = pd.DataFrame({"timestamps": future_dates, "close": low_close})
-        high_df = pd.DataFrame({"timestamps": future_dates, "close": high_close})
-        mean_df = pd.DataFrame({"timestamps": future_dates, "close": mean_close})
+        low_df = pd.DataFrame({"timestamps": future_dates[:len(low_close)], "close": low_close})
+        high_df = pd.DataFrame({"timestamps": future_dates[:len(high_close)], "close": high_close})
+        mean_df = pd.DataFrame({"timestamps": future_dates[:len(mean_close)], "close": mean_close})
+        if last_close > 0:
+            uncertainty_pct = float((high_close[-1] - low_close[-1]) / last_close * 100.0)
     else:
-        low_df, high_df = _historical_volatility_band(main_pred, hist_closes)
-
-    uncertainty_pct = uncertainty_pct_from_bands(low_df, high_df, last_close)
+        # Analytical P10/P90 when only 1 run: ±1.28 * σ_daily * sqrt(t) * last_close
+        sigma = _daily_return_sigma(hist_closes)
+        pred_close = main_pred["close"].values.astype(float)
+        t_steps = np.arange(1, len(pred_close) + 1, dtype=float)
+        half = last_close * 1.28 * sigma * np.sqrt(t_steps)
+        low_close = pred_close - half
+        high_close = pred_close + half
+        low_df = pd.DataFrame({"timestamps": future_dates[:len(low_close)], "close": low_close})
+        high_df = pd.DataFrame({"timestamps": future_dates[:len(high_close)], "close": high_close})
+        mean_df = pd.DataFrame({"timestamps": future_dates[:len(pred_close)], "close": pred_close.copy()})
+        if last_close > 0:
+            uncertainty_pct = float((high_close[-1] - low_close[-1]) / last_close * 100.0)
 
     result = {
         "pred_df": main_pred,
-        "mean_df": mean_df,          # None if n_runs == 1 -- mean across all sampled paths
+        "mean_df": mean_df,
         "low_df": low_df,
         "high_df": high_df,
-        "all_runs": runs,            # every individual sampled path, for spaghetti-style plots
+        "all_runs": runs,
         "lookback_used": lookback,
         "n_runs": len(runs),
-        "band_source": band_source,
-        "uncertainty_pct": uncertainty_pct,
-        "uncertainty_reference_close": last_close,
-        "context_start": x_timestamp.iloc[0],  # first date actually fed to the model
-        "forecast_start": last_date,           # last known real date (where forecasting begins)
+        "context_start": x_timestamp.iloc[0],
+        "forecast_start": last_date,
+        "uncertainty_pct": round(float(uncertainty_pct), 4),
     }
     forecast_cache.set(cache_key, result)
     return result
