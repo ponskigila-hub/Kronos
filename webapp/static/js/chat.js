@@ -37,6 +37,39 @@
   }
 
 
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function formatBotHtml(text) {
+    // Lightweight markdown for research replies (Claude-like readability)
+    let s = escapeHtml(text || "");
+    s = s.replace(/^### (.+)$/gm, "<h4>$1</h4>");
+    s = s.replace(/^## (.+)$/gm, "<h3>$1</h3>");
+    s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+    s = s.replace(/^\* (.+)$/gm, "<li>$1</li>");
+    s = s.replace(/(?:<li>[\s\S]*?<\/li>\n?)+/g, (m) => "<ul>" + m.replace(/\n/g, "") + "</ul>");
+    s = s.replace(/^\d+\. (.+)$/gm, "<li>$1</li>");
+    // paragraphs
+    s = s.split(/\n{2,}/).map((block) => {
+      if (/^<(h\d|ul|ol|div)/.test(block.trim())) return block;
+      return "<p>" + block.replace(/\n/g, "<br>") + "</p>";
+    }).join("");
+    return s;
+  }
+
+  function markSessionActive() {
+    if (typeof window.__kronosSetChatSession === "function") {
+      const has = log && log.querySelector(".msg");
+      window.__kronosSetChatSession(!!has);
+    }
+  }
+
   function renderResearchCard(evidence, scenarios) {
     if (!evidence && !(scenarios && scenarios.length)) return "";
     const e = evidence || {};
@@ -133,7 +166,12 @@
     wrap.className = "msg " + (role === "user" ? "msg-user" : "msg-bot") + " msg-animate";
     const bubble = document.createElement("div");
     bubble.className = "msg-bubble";
-    bubble.textContent = text;
+    if (role === "user") {
+      bubble.textContent = text;
+    } else {
+      bubble.classList.add("msg-md");
+      bubble.innerHTML = formatBotHtml(text);
+    }
     wrap.appendChild(bubble);
 
     if (role !== "user" && research) {
@@ -166,6 +204,7 @@
       addCopyButton(wrap, text);
     }
     log.appendChild(wrap);
+    markSessionActive();
     if (isNearBottom() || role === "user") {
       log.scrollTop = log.scrollHeight;
     }
@@ -315,6 +354,7 @@
           b.classList.toggle("active", b.dataset.mode === "beginner")
         );
       }
+      markSessionActive();
     } catch (err) { /* fine to start with an empty log */ }
 
     // Resume watching a reply that was still computing when this page was
