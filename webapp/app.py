@@ -1255,6 +1255,36 @@ def watchlist_entry_zone():
 
 
 # ---------------------------------------------------------------------------
+# Fundamentals / macro research insight
+# ---------------------------------------------------------------------------
+@app.route("/insights")
+def insights_page():
+    return render_template("insights.html", active="insights", result=None)
+
+
+@app.route("/api/insights", methods=["POST"])
+def api_insights():
+    from assistant import deep_research
+    payload = request.get_json(silent=True) or {}
+    ticker = (payload.get("ticker") or "").strip().upper()
+    if not ticker:
+        return jsonify({"error": "ticker required"}), 400
+    peers_raw = payload.get("peers") or ""
+    if isinstance(peers_raw, str):
+        peers = [x.strip().upper() for x in peers_raw.replace(";", ",").split(",") if x.strip()]
+    else:
+        peers = [str(x).strip().upper() for x in (peers_raw or []) if str(x).strip()]
+    include_macro = payload.get("include_macro", True)
+    try:
+        result = deep_research.build_fundamental_insight(
+            ticker, peer_tickers=peers, include_macro=bool(include_macro),
+        )
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
 # Research desk: thesis notes, compare table, templates
 # ---------------------------------------------------------------------------
 @app.route("/research")

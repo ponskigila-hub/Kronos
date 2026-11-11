@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+{% block title %}Kronos — Fundamentals{% endblock %}
+{% block content %}
+<div class="ins-page">
+  <header class="ins-hero">
+    <p class="eyebrow">Medium to long term</p>
+    <h1 class="page-title">Fundamentals &amp; context</h1>
+    <p class="page-desc">
+      Earnings surprise cues, relative multiples, a transparent DCF range, headline sentiment,
+      and a small macro panel — kept in one quiet layout.
+    </p>
+  </header>
+
+  <section class="card ins-card ins-controls">
+    <form id="insForm" class="ins-form" autocomplete="off">
+      <label class="ins-field">
+        <span>Ticker</span>
+        <input id="insTicker" class="ins-input" type="text" placeholder="AAPL" required>
+      </label>
+      <label class="ins-field ins-field-wide">
+        <span>Peers <em>(optional)</em></span>
+        <input id="insPeers" class="ins-input" type="text" placeholder="MSFT, GOOGL, AMZN">
+      </label>
+      <label class="ins-check">
+        <input id="insMacro" type="checkbox" checked>
+        <span>Include macro panel</span>
+      </label>
+      <button class="btn" type="submit" id="insSubmit">Run insight</button>
+    </form>
+    <p class="ins-status" id="insStatus" hidden></p>
+  </section>
+
+  <div id="insResult" class="ins-result" hidden>
+    <section class="card ins-card ins-stance">
+      <div class="ins-stance-row">
+        <div>
+          <p class="eyebrow" id="insTickerLabel">—</p>
+          <h2 id="insStance">—</h2>
+          <p class="ins-muted" id="insDrivers"></p>
+        </div>
+        <p class="ins-time" id="insTime"></p>
+      </div>
+    </section>
+
+    <div class="ins-grid">
+      <section class="card ins-card">
+        <h3>Earnings &amp; PEAD-lite</h3>
+        <div id="insEarnings" class="ins-body"></div>
+      </section>
+      <section class="card ins-card">
+        <h3>DCF sanity range</h3>
+        <div id="insDcf" class="ins-body"></div>
+      </section>
+      <section class="card ins-card">
+        <h3>Relative multiples</h3>
+        <div id="insRel" class="ins-body"></div>
+      </section>
+      <section class="card ins-card">
+        <h3>Headline sentiment</h3>
+        <div id="insSent" class="ins-body"></div>
+      </section>
+    </div>
+
+    <section class="card ins-card" id="insMacroCard" hidden>
+      <h3>Macro snapshot</h3>
+      <div id="insMacroBody" class="ins-body"></div>
+    </section>
+
+    <p class="ins-disclaimer" id="insDisclaimer"></p>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  function pct(n) {
+    if (n == null || n === "") return "—";
+    var x = Number(n);
+    if (!isFinite(x)) return "—";
+    return (x > 0 ? "+" : "") + x.toFixed(1) + "%";
+  }
+  function num(n, d) {
+    if (n == null || n === "") return "—";
+    var x = Number(n);
+    if (!isFinite(x)) return "—";
+    return x.toFixed(d == null ? 2 : d);
+  }
+  function notes(list) {
+    if (!list || !list.length) return "";
+    return "<ul class='ins-notes'>" + list.map(function (n) {
+      return "<li>" + esc(n) + "</li>";
+    }).join("") + "</ul>";
+  }
+
+  var form = document.getElementById("insForm");
+  var statusEl = document.getElementById("insStatus");
+  var resultEl = document.getElementById("insResult");
+
+  form.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var ticker = document.getElementById("insTicker").value.trim().toUpperCase();
+    var peers = document.getElementById("insPeers").value;
+    var include_macro = document.getElementById("insMacro").checked;
+    statusEl.hidden = false;
+    statusEl.textContent = "Building insight…";
+    resultEl.hidden = true;
+    document.getElementById("insSubmit").disabled = true;
+    try {
+      var resp = await fetch("/api/insights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker: ticker, peers: peers, include_macro: include_macro })
+      });
+      var data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Failed");
+      render(data);
+      resultEl.hidden = false;
+      statusEl.textContent = "Done.";
+    } catch (err) {
+      statusEl.textContent = err.message || String(err);
+    } finally {
+      document.getElementById("insSubmit").disabled = false;
+    }
+  });
+
+  function render(d) {
+    document.getElementById("insTickerLabel").textContent = d.ticker || "";
+    document.getElementById("insStance").textContent = d.stance || "—";
+    document.getElementById("insDrivers").textContent =
+      (d.stance_drivers && d.stance_drivers.length)
+        ? ("Drivers: " + d.stance_drivers.join(", "))
+        : "Drivers: limited data";
+    document.getElementById("insTime").textContent = d.retrieved_at || "";
+    document.getElementById("insDisclaimer").textContent = d.disclaimer || "";
+
+    // Earnings
+    var e = d.earnings || {};
+    var eh = "";
+    if (e.surprise_pct != null) {
+      eh += "<div class='ins-kpi'><span>Last EPS surprise</span><strong class='" +
+        (e.surprise_pct >= 0 ? "pos" : "neg") + "'>" + pct(e.surprise_pct) + "</strong></div>";
+    }
+    eh += "<div class='ins-kpi'><span>Revision read</span><strong>" + esc(e.revision_label || "—") + "</strong></div>";
+    eh += "<div class='ins-kpi'><span>PEAD bias</span><strong>" + esc((e.pead_bias || "—").replace(/_/g, " ")) + "</strong></div>";
+    if (e.eps_trend) {
+      eh += "<div class='ins-kpi'><span>Analyst upside</span><strong>" + pct(e.eps_trend.analyst_upside_pct) + "</strong></div>";
+    }
+    eh += notes(e.notes);
+    document.getElementById("insEarnings").innerHTML = eh;
+
+    // DCF
+    var dc = d.dcf || {};
+    var dh = "";
+    if (dc.available && dc.per_share) {
+      dh += "<div class='ins-dcf-row'>" +
+        "<div><span>Low</span><strong>" + num(dc.per_share.low) + "</strong></div>" +
+        "<div><span>Base</span><strong>" + num(dc.per_share.base) + "</strong></div>" +
+        "<div><span>High</span><strong>" + num(dc.per_share.high) + "</strong></div>" +
+        "</div>";
+      dh += "<div class='ins-kpi'><span>vs price</span><strong class='" +
+        ((dc.upside_vs_price_pct || 0) >= 0 ? "pos" : "neg") + "'>" +
+        pct(dc.upside_vs_price_pct) + "</strong></div>";
+      if (dc.assumptions) {
+        dh += "<p class='ins-muted'>g " + pct((dc.assumptions.growth_rate || 0) * 100) +
+          " · WACC " + pct((dc.assumptions.wacc || 0) * 100) +
+          " · terminal " + pct((dc.assumptions.terminal_growth || 0) * 100) + "</p>";
+      }
+    } else {
+      dh = "<p class='ins-muted'>DCF unavailable for this ticker.</p>";
+    }
+    dh += notes(dc.notes);
+    document.getElementById("insDcf").innerHTML = dh;
+
+    // Relative
+    var r = d.relative || {};
+    var rh = "";
+    if (r.company) {
+      var c = r.company;
+      rh += "<div class='ins-multiples'>" +
+        "<div><span>P/E TTM</span><strong>" + num(c.pe_trailing, 1) + "</strong></div>" +
+        "<div><span>P/E fwd</span><strong>" + num(c.pe_forward, 1) + "</strong></div>" +
+        "<div><span>EV/EBITDA</span><strong>" + num(c.ev_ebitda, 1) + "</strong></div>" +
+        "<div><span>P/B</span><strong>" + num(c.price_to_book, 2) + "</strong></div>" +
+        "<div><span>FCF yield</span><strong>" + (c.fcf_yield != null ? num(c.fcf_yield, 1) + "%" : "—") + "</strong></div>" +
+        "</div>";
+    } else if (r.relative_valuation) {
+      var s = r.relative_valuation.summary || {};
+      rh += "<div class='ins-kpi'><span>Peer midpoint</span><strong>" +
+        num(s.median_peer_implied_price) + "</strong></div>";
+      rh += "<div class='ins-kpi'><span>vs price</span><strong>" + pct(s.upside_vs_price_pct) + "</strong></div>";
+      rh += "<p class='ins-muted'>Full peer table lives on the Valuation page.</p>";
+    } else {
+      rh = "<p class='ins-muted'>Multiples unavailable.</p>";
+    }
+    rh += notes(r.notes);
+    document.getElementById("insRel").innerHTML = rh;
+
+    // Sentiment
+    var s = d.sentiment || {};
+    var sh = "";
+    if (s.summary) {
+      sh += "<div class='ins-kpi'><span>Tone</span><strong>" + esc(s.summary.label || "—") + "</strong></div>";
+      sh += "<p class='ins-muted'>" +
+        esc(String(s.summary.positive || 0)) + " pos · " +
+        esc(String(s.summary.negative || 0)) + " neg · " +
+        esc(String(s.summary.neutral || 0)) + " neutral</p>";
+    }
+    if (s.headlines && s.headlines.length) {
+      sh += "<ul class='ins-headlines'>" + s.headlines.slice(0, 4).map(function (h) {
+        return "<li>" + esc(h.title || "") + "</li>";
+      }).join("") + "</ul>";
+    }
+    sh += notes(s.notes);
+    document.getElementById("insSent").innerHTML = sh || "<p class='ins-muted'>No headlines.</p>";
+
+    // Macro
+    var m = d.macro || {};
+    var mc = document.getElementById("insMacroCard");
+    if (m.available && m.rows && Object.keys(m.rows).length) {
+      mc.hidden = false;
+      var labels = { us_10y: "US 10Y proxy", us_equity: "SPY", usd: "DXY", gold: "Gold", oil: "Oil" };
+      var mh = "<div class='ins-macro-grid'>" + Object.keys(m.rows).map(function (k) {
+        var row = m.rows[k];
+        return "<div class='ins-macro-cell'>" +
+          "<span>" + esc(labels[k] || k) + "</span>" +
+          "<strong>" + num(row.last, 2) + "</strong>" +
+          "<em class='" + ((row.chg_1m_pct || 0) >= 0 ? "pos" : "neg") + "'>1m " + pct(row.chg_1m_pct) + "</em>" +
+          "</div>";
+      }).join("") + "</div>";
+      mh += notes(m.notes);
+      document.getElementById("insMacroBody").innerHTML = mh;
+    } else {
+      mc.hidden = true;
+    }
+  }
+})();
+</script>
+{% endblock %}

@@ -1,115 +1,151 @@
 {% extends "base.html" %}
 {% block title %}Kronos — Research desk{% endblock %}
 {% block content %}
-<div class="page-head">
-  <p class="eyebrow">Research desk</p>
-  <h1 class="page-title">Compare · Thesis · Templates</h1>
-  <p class="page-desc">
-    Triage tickers side by side, save a short thesis per name, and reuse research prompts.
-    This is a research workspace — not order execution.
-  </p>
-</div>
+<div class="rd-page">
+  <header class="rd-hero">
+    <p class="eyebrow">Research desk</p>
+    <h1 class="page-title">Compare · Thesis · Templates</h1>
+    <p class="page-desc">
+      Triage tickers side by side, save a short thesis per name, and reuse research prompts.
+      This is a research workspace — not order execution.
+    </p>
+  </header>
 
-<section class="card research-section">
-  <h2 class="card-title">Comparable research table</h2>
-  <p class="muted">Up to 8 tickers. Forecast uses the same Kronos path + uncertainty band as chat.</p>
-  <form id="compareForm" class="research-form" autocomplete="off">
-    <label class="field">
-      <span>Tickers</span>
-      <input type="text" id="compareTickers" placeholder="AAPL, MSFT, NVDA, GOOGL" required>
-    </label>
-    <label class="field narrow">
-      <span>Horizon (days)</span>
-      <input type="number" id="compareHorizon" value="14" min="5" max="60">
-    </label>
-    <button class="btn" type="submit">Run comparison</button>
-  </form>
-  <p class="muted" id="compareStatus" hidden></p>
-  <div class="table-wrap">
-    <table class="data-table" id="compareTable" hidden>
-      <thead>
-        <tr>
-          <th>Ticker</th>
-          <th>Last</th>
-          <th>Forecast</th>
-          <th>Exp. %</th>
-          <th>Uncertainty %</th>
-          <th>Regime</th>
-          <th>Context</th>
-          <th>News</th>
-          <th>RSI</th>
-          <th>Earnings gate</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </div>
-  <p class="disclaimer" id="compareDisclaimer" hidden></p>
-</section>
+  <!-- COMPARE -->
+  <section class="card rd-card">
+    <div class="rd-card-head">
+      <div>
+        <h2 class="card-title">Comparable research table</h2>
+        <p class="rd-help">Up to 8 tickers. Uses the same Kronos path and uncertainty band as chat.</p>
+      </div>
+    </div>
 
-<section class="card research-section">
-  <h2 class="card-title">Thesis notes</h2>
-  <p class="muted">Save why a name is interesting, the risks, and your research horizon.</p>
-  <form id="thesisForm" class="research-form" autocomplete="off">
-    <label class="field narrow">
-      <span>Ticker</span>
-      <input type="text" id="thesisTicker" placeholder="AAPL" required>
-    </label>
-    <label class="field narrow">
-      <span>Stance</span>
-      <select id="thesisStance">
-        <option value="watching">Watching</option>
-        <option value="bullish">Bullish</option>
-        <option value="bearish">Bearish</option>
-        <option value="neutral">Neutral</option>
-      </select>
-    </label>
-    <label class="field narrow">
-      <span>Horizon (days)</span>
-      <input type="number" id="thesisHorizon" value="14" min="1" max="365">
-    </label>
-    <label class="field grow">
-      <span>Thesis</span>
-      <textarea id="thesisText" rows="2" placeholder="Why this name is on the desk…"></textarea>
-    </label>
-    <label class="field grow">
-      <span>Risks</span>
-      <textarea id="thesisRisks" rows="2" placeholder="What would invalidate the thesis…"></textarea>
-    </label>
-    <button class="btn" type="submit">Save thesis</button>
-  </form>
-  <div class="thesis-list" id="thesisList">
-    {% if theses %}
-      {% for row in theses %}
-      <article class="thesis-card" data-ticker="{{ row.ticker }}">
-        <header>
-          <strong>{{ row.ticker }}</strong>
-          <span class="badge">{{ row.stance }}</span>
-          <span class="muted">{{ row.horizon_days }}d</span>
-        </header>
-        {% if row.thesis %}<p>{{ row.thesis }}</p>{% endif %}
-        {% if row.risks %}<p class="muted"><strong>Risks:</strong> {{ row.risks }}</p>{% endif %}
-        <button type="button" class="linkish thesis-delete" data-ticker="{{ row.ticker }}">Remove</button>
-      </article>
+    <form id="compareForm" class="rd-form" autocomplete="off">
+      <div class="rd-grid rd-grid-compare">
+        <label class="rd-field rd-field-tickers">
+          <span class="rd-label">Tickers</span>
+          <input type="text" id="compareTickers" class="rd-input"
+                 placeholder="AAPL, MSFT, NVDA, GOOGL" required>
+        </label>
+        <label class="rd-field rd-field-horizon">
+          <span class="rd-label">Horizon (days)</span>
+          <input type="number" id="compareHorizon" class="rd-input" value="14" min="5" max="60">
+        </label>
+        <div class="rd-field rd-field-action">
+          <span class="rd-label rd-label-spacer" aria-hidden="true">&nbsp;</span>
+          <button class="btn rd-btn" type="submit">Run comparison</button>
+        </div>
+      </div>
+    </form>
+
+    <p class="rd-status" id="compareStatus" hidden></p>
+    <div class="rd-table-wrap">
+      <table class="data-table rd-table" id="compareTable" hidden>
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Last</th>
+            <th>Forecast</th>
+            <th>Exp. %</th>
+            <th>Uncertainty %</th>
+            <th>Regime</th>
+            <th>Context</th>
+            <th>News</th>
+            <th>RSI</th>
+            <th>Earnings</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="rd-disclaimer" id="compareDisclaimer" hidden></p>
+  </section>
+
+  <!-- THESIS -->
+  <section class="card rd-card">
+    <div class="rd-card-head">
+      <div>
+        <h2 class="card-title">Thesis notes</h2>
+        <p class="rd-help">Why the name is interesting, the risks, and your research horizon.</p>
+      </div>
+    </div>
+
+    <form id="thesisForm" class="rd-form" autocomplete="off">
+      <div class="rd-grid rd-grid-meta">
+        <label class="rd-field">
+          <span class="rd-label">Ticker</span>
+          <input type="text" id="thesisTicker" class="rd-input" placeholder="AAPL" required>
+        </label>
+        <label class="rd-field">
+          <span class="rd-label">Stance</span>
+          <select id="thesisStance" class="rd-input">
+            <option value="watching">Watching</option>
+            <option value="bullish">Bullish</option>
+            <option value="bearish">Bearish</option>
+            <option value="neutral">Neutral</option>
+          </select>
+        </label>
+        <label class="rd-field">
+          <span class="rd-label">Horizon (days)</span>
+          <input type="number" id="thesisHorizon" class="rd-input" value="14" min="1" max="365">
+        </label>
+      </div>
+      <div class="rd-grid rd-grid-text">
+        <label class="rd-field">
+          <span class="rd-label">Thesis</span>
+          <textarea id="thesisText" class="rd-input rd-textarea" rows="3"
+                    placeholder="Why this name is on the desk…"></textarea>
+        </label>
+        <label class="rd-field">
+          <span class="rd-label">Risks</span>
+          <textarea id="thesisRisks" class="rd-input rd-textarea" rows="3"
+                    placeholder="What would invalidate the thesis…"></textarea>
+        </label>
+      </div>
+      <div class="rd-actions">
+        <button class="btn rd-btn" type="submit">Save thesis</button>
+      </div>
+    </form>
+
+    <div class="rd-thesis-list" id="thesisList">
+      {% if theses %}
+        {% for row in theses %}
+        <article class="rd-thesis-card" data-ticker="{{ row.ticker }}">
+          <header class="rd-thesis-head">
+            <strong class="rd-thesis-ticker">{{ row.ticker }}</strong>
+            <span class="rd-badge">{{ row.stance }}</span>
+            <span class="rd-meta">{{ row.horizon_days }}d</span>
+          </header>
+          {% if row.thesis %}<p class="rd-thesis-body">{{ row.thesis }}</p>{% endif %}
+          {% if row.risks %}<p class="rd-thesis-risks"><span>Risks</span> {{ row.risks }}</p>{% endif %}
+          <button type="button" class="rd-link thesis-delete" data-ticker="{{ row.ticker }}">Remove</button>
+        </article>
+        {% endfor %}
+      {% else %}
+        <p class="rd-empty" id="thesisEmpty">No thesis notes yet.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  <!-- TEMPLATES -->
+  <section class="card rd-card">
+    <div class="rd-card-head">
+      <div>
+        <h2 class="card-title">Research templates</h2>
+        <p class="rd-help">Open Chat with a ready-made research prompt.</p>
+      </div>
+    </div>
+    <div class="rd-template-grid">
+      {% for t in templates %}
+      <button type="button" class="rd-template-card template-card"
+              data-prompt="{{ t.prompt.replace('{ticker}', 'AAPL').replace('{ticker2}', 'MSFT') }}">
+        <strong>{{ t.label }}</strong>
+        <span>{{ t.prompt[:100] }}{% if t.prompt|length > 100 %}…{% endif %}</span>
+      </button>
       {% endfor %}
-    {% else %}
-      <p class="muted" id="thesisEmpty">No thesis notes yet.</p>
-    {% endif %}
-  </div>
-</section>
-
-<section class="card research-section">
-  <h2 class="card-title">Research templates</h2>
-  <p class="muted">Click a template to open Chat with the prompt ready.</p>
-  <div class="template-grid">
-    {% for t in templates %}
-    <button type="button" class="template-card" data-prompt="{{ t.prompt.replace('{ticker}', 'AAPL').replace('{ticker2}', 'MSFT') }}">
-      <strong>{{ t.label }}</strong>
-      <span class="muted">{{ t.prompt[:90] }}{% if t.prompt|length > 90 %}…{% endif %}</span>
-    </button>
-    {% endfor %}
-  </div>
-</section>
+    </div>
+  </section>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -138,7 +174,7 @@
     var tickers = raw.split(/[,;\s]+/).map(function (x) { return x.trim().toUpperCase(); }).filter(Boolean);
     var pred_len = parseInt(document.getElementById("compareHorizon").value || "14", 10);
     statusEl.hidden = false;
-    statusEl.textContent = "Running comparison (this can take a minute on first model load)…";
+    statusEl.textContent = "Running comparison (first model load can take a minute)…";
     table.hidden = true;
     try {
       var resp = await fetch("/api/research/compare", {
@@ -150,7 +186,7 @@
       if (!resp.ok) throw new Error(data.error || "Compare failed");
       tbody.innerHTML = (data.rows || []).map(function (r) {
         if (r.error) {
-          return "<tr><td><strong>" + esc(r.ticker) + "</strong></td><td colspan='9' class='muted'>" + esc(r.error) + "</td></tr>";
+          return "<tr><td><strong>" + esc(r.ticker) + "</strong></td><td colspan='9' class='rd-muted'>" + esc(r.error) + "</td></tr>";
         }
         var er = r.expected_return_pct;
         var erCls = er > 0 ? "pos" : (er < 0 ? "neg" : "");
