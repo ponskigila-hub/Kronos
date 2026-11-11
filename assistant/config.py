@@ -55,9 +55,8 @@ DETAILED_FORECAST_RUNS = int(os.getenv("DETAILED_FORECAST_RUNS", "8"))
 # without erasing the model's directional signal. Set FORECAST_DRIFT_BLEND=0
 # to disable entirely.
 FORECAST_DRIFT_BLEND = float(os.getenv("FORECAST_DRIFT_BLEND", "0.18"))
-# Soft blend of Kronos path toward the linear path from last close to the
-# analyst mean target (spread over the forecast horizon). 0 = off.
-# Keep small (0.05–0.12) so consensus does not dominate the model.
+# Legacy setting retained for callers of the optional analyst-nudge helper.
+# Built-in forecast and simulation flows do not apply analyst covariate nudges.
 FORECAST_ANALYST_NUDGE = float(os.getenv("FORECAST_ANALYST_NUDGE", "0.08"))
 # When next earnings falls within this many calendar days of today
 # (or inside the forecast horizon), mark event_risk=high and surface a
@@ -81,6 +80,7 @@ FORECAST_CACHE_MAX_ENTRIES = int(os.getenv("FORECAST_CACHE_MAX_ENTRIES", "256"))
 # Data storage
 # ---------------------------------------------------------------------------
 DATA_DIR = os.path.join(BASE_DIR, "assistant_data")
+DATABASE_PATH = os.getenv("KRONOS_DATABASE_PATH", os.path.join(DATA_DIR, "kronos.sqlite3"))
 WATCHLIST_PATH = os.path.join(DATA_DIR, "watchlists.json")
 SCREENER_HISTORY_PATH = os.path.join(DATA_DIR, "screener_history.json")
 # How many past screen runs to keep per user. Each entry only stores the

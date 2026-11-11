@@ -2,6 +2,9 @@
 Small shared JSON persistence helpers, used by watchlist.py,
 watchlist_extras.py, and screener/config_store.py (saved screener setups).
 
+SQLite is the primary document store, keyed by the same path strings; JSON
+files remain a compatibility mirror and the source for backup/restore UX.
+
 Two reliability upgrades over a bare `json.dump(open(path, "w"))`:
 
   1. Atomic writes -- every save writes to a temp file in the same
@@ -45,14 +48,34 @@ _tracked_paths = set()  # every path saved via this module this run -- what gets
 
 
 def load_json(path):
-    """Load a JSON file, recovering from the newest backup if the primary
-    file is missing, empty, or corrupt. Returns {} if nothing is recoverable."""
+    """Read SQLite first, then the JSON mirror, then the newest valid backup.
+
+    Legacy file/backup hits are promoted into SQLite. Returns {} only if no
+    representation is recoverable.
+    """
+    try:
+        from . import db as db_mod
+        data = db_mod.kv_get(path)
+        if data is not None:
+            return data
+    except Exception:
+        pass
     data = _try_load(path)
     if data is not None:
+        try:
+            from . import db as db_mod
+            db_mod.kv_set(path, data)
+        except Exception:
+            pass
         return data
     for backup_path in _backups_for(path):
         data = _try_load(backup_path)
         if data is not None:
+            try:
+                from . import db as db_mod
+                db_mod.kv_set(path, data)
+            except Exception:
+                pass
             return data
     return {}
 
@@ -61,6 +84,12 @@ def save_json(path, data):
     """Atomically write `data` as JSON to `path`, then rotate a backup."""
     with _write_lock:
         _tracked_paths.add(path)
+        try:
+            from . import db as db_mod
+            db_mod.kv_set(path, data)
+        except Exception:
+            # The durable atomic file path remains available if SQLite fails.
+            pass
         _atomic_write(path, data)
         _write_backup(path, data)
 

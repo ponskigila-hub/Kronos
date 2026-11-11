@@ -5,7 +5,7 @@
 {% block content %}
 
 <section class="hero hero-cinematic hero-photo">
-  {# Pure photos only — no text baked into the art #}
+  {# Theme-specific hero artwork; the light image has its baked header strip removed. #}
   <div class="hero-bg" aria-hidden="true">
     <img src="{{ url_for('static', filename='img/hero-light.png') }}" alt="" class="hero-bg-img hero-bg-light">
     <img src="{{ url_for('static', filename='img/hero-dark.png') }}" alt="" class="hero-bg-img hero-bg-dark">

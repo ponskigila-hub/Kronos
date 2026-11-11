@@ -227,9 +227,10 @@ class StockAssistant:
         ind_df = indicators.compute_indicators(hist_df)
         fc = forecaster.run_forecast(hist_df, pred_len=self.pred_len, n_runs=self.n_forecast_runs)
 
-        # News + fundamentals → context signal, light analyst nudge, risk band
+        # News + fundamentals → interpretation/context and uncertainty width;
+        # the built-in forecast point path is not covariate-nudged.
         from .context_signal import (
-            build_context_signal, widen_forecast_bands, apply_analyst_nudge,
+            build_context_signal, widen_forecast_bands,
         )
         pred_close = float(fc["pred_df"]["close"].iloc[-1])
         last_close = float(hist_df["close"].iloc[-1])
@@ -241,11 +242,8 @@ class StockAssistant:
             fundamentals=fund_data,
             pred_len=self.pred_len,
             kronos_pct_change=kronos_pct,
+            hist_df=hist_df,
         )
-        # Skip aggressive nudge across earnings gate — consensus is also noisy pre-print
-        if not ctx.earnings_gate:
-            fc, nudged = apply_analyst_nudge(fc, analyst)
-            ctx.analyst_nudge_applied = nudged
         if ctx.band_widen_factor > 1.0:
             fc = widen_forecast_bands(fc, ctx.band_widen_factor)
 

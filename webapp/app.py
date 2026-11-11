@@ -65,7 +65,14 @@ def _make_session_permanent():
 
 
 bot = StockAssistant()
-
+# Initialize the additive SQLite document store and import existing JSON
+# documents once. The configured `kronos.sqlite3` path is retained.
+try:
+    from assistant import db as db_mod
+    db_mod.init_db(migrate_json=True)
+except Exception as _db_init_error:
+    # JSON persistence remains the fallback if the local DB cannot be opened.
+    print(f"[kronos] SQLite initialization failed; using JSON fallback: {_db_init_error}")
 # ---------------------------------------------------------------------------
 # Background chat jobs
 # ---------------------------------------------------------------------------
@@ -166,7 +173,6 @@ def _run_forecast_ticker_job(job_id, ticker, pred_len, lookback, detailed):
         try:
             from assistant.context_signal import (
                 build_context_signal, widen_forecast_bands, format_context_block,
-                apply_analyst_nudge,
             )
             _items, news_summary = news_mod.get_news(ticker)
             earnings_warning = fundamentals.earnings_within_horizon(ticker, pred_len)
@@ -185,10 +191,8 @@ def _run_forecast_ticker_job(job_id, ticker, pred_len, lookback, detailed):
                 fundamentals=fund_data,
                 pred_len=pred_len,
                 kronos_pct_change=pct_raw,
+                hist_df=hist_df,
             )
-            if not ctx.earnings_gate and not detailed:
-                fc, nudged = apply_analyst_nudge(fc, analyst)
-                ctx.analyst_nudge_applied = nudged
             if ctx.band_widen_factor > 1.0 and not detailed:
                 fc = widen_forecast_bands(fc, ctx.band_widen_factor)
             # Rebuild chart after path/band adjustments

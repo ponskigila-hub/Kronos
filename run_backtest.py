@@ -55,9 +55,9 @@ def main():
     parser.add_argument("--train-size", type=int, default=252,
                          help="minimum training window size in trading days")
     parser.add_argument("--step-size", type=int, default=30,
-                         help="how many days to advance between walk-forward splits")
+                         help="trading bars to advance between walk-forward origins")
     parser.add_argument("--max-windows", type=int, default=None,
-                         help="cap the number of walk-forward steps (recommended while experimenting)")
+                         help="cap walk-forward origins; when capped, the latest eligible origins are used")
     parser.add_argument("--no-benchmarks", action="store_true",
                          help="skip naive/moving-average/linear-regression/ARIMA comparisons")
     parser.add_argument("--no-arima", action="store_true",

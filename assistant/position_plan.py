@@ -42,6 +42,36 @@ def _round_px(x):
     return round(v, 4)
 
 
+def _risk_size(equity, risk_pct, risk_per_share, uncertainty_pct):
+    requested = float(equity) * (float(risk_pct) / 100.0)
+    scale = forecaster.confidence_scale_from_uncertainty(uncertainty_pct)
+    effective = requested * scale
+    shares = int(effective // max(float(risk_per_share), 1e-6))
+    try:
+        uncertainty = float(uncertainty_pct) if uncertainty_pct is not None else None
+        if uncertainty is not None and not np.isfinite(uncertainty):
+            uncertainty = None
+    except (TypeError, ValueError):
+        uncertainty = None
+    return {
+        "shares": shares,
+        "cost_at_ideal": None,
+        "risk_dollars": _round_px(effective),
+        "risk_pct": risk_pct,
+        "requested_risk_dollars": _round_px(requested),
+        "effective_risk_pct": round(float(risk_pct) * scale, 4),
+        "uncertainty_pct": round(uncertainty, 4) if uncertainty is not None else None,
+        "confidence_scale": scale,
+        "equity": equity,
+        "note": (
+            "Risk budget scaled to %.0f%% because the forecast band is wide. Not a recommendation to buy."
+            % (scale * 100.0)
+            if scale < 1.0 else
+            "Size so a stop-out ≈ your requested risk %. Not a recommendation to buy."
+        ),
+    }
+
+
 def _check(id_, label, status, detail, value=None):
     """status: pass | caution | fail | na"""
     return {
@@ -412,16 +442,9 @@ def build_position_plan(
 
     # ========== SIZING ==========
     risk_per_share = max(ideal - stop, 1e-6)
-    risk_dollars = float(equity) * (float(risk_pct) / 100.0)
-    shares = int(risk_dollars // risk_per_share)
-    size = {
-        "shares": shares,
-        "cost_at_ideal": _round_px(shares * ideal),
-        "risk_dollars": _round_px(risk_dollars),
-        "risk_pct": risk_pct,
-        "equity": equity,
-        "note": "Size so a stop-out ≈ your risk %. Not a recommendation to buy.",
-    }
+    uncertainty_pct = fc.get("uncertainty_pct")
+    size = _risk_size(equity, risk_pct, risk_per_share, uncertainty_pct)
+    size["cost_at_ideal"] = _round_px(size["shares"] * ideal)
 
     # Actionable summary lines
     actions = []

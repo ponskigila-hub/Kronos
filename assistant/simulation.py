@@ -27,7 +27,7 @@ import uuid
 
 import pandas as pd
 
-from . import storage, data_fetcher, fundamentals, forecaster
+from . import storage, data_fetcher, fundamentals, forecaster, db as db_store
 from .data_fetcher import TickerNotFoundError
 from .ticker_utils import validate_ticker
 from .config import (
@@ -156,7 +156,7 @@ def _snapshot_forecast(ticker, hist_df):
     try:
         from . import news as news_mod
         from . import fundamentals as fund_mod
-        from .context_signal import build_context_signal, apply_analyst_nudge
+        from .context_signal import build_context_signal
 
         _items, news_summary = news_mod.get_news(ticker)
         earnings = fund_mod.earnings_within_horizon(ticker, SIMULATION_FORECAST_HORIZON)
@@ -175,14 +175,8 @@ def _snapshot_forecast(ticker, hist_df):
             fundamentals=fund_data,
             pred_len=SIMULATION_FORECAST_HORIZON,
             kronos_pct_change=expected_return_pct,
+            hist_df=hist_df,
         )
-        # Light nudge on the stored target price when not gated by earnings
-        if not ctx.earnings_gate:
-            fc2, nudged = apply_analyst_nudge(fc, analyst)
-            if nudged:
-                forecast_price = float(fc2["pred_df"]["close"].iloc[-1])
-                expected_return_pct = (forecast_price - entry_price) / entry_price * 100
-                ctx.analyst_nudge_applied = True
         context = ctx.to_dict()
     except Exception:
         context = None
@@ -278,6 +272,24 @@ def get_portfolio(user_id, mark_to_market=True):
                     grade = None
                 if grade is not None:
                     pos["graded"] = grade
+                    try:
+                        if pos.get("id"):
+                            forecast = pos.get("forecast") or {}
+                            db_store.record_forecast_grade(
+                                position_id=pos["id"],
+                                user_id=str(user_id),
+                                ticker=pos["ticker"],
+                                horizon_days=int(forecast.get("horizon_days") or 0),
+                                predicted_return=float(grade["predicted_return_pct"]) / 100.0,
+                                actual_return=float(grade["actual_return_pct"]) / 100.0,
+                                direction_correct=grade["direction_correct"],
+                                error_pct=grade["forecast_error_pct"],
+                                graded_at=grade.get("graded_at"),
+                            )
+                    except Exception:
+                        # Persisted JSON remains the source of this portfolio
+                        # read; analytics storage must never block grading.
+                        pass
                     changed = True
         if changed:
             with _lock:
@@ -556,6 +568,7 @@ def suggest_buys(user_id=None, limit=5):
                 fundamentals=None,
                 pred_len=SIMULATION_FORECAST_HORIZON,
                 kronos_pct_change=exp,
+                hist_df=hist_df,
             )
             # Prefer bullish / lean-bullish context and non-bearish Kronos
             score = ctx.score + (0.25 if trend == "bullish" else 0.0) - (0.35 if trend == "bearish" else 0.0)

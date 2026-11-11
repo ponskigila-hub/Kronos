@@ -104,6 +104,14 @@
     html += '<span class="ctx-badge ' + labelClass + '">Context: ' + (ctx.label || "neutral") + "</span>";
     html += '<span class="ctx-badge ' + riskClass + '">Event risk: ' + (ctx.event_risk || "normal") + "</span>";
     html += '<span class="ctx-badge badge-neutral">Context conf: ' + (ctx.confidence || "—") + "</span>";
+    const regimeLabels = {
+      bull_low_vol: "bull · low vol", bull_high_vol: "bull · high vol",
+      bear_low_vol: "bear · low vol", bear_high_vol: "bear · high vol",
+      sideways_low_vol: "sideways · low vol", sideways_high_vol: "sideways · high vol",
+      unknown: "unknown",
+    };
+    html += '<span class="ctx-badge badge-neutral">Market: ' +
+      (regimeLabels[ctx.market_regime] || "unknown") + "</span>";
     if (ctx.analyst_nudge_applied) {
       html += '<span class="ctx-badge badge-nudge">Analyst nudge on</span>';
     }
@@ -219,4 +227,3 @@
   wireBackgroundForm(tickerForm);
   wireBackgroundForm(document.getElementById("csvForm"));
 })();
-

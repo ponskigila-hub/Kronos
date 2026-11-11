@@ -55,9 +55,38 @@ class BacktestRunner:
         df = self.data_loader.load(ticker, lookback_days=None) if not hasattr(self.data_loader, "load") \
             else self.data_loader.load(ticker)
 
+        # Preserve the exact bars used by this run and its configuration.
+        df.to_csv(os.path.join(asset_dir, "data_snapshot.csv"), index=False)
+
         models = {"Kronos": make_kronos_predict_fn(**self.kronos_params)}
         if self.include_benchmarks:
             models.update(get_benchmark_suite(include_arima=self.include_arima))
+
+        manifest = {
+            "created_at_utc": pd.Timestamp.now(tz="UTC").isoformat(),
+            "ticker": ticker,
+            "data_loader": type(self.data_loader).__name__,
+            "data_rows": int(len(df)),
+            "data_start": str(df["timestamps"].iloc[0]) if len(df) else None,
+            "data_end": str(df["timestamps"].iloc[-1]) if len(df) else None,
+            "price_basis": "as returned by the configured loader; corporate-action/total-return semantics are not verified",
+            "window_type": self.validator.window_type,
+            "min_train_size": self.validator.min_train_size,
+            "max_train_size": self.validator.max_train_size,
+            "step_size": self.validator.step_size,
+            "max_windows": self.validator.max_windows,
+            "horizons": list(self.horizons),
+            "models": list(models),
+            "kronos_params": self.kronos_params,
+            "include_benchmarks": self.include_benchmarks,
+            "include_arima": self.include_arima,
+            "starting_capital": self.starting_capital,
+            "strategy": self.simulator.strategy,
+            "trading_threshold": self.simulator.threshold,
+            "transaction_cost_per_side": self.simulator.transaction_cost,
+        }
+        with open(os.path.join(asset_dir, "run_manifest.json"), "w") as f:
+            json.dump(manifest, f, indent=2, default=str)
 
         results = {}
         for model_name, predict_fn in models.items():
@@ -73,6 +102,13 @@ class BacktestRunner:
             for h, hdf in horizon_results.items():
                 if hdf.empty:
                     continue
+                model_slug = "".join(c if c.isalnum() else "_" for c in model_name).strip("_")
+                endpoint_cols = [c for c in (
+                    "split_date", "date", "horizon", "lead_time", "actual", "predicted",
+                    "prev_actual", "actual_return", "predicted_return", "entry_date", "entry_price",
+                ) if c in hdf.columns]
+                hdf[endpoint_cols].to_csv(
+                    os.path.join(asset_dir, f"endpoint_forecasts_{model_slug}_h{h}.csv"), index=False)
                 m = metrics.compute_all_metrics(hdf)
                 m.update({"model": model_name, "horizon": h})
                 metrics_table.append(m)
@@ -113,28 +149,35 @@ class BacktestRunner:
         for h, hdf in kronos_results.items():
             if hdf.empty:
                 continue
-            trades_df, equity_df = self.simulator.run(hdf, self.starting_capital)
+            trades_df, equity_df = self.simulator.run(
+                hdf, self.starting_capital, calendar_df=df)
             n_splits = hdf["split_date"].nunique()
-            periods_per_year = max(1, round(252 / max(self.validator.step_size, 1)))
+            periods_per_year = 252  # simulator now returns a complete daily equity series
             pm = portfolio_metrics.compute_all(
                 trades_df, equity_df, total_periods=n_splits,
                 starting_capital=self.starting_capital, periods_per_year=periods_per_year,
             )
+            pm["overlap_skipped_origins"] = trades_df.attrs.get("overlap_skipped", 0)
             pm["horizon"] = h
             pm["strategy"] = "Kronos forecast signals"
             portfolio_table.append(pm)
+            trades_df.to_csv(os.path.join(asset_dir, f"trades_Kronos_h{h}.csv"), index=False)
+            equity_df.to_csv(os.path.join(asset_dir, f"equity_Kronos_h{h}.csv"), index=False)
 
             # Matched always-long interval baseline: same signal origins,
             # next-open entry, endpoint close exit and transaction costs.
             long_trades, long_equity = self.simulator.run(
-                hdf, self.starting_capital, force_signal=1)
+                hdf, self.starting_capital, force_signal=1, calendar_df=df)
             long_pm = portfolio_metrics.compute_all(
                 long_trades, long_equity, total_periods=n_splits,
                 starting_capital=self.starting_capital, periods_per_year=periods_per_year,
             )
+            long_pm["overlap_skipped_origins"] = long_trades.attrs.get("overlap_skipped", 0)
             long_pm["horizon"] = h
             long_pm["strategy"] = "Always long on evaluated intervals"
             portfolio_table.append(long_pm)
+            long_trades.to_csv(os.path.join(asset_dir, f"trades_always_long_h{h}.csv"), index=False)
+            long_equity.to_csv(os.path.join(asset_dir, f"equity_always_long_h{h}.csv"), index=False)
 
             if not equity_df.empty:
                 visualization.plot_equity_curve(
@@ -269,10 +312,10 @@ def quick_backtest(ticker, horizons=None, max_windows=None, min_train_size=None,
     """
     from assistant import config as assistant_config
 
-    horizons = tuple(horizons or assistant_config.BACKTEST_QUICK_HORIZONS)
-    max_windows = max_windows or assistant_config.BACKTEST_QUICK_MAX_WINDOWS
-    min_train_size = min_train_size or assistant_config.BACKTEST_QUICK_MIN_TRAIN_SIZE
-    step_size = step_size or assistant_config.BACKTEST_QUICK_STEP_SIZE
+    horizons = tuple(assistant_config.BACKTEST_QUICK_HORIZONS if horizons is None else horizons)
+    max_windows = assistant_config.BACKTEST_QUICK_MAX_WINDOWS if max_windows is None else max_windows
+    min_train_size = assistant_config.BACKTEST_QUICK_MIN_TRAIN_SIZE if min_train_size is None else min_train_size
+    step_size = assistant_config.BACKTEST_QUICK_STEP_SIZE if step_size is None else step_size
     output_dir = output_dir or os.path.join(assistant_config.BACKTEST_DIR, ticker.upper())
     os.makedirs(output_dir, exist_ok=True)
 
@@ -315,18 +358,25 @@ def quick_backtest(ticker, horizons=None, max_windows=None, min_train_size=None,
     if kronos_results and not kronos_results.get(main_horizon, pd.DataFrame()).empty:
         hdf = kronos_results[main_horizon]
         sim = TradingSimulator(strategy=trading_strategy, threshold=trading_threshold)
-        trades_df, equity_df = sim.run(hdf, starting_capital)
+        trades_df, equity_df = sim.run(hdf, starting_capital, calendar_df=df)
+        trades_df.to_csv(os.path.join(output_dir, f"trades_h{main_horizon}.csv"), index=False)
+        equity_df.to_csv(os.path.join(output_dir, f"equity_h{main_horizon}.csv"), index=False)
         n_splits = hdf["split_date"].nunique()
-        periods_per_year = max(1, round(252 / max(step_size, 1)))
+        periods_per_year = 252  # daily mark-to-market equity series
         portfolio = portfolio_metrics.compute_all(
             trades_df, equity_df, total_periods=n_splits,
             starting_capital=starting_capital, periods_per_year=periods_per_year,
         )
-        long_trades, long_equity = sim.run(hdf, starting_capital, force_signal=1)
+        portfolio["overlap_skipped_origins"] = trades_df.attrs.get("overlap_skipped", 0)
+        long_trades, long_equity = sim.run(
+            hdf, starting_capital, force_signal=1, calendar_df=df)
+        long_trades.to_csv(os.path.join(output_dir, f"trades_always_long_h{main_horizon}.csv"), index=False)
+        long_equity.to_csv(os.path.join(output_dir, f"equity_always_long_h{main_horizon}.csv"), index=False)
         portfolio["matched_long_baseline"] = portfolio_metrics.compute_all(
             long_trades, long_equity, total_periods=n_splits,
             starting_capital=starting_capital, periods_per_year=periods_per_year,
         )
+        portfolio["matched_long_baseline"]["overlap_skipped_origins"] = long_trades.attrs.get("overlap_skipped", 0)
         if not equity_df.empty:
             equity_curve_path = visualization.plot_equity_curve(
                 equity_df, f"{ticker} -- Backtest Equity Curve (horizon={main_horizon}d, "
@@ -370,14 +420,15 @@ def quick_backtest(ticker, horizons=None, max_windows=None, min_train_size=None,
                 dm_result["vs_model"] = best_bench_name
 
     text = _format_quick_backtest_text(ticker, metrics_df, portfolio, horizons, max_windows,
-                                        dm_result, regime_breakdown, main_horizon)
+                                        dm_result, regime_breakdown, main_horizon, step_size)
     return {"text": text, "metrics_df": metrics_df, "portfolio_metrics": portfolio,
             "image_path": image_path, "equity_curve_path": equity_curve_path,
             "significance_vs_benchmark": dm_result, "regime_breakdown": regime_breakdown}
 
 
 def _format_quick_backtest_text(ticker, metrics_df, portfolio, horizons, max_windows,
-                                  dm_result=None, regime_breakdown=None, main_horizon=None):
+                                  dm_result=None, regime_breakdown=None, main_horizon=None,
+                                  step_size=30):
     if metrics_df.empty:
         return (f"Couldn't run a backtest for {ticker} -- not enough history for "
                 f"{max_windows} walk-forward windows at these horizons. Try a "
@@ -386,7 +437,7 @@ def _format_quick_backtest_text(ticker, metrics_df, portfolio, horizons, max_win
     kronos_df = metrics_df[metrics_df["model"] == "Kronos"].sort_values("horizon")
     observed_origins = int(kronos_df["n_predictions"].max()) if not kronos_df.empty else 0
     lines = [f"Backtest for {ticker} -- {observed_origins} endpoint origins observed "
-             f"(requested cap {max_windows}; origins spaced about 30 trading bars apart), "
+             f"(requested cap {max_windows}; origins spaced about {step_size} trading bars apart), "
              f"horizons {list(horizons)} bars (expanding window):"]
 
     all_notes = []
@@ -432,12 +483,13 @@ def _format_quick_backtest_text(ticker, metrics_df, portfolio, horizons, max_win
 
     if portfolio:
         lines.append(
-            f"Simulated trading at {main_h}d horizon: total return "
+            f"Simulated trading at {main_h}-bar horizon: total return "
             f"{portfolio.get('total_return_pct', float('nan')):.1f}%, "
             f"Sharpe {portfolio.get('sharpe_ratio', float('nan')):.2f}, "
             f"win rate {portfolio.get('win_rate_pct', float('nan')):.1f}%, "
             f"max drawdown {portfolio.get('max_drawdown_pct', float('nan')):.1f}%, "
-            f"{int(portfolio.get('num_trades', 0))} trades. "
+            f"{int(portfolio.get('num_trades', 0))} trades; "
+            f"{int(portfolio.get('overlap_skipped_origins', 0))} overlapping origins skipped. "
             f"(Equity curve chart also saved alongside the attached image.)"
         )
         baseline = portfolio.get("matched_long_baseline") or {}
@@ -455,6 +507,6 @@ def _format_quick_backtest_text(ticker, metrics_df, portfolio, horizons, max_win
 
     lines.append("This is a historical forecast diagnostic, not proof of future profit. "
                   "If you use these results to tune choices, they are no longer an untouched holdout. "
-                  "The paper-trading simulation is simplified and omits spread, market impact, borrow and overlapping positions. "
+                  "Overlapping signals are skipped; the simplified simulation still omits spread, market impact, borrow, margin, dividends and combined cross-horizon positions. "
                   "For full diagnostics, run `python run_backtest.py --tickers " + ticker + "`.")
     return "\n".join(lines)
