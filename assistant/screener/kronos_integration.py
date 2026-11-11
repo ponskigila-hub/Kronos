@@ -12,8 +12,7 @@ it would just contend for the same CPU/GPU resources.
 """
 
 
-def run_for_candidates(candidates, history_cache, pred_len=30, n_runs=1, progress_cb=None,
-                       user_id=None):
+def run_for_candidates(candidates, history_cache, pred_len=30, n_runs=1, progress_cb=None):
     """
     candidates: ordered list of ticker symbols (already technically ranked --
                 typically SCREENER_CONFIG["preselection_count"] of them)
@@ -46,11 +45,9 @@ def run_for_candidates(candidates, history_cache, pred_len=30, n_runs=1, progres
                 reliability = None
                 try:
                     from ..db import get_ticker_reliability
-                    reliability = get_ticker_reliability(
-                        ticker, horizon_days=pred_len, user_id=user_id,
-                    )
+                    reliability = get_ticker_reliability(ticker)
                 except Exception:
-                    pass
+                    reliability = None
                 results[ticker] = {
                     "current_price": last_close,
                     "forecast_price": forecast_close,

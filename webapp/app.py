@@ -30,6 +30,7 @@ from assistant import data_fetcher, indicators, forecaster as forecaster_mod, ch
 from assistant import portfolio_analysis, fundamentals, watchlist_extras
 from assistant import news as news_mod, llm as llm_mod
 from assistant import storage as storage_mod
+from assistant import db as db_mod
 from assistant.screener import engine as screener_engine
 from assistant.screener import universe as screener_universe
 from assistant.screener import presets as screener_presets
@@ -65,14 +66,15 @@ def _make_session_permanent():
 
 
 bot = StockAssistant()
-# Initialize the additive SQLite document store and import existing JSON
-# documents once. The configured `kronos.sqlite3` path is retained.
+
+# SQLite primary store (watchlist, simulation, notes, …). Idempotent;
+# also imports legacy assistant_data/*.json on first run.
 try:
-    from assistant import db as db_mod
-    db_mod.init_db(migrate_json=True)
-except Exception as _db_init_error:
-    # JSON persistence remains the fallback if the local DB cannot be opened.
-    print(f"[kronos] SQLite initialization failed; using JSON fallback: {_db_init_error}")
+    _db_path = db_mod.init_db(migrate_json=True)
+    print(f"[kronos] SQLite ready: {_db_path}")
+except Exception as _db_err:
+    print(f"[kronos] SQLite init failed (falling back to JSON files): {_db_err}")
+
 # ---------------------------------------------------------------------------
 # Background chat jobs
 # ---------------------------------------------------------------------------
@@ -173,6 +175,7 @@ def _run_forecast_ticker_job(job_id, ticker, pred_len, lookback, detailed):
         try:
             from assistant.context_signal import (
                 build_context_signal, widen_forecast_bands, format_context_block,
+                apply_analyst_nudge, apply_context_covariate_nudge,
             )
             _items, news_summary = news_mod.get_news(ticker)
             earnings_warning = fundamentals.earnings_within_horizon(ticker, pred_len)
@@ -193,6 +196,11 @@ def _run_forecast_ticker_job(job_id, ticker, pred_len, lookback, detailed):
                 kronos_pct_change=pct_raw,
                 hist_df=hist_df,
             )
+            if not ctx.earnings_gate and not detailed:
+                fc, nudged = apply_analyst_nudge(fc, analyst)
+                ctx.analyst_nudge_applied = nudged
+            if not detailed:
+                fc, _cov = apply_context_covariate_nudge(fc, ctx)
             if ctx.band_widen_factor > 1.0 and not detailed:
                 fc = widen_forecast_bands(fc, ctx.band_widen_factor)
             # Rebuild chart after path/band adjustments
@@ -394,12 +402,17 @@ def api_chat_job(job_id):
     # "done" -- convert the file path to a servable URL here (needs an
     # active request context, unlike the background thread it was
     # computed in).
+    data = result.get("data") or {}
     return jsonify({
         "status": "done",
         "text": result.get("text", ""),
         "image_url": _to_url(result.get("image_path")),
         "suggestions": result.get("suggestions", []),
-        "sparkline": (result.get("data") or {}).get("sparkline", []),
+        "sparkline": data.get("sparkline", []),
+        "evidence": data.get("evidence"),
+        "scenarios": data.get("scenarios"),
+        "uncertainty_pct": data.get("uncertainty_pct"),
+        "context_signal": data.get("context_signal"),
     })
 
 
@@ -1239,6 +1252,76 @@ def watchlist_entry_zone():
         return jsonify({"error": "low/high must be numbers"}), 400
     zone = watchlist_extras.set_entry_zone(_user_id(), ticker, low, high)
     return jsonify({"ticker": ticker, "entry_zone": zone})
+
+
+# ---------------------------------------------------------------------------
+# Research desk: thesis notes, compare table, templates
+# ---------------------------------------------------------------------------
+@app.route("/research")
+def research_page():
+    from assistant import research as research_mod
+    theses = research_mod.list_theses(_user_id())
+    templates = research_mod.list_templates()
+    return render_template(
+        "research.html",
+        active="research",
+        theses=theses,
+        templates=templates,
+    )
+
+
+@app.route("/api/research/templates")
+def api_research_templates():
+    from assistant import research as research_mod
+    return jsonify({"templates": research_mod.list_templates()})
+
+
+@app.route("/api/research/thesis", methods=["GET", "POST", "DELETE"])
+def api_research_thesis():
+    from assistant import research as research_mod
+    uid = _user_id()
+    if request.method == "GET":
+        ticker = (request.args.get("ticker") or "").strip().upper()
+        if ticker:
+            return jsonify({"thesis": research_mod.get_thesis(uid, ticker)})
+        return jsonify({"theses": research_mod.list_theses(uid)})
+    payload = request.get_json(silent=True) or {}
+    ticker = (payload.get("ticker") or request.args.get("ticker") or "").strip().upper()
+    if not ticker:
+        return jsonify({"error": "ticker required"}), 400
+    if request.method == "DELETE":
+        ok = research_mod.delete_thesis(uid, ticker)
+        return jsonify({"ok": ok, "ticker": ticker})
+    try:
+        row = research_mod.save_thesis(
+            uid,
+            ticker,
+            thesis=payload.get("thesis") or "",
+            risks=payload.get("risks") or "",
+            horizon_days=payload.get("horizon_days") or 14,
+            stance=payload.get("stance") or "watching",
+            tags=payload.get("tags"),
+        )
+        return jsonify({"thesis": row})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/research/compare", methods=["POST"])
+def api_research_compare():
+    from assistant import research as research_mod
+    payload = request.get_json(silent=True) or {}
+    tickers = payload.get("tickers") or []
+    if isinstance(tickers, str):
+        tickers = [x.strip() for x in tickers.replace(";", ",").split(",") if x.strip()]
+    pred_len = int(payload.get("pred_len") or 14)
+    if not tickers:
+        return jsonify({"error": "tickers required"}), 400
+    try:
+        result = research_mod.compare_tickers(tickers, pred_len=pred_len)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ---------------------------------------------------------------------------

@@ -69,7 +69,6 @@
       <div class="sim-kpi">
         <div class="sim-kpi-label">Suggested size</div>
         <div class="sim-kpi-val" id="outSize">—</div>
-        <div class="sim-muted" id="outSizeNote" style="font-size:12px;margin-top:4px;"></div>
       </div>
     </div>
   </div>
@@ -196,7 +195,6 @@
     var sz = d.size || {};
     document.getElementById("outSize").textContent =
       sz.shares != null ? (sz.shares + " sh") : "—";
-    document.getElementById("outSizeNote").textContent = sz.note || "";
 
     var en = d.entry || {};
     document.getElementById("outEntryLow").textContent = en.zone_low != null ? en.zone_low : "—";

@@ -13,21 +13,8 @@ from scipy import stats
 def _clean(y_true, y_pred):
     y_true = np.asarray(y_true, dtype=float)
     y_pred = np.asarray(y_pred, dtype=float)
-    n = min(len(y_true), len(y_pred))
-    y_true, y_pred = y_true[:n], y_pred[:n]
-    mask = np.isfinite(y_true) & np.isfinite(y_pred)
+    mask = ~(np.isnan(y_true) | np.isnan(y_pred))
     return y_true[mask], y_pred[mask]
-
-
-def _clean_aligned(y_true, y_pred, y_prev):
-    """Drop invalid rows jointly so reference prices never become misaligned."""
-    y_true = np.asarray(y_true, dtype=float)
-    y_pred = np.asarray(y_pred, dtype=float)
-    y_prev = np.asarray(y_prev, dtype=float)
-    n = min(len(y_true), len(y_pred), len(y_prev))
-    y_true, y_pred, y_prev = y_true[:n], y_pred[:n], y_prev[:n]
-    mask = np.isfinite(y_true) & np.isfinite(y_pred) & np.isfinite(y_prev)
-    return y_true[mask], y_pred[mask], y_prev[mask]
 
 
 # ---------------------------------------------------------------------------
@@ -93,7 +80,8 @@ def median_absolute_error(y_true, y_pred):
 def direction_accuracy(y_true, y_pred, y_prev):
     """% of predictions that got the direction (up/down/flat) right, using
     the last known actual price (`y_prev`) as the reference point."""
-    y_true, y_pred, y_prev = _clean_aligned(y_true, y_pred, y_prev)
+    y_true, y_pred = _clean(y_true, y_pred)
+    y_prev = np.asarray(y_prev, dtype=float)[:len(y_true)]
     actual_dir = np.sign(y_true - y_prev)
     pred_dir = np.sign(y_pred - y_prev)
     if len(actual_dir) == 0:
@@ -103,7 +91,9 @@ def direction_accuracy(y_true, y_pred, y_prev):
 
 def up_down_accuracy(y_true, y_pred, y_prev):
     """Direction accuracy split by whether the actual move was up or down."""
-    y_true, y_pred, y_prev = _clean_aligned(y_true, y_pred, y_prev)
+    y_true = np.asarray(y_true, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+    y_prev = np.asarray(y_prev, dtype=float)
     actual_dir = np.sign(y_true - y_prev)
     pred_dir = np.sign(y_pred - y_prev)
 
@@ -144,9 +134,9 @@ def hit_ratio(y_true, y_pred, y_prev):
 def information_coefficient(y_true, y_pred, y_prev):
     """Rank correlation (Spearman) between predicted returns and realized
     returns -- the standard quant definition of IC."""
-    y_true, y_pred, y_prev = _clean_aligned(y_true, y_pred, y_prev)
-    nonzero = y_prev != 0
-    y_true, y_pred, y_prev = y_true[nonzero], y_pred[nonzero], y_prev[nonzero]
+    y_true = np.asarray(y_true, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+    y_prev = np.asarray(y_prev, dtype=float)
     actual_ret = (y_true - y_prev) / y_prev
     pred_ret = (y_pred - y_prev) / y_prev
     return spearman_correlation(actual_ret, pred_ret)
@@ -216,18 +206,14 @@ def reliability_flags(metrics_dict, min_reliable_n=30, bias_threshold=90.0):
 
     notes = []
     if low_sample:
-        # Wilson interval is better behaved at small n than the Wald interval;
-        # it still assumes independent Bernoulli observations.
+        # rough 95% CI half-width for a proportion, informative even if the
+        # metric in question isn't itself a proportion
         acc = metrics_dict.get("direction_accuracy", np.nan)
         if acc == acc and n > 0:
             p = acc / 100
-            z = 1.96
-            denom = 1.0 + z * z / n
-            center = (p + z * z / (2.0 * n)) / denom
-            half = z * np.sqrt(p * (1.0 - p) / n + z * z / (4.0 * n * n)) / denom
-            low, high = max(0.0, center - half), min(1.0, center + half)
-            notes.append(f"only {n} predictions -- rough IID Wilson 95% interval for direction accuracy "
-                          f"is {low * 100:.0f}% to {high * 100:.0f}%; serial/overlap dependence is not adjusted")
+            half_width = 1.96 * (p * (1 - p) / n) ** 0.5 * 100
+            notes.append(f"only {n} predictions -- direction accuracy could plausibly be "
+                          f"anywhere from {max(0, acc - half_width):.0f}% to {min(100, acc + half_width):.0f}%")
         else:
             notes.append(f"only {n} predictions -- not enough to draw conclusions")
     if biased:

@@ -157,8 +157,6 @@
   </div>
   <p class="page-desc" style="margin:14px 0 0;">
     {% if result.kronos_ran %}Kronos ran on the top {{ result.config_used.preselection_count }} candidates ({{ result.config_used.pred_len }}-day horizon).{% else %}Kronos forecast stage was not run.{% endif %}
-    Benchmark regime: <strong>{{ result.config_used.benchmark_regime|replace('_', ' ')|title }}</strong>{% if result.config_used.regime_adjustment_applied %}; bear-market risk/liquidity/volatility weights were automatically increased and normalized.{% else %}; no automatic weight shift was applied.{% endif %}
-    Kronos weight may also adjust modestly after at least 10 same-horizon paper-trade grades for this user; accuracy is shrunk toward 50% and is not a validation guarantee.
     {% if result.skipped %}<a href="#skippedDetails" onclick="document.getElementById('skippedDetails').open=true;">See {{ result.skipped|length }} skipped ticker(s)</a>.{% endif %}
   </p>
 </div>

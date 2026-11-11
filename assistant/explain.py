@@ -150,15 +150,8 @@ def build_explanation(ticker, ind_df, forecast_result, news_summary=None,
     if forecast_result.get("low_df") is not None:
         low_end = float(forecast_result["low_df"]["close"].iloc[-1])
         high_end = float(forecast_result["high_df"]["close"].iloc[-1])
-        if forecast_result.get("band_source") == "analytical_vol":
-            lines.append(
-                f"An approximate 10–90% range based on recent historical daily volatility is "
-                f"{low_end:.2f} to {high_end:.2f}; it is not sampled model uncertainty or a "
-                f"calibrated confidence interval."
-            )
-        else:
-            lines.append(f"Across {forecast_result['n_runs']} independent sampling runs, the forecast "
-                          f"10th–90th percentile range at the horizon is roughly {low_end:.2f} to {high_end:.2f}.")
+        lines.append(f"Across {forecast_result['n_runs']} independent sampling runs, the forecast "
+                      f"range at the horizon is roughly {low_end:.2f} to {high_end:.2f}.")
 
     # News + fundamentals context (preferred path when context_signal is provided)
     if context_signal is not None:

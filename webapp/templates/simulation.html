@@ -170,7 +170,6 @@
             {% if ctx %}
             <span class="ctx-badge {{ 'badge-bull' if 'bull' in (ctx.label or '') else ('badge-bear' if 'bear' in (ctx.label or '') else 'badge-neutral') }}">{{ ctx.label or '—' }}</span>
             {% if ctx.earnings_gate %}<span class="ctx-badge badge-risk-high">earnings</span>{% endif %}
-            <span class="ctx-badge badge-neutral">Market: {{ ctx.get('market_regime', 'unknown')|replace('_', ' ') }}</span>
             {% else %}<span class="sim-muted">—</span>{% endif %}
           </td>
           <td>
@@ -305,7 +304,6 @@
     badges.innerHTML =
       '<span class="ctx-badge ' + lc + '">Context: ' + label + "</span>" +
       '<span class="ctx-badge ' + rc + '">Event risk: ' + risk + "</span>" +
-      '<span class="ctx-badge badge-neutral">Market: ' + String(ctx.market_regime || "unknown").replaceAll("_", " ") + "</span>" +
       (ctx.analyst_nudge_applied ? '<span class="ctx-badge badge-nudge">Analyst nudge</span>' : "");
 
     var gate = document.getElementById("simPrevGate");

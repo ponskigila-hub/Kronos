@@ -25,34 +25,6 @@ DEFAULT_WEIGHTS = {
 }
 
 
-def regime_adjusted_weights(base_weights, benchmark_df, price_col="close"):
-    """Return gently shifted weights and the benchmark SMA200 regime.
-
-    Fewer than 200 valid bars (or malformed prices) disables adjustment and
-    returns the original weights with ``unknown``. This only changes score
-    weights; it does not alter any ticker's raw measurements.
-    """
-    weights = dict(base_weights or DEFAULT_WEIGHTS)
-    if benchmark_df is None or price_col not in getattr(benchmark_df, "columns", []):
-        return weights, "unknown"
-    try:
-        close = np.asarray(benchmark_df[price_col], dtype=float)
-        tail = close[-200:]
-        if len(tail) < 200 or not np.isfinite(tail).all() or tail[-1] <= 0:
-            return weights, "unknown"
-        regime = "bear" if tail[-1] < float(np.mean(tail)) else "bull"
-    except (TypeError, ValueError, IndexError):
-        return weights, "unknown"
-
-    if regime == "bear":
-        shifts = {"risk": 0.05, "liquidity": 0.05, "volatility": 0.05,
-                  "trend": -0.08, "momentum": -0.07}
-        adjusted = {key: max(0.0, float(weights.get(key, 0.0)) + shifts.get(key, 0.0))
-                    for key in set(weights) | set(shifts)}
-        weights = normalize_weights(adjusted)
-    return weights, regime
-
-
 def _scale(value, low, high):
     """Linearly map value in [low, high] to [0, 100], clipping outside."""
     if value is None:
@@ -179,52 +151,73 @@ def normalize_weights(weights, exclude=None):
     return {k: v / total for k, v in active.items()}
 
 
-RELIABILITY_MIN_GRADES = 10
-RELIABILITY_PRIOR_STRENGTH = 10  # equivalent to ten neutral (50%) grades
-
-
 def adjust_weights_for_reliability(weights, reliability):
-    """Gently adjust Kronos's share using a smoothed, ticker-specific history.
-
-    Fewer than ten matched-horizon grades do not change weights. A neutral
-    50% prior with strength ten reduces small-sample swings; adjustments are
-    deliberately capped and remain a ranking heuristic, not model validation.
-    """
-    out = dict(weights or DEFAULT_WEIGHTS)
-    if not isinstance(reliability, dict):
-        return out
+    """Scale kronos weight from historical directional accuracy, if enough grades exist."""
+    if not reliability or not isinstance(reliability, dict):
+        return dict(weights)
     try:
         n = int(reliability.get("graded_count") or 0)
-        accuracy = float(reliability.get("directional_accuracy"))
+        acc = float(reliability.get("directional_accuracy") or 0.0)
     except (TypeError, ValueError):
-        return out
-    if n < RELIABILITY_MIN_GRADES or not np.isfinite(accuracy) or not 0 <= accuracy <= 100:
-        return out
-    kronos_weight = float(out.get("kronos") or 0.0)
-    if kronos_weight <= 0:
-        return out
-    posterior_accuracy = (
-        accuracy * n + 50.0 * RELIABILITY_PRIOR_STRENGTH
-    ) / (n + RELIABILITY_PRIOR_STRENGTH)
-    if posterior_accuracy < 45.0:
-        reduction = kronos_weight * 0.25
-        out["kronos"] = kronos_weight - reduction
-        out["trend"] = float(out.get("trend") or 0.0) + reduction * 0.5
-        out["risk"] = float(out.get("risk") or 0.0) + reduction * 0.5
-    elif posterior_accuracy >= 65.0:
-        out["kronos"] = kronos_weight * 1.10
-    return normalize_weights(out)
+        return dict(weights)
+    if n < 3:
+        return dict(weights)
+    w = dict(weights)
+    k = float(w.get("kronos") or 0.0)
+    if k <= 0:
+        return w
+    if acc < 45.0:
+        cut = k * 0.5
+        w["kronos"] = k - cut
+        w["trend"] = float(w.get("trend") or 0.0) + cut * 0.5
+        w["risk"] = float(w.get("risk") or 0.0) + cut * 0.5
+    elif acc >= 65.0:
+        w["kronos"] = k * 1.25
+    return w
+
+
+def get_regime_adjusted_weights(base_weights: dict, benchmark_df) -> tuple:
+    """Shift weights in a bear regime (price under SMA200): more risk/liquidity/vol, less trend/momentum.
+
+    Returns (weights_dict summing to ~1.0, regime_label).
+    """
+    import pandas as pd
+
+    weights = dict(base_weights or DEFAULT_WEIGHTS)
+    regime = "unknown"
+    if benchmark_df is None or len(benchmark_df) < 50 or "close" not in getattr(benchmark_df, "columns", []):
+        total = sum(float(v) for v in weights.values()) or 1.0
+        return {k: float(v) / total for k, v in weights.items()}, regime
+
+    close = benchmark_df.sort_values("timestamps")["close"].astype(float) if "timestamps" in benchmark_df.columns else benchmark_df["close"].astype(float)
+    price = float(close.iloc[-1])
+    sma200 = float(close.rolling(200).mean().iloc[-1]) if len(close) >= 200 else None
+    sma50 = float(close.rolling(50).mean().iloc[-1]) if len(close) >= 50 else None
+
+    if sma200 is not None and price < sma200:
+        regime = "bear"
+        for k in ("risk", "liquidity", "volatility"):
+            weights[k] = float(weights.get(k) or 0.0) + 0.05
+        weights["momentum"] = max(0.0, float(weights.get("momentum") or 0.0) - 0.075)
+        weights["trend"] = max(0.0, float(weights.get("trend") or 0.0) - 0.075)
+    elif sma50 is not None and price >= sma50 and (sma200 is None or price >= sma200):
+        regime = "bull"
+    else:
+        regime = "sideways"
+
+    total = sum(float(v) for v in weights.values()) or 1.0
+    weights = {k: float(v) / total for k, v in weights.items()}
+    return weights, regime
 
 
 def composite_score(category_scores, weights=None, reliability=None):
-    """Return (overall_0_100, weights actually used).
+    """Returns (overall_0_100, weights_actually_used).
 
-    Reliability is applied only when this row has a Kronos score; an old
-    grade should not reweight a screen where Kronos was not run.
+    Optional `reliability` (from db.get_ticker_reliability) adjusts the kronos
+    weight when graded_count >= 3.
     """
     weights = dict(weights or DEFAULT_WEIGHTS)
-    if category_scores.get("kronos") is not None:
-        weights = adjust_weights_for_reliability(weights, reliability)
+    weights = adjust_weights_for_reliability(weights, reliability)
     missing = [k for k, v in category_scores.items() if v is None]
     used_weights = normalize_weights(weights, exclude=missing)
     overall = sum(category_scores[k] * w for k, w in used_weights.items() if category_scores.get(k) is not None)

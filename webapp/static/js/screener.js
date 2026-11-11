@@ -315,10 +315,6 @@
     tbody.querySelectorAll("tr").forEach((tr) => tr.classList.toggle("selected", tr.dataset.ticker === ticker));
 
     const m = row.metrics;
-    const reliability = row.kronos && row.kronos.reliability;
-    const reliabilityText = reliability
-      ? `${reliability.graded_count} grades · ${fmtNum(reliability.directional_accuracy, 1)}% direction accuracy`
-      : "No matched-horizon grades";
     const kronosHtml = row.kronos && !row.kronos.error ? `
       <div class="screener-detail-col">
         <div class="card-title">Kronos forecast</div>
@@ -328,7 +324,6 @@
           <tr><td>Expected return</td><td>${fmtPct(row.kronos.expected_return)}</td></tr>
           <tr><td>Direction</td><td>${row.kronos.direction || "n/a"}</td></tr>
           <tr><td>Horizon</td><td>${row.kronos.pred_len} trading days</td></tr>
-          <tr><td>Paper-trade history</td><td>${reliabilityText}</td></tr>
         </table>
       </div>` : row.kronos && row.kronos.error ? `
       <div class="screener-detail-col">

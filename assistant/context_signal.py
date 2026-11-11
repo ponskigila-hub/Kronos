@@ -8,7 +8,7 @@ retrain or feed news tokens into the transformer. Instead it:
   1. Scores recent news, earnings proximity, and analyst target vs price.
   2. Produces a structured signal used by explain.py and core_assistant
      so the user sees an honest "price model + market context" view.
-3. Can widen the displayed uncertainty band when event risk is high (earnings near,
+  3. Can widen the confidence band when event risk is high (earnings near,
      very negative news) so the chart reflects elevated uncertainty.
 
 This is the practical way to "integrate" news & fundamentals without
@@ -29,14 +29,15 @@ class ContextSignal:
     label: str = "neutral"  # bullish | lean bullish | neutral | lean bearish | bearish
     confidence: str = "medium"  # low | medium | high  (how much we trust the context itself)
     event_risk: str = "normal"  # normal | elevated | high
-    band_widen_factor: float = 1.0  # multiply uncertainty-band width by this
+    band_widen_factor: float = 1.0  # multiply confidence-band width by this
     # True when earnings is inside the gate window — UI should show a strong warning
     earnings_gate: bool = False
     earnings_date: Optional[str] = None
     analyst_nudge_applied: bool = False
+    market_regime: str = "neutral"
+    uncertainty_scale: float = 1.0
     notes: list[str] = field(default_factory=list)
     components: dict[str, Any] = field(default_factory=dict)
-    market_regime: str = "unknown"
 
     def to_dict(self) -> dict:
         return {
@@ -49,6 +50,7 @@ class ContextSignal:
             "earnings_date": self.earnings_date,
             "analyst_nudge_applied": self.analyst_nudge_applied,
             "market_regime": self.market_regime,
+            "uncertainty_scale": self.uncertainty_scale,
             "notes": list(self.notes),
             "components": dict(self.components),
         }
@@ -66,6 +68,7 @@ def build_context_signal(
     pred_len: int = 14,
     kronos_pct_change: Optional[float] = None,
     hist_df=None,
+    ind_df=None,
 ) -> ContextSignal:
     """
     Combine available side channels into one ContextSignal.
@@ -80,18 +83,6 @@ def build_context_signal(
     notes: list[str] = []
     components: dict[str, Any] = {}
     parts: list[tuple[float, float]] = []  # (weight, score)
-    market_regime = "unknown"
-    if hist_df is not None and len(hist_df):
-        try:
-            from backtesting.regimes import classify_regimes
-            latest = classify_regimes(hist_df).iloc[-1]
-            trend = str(latest.get("trend_regime", "unknown"))
-            vol = str(latest.get("vol_regime", "unknown"))
-            if trend in {"bull", "bear", "sideways"} and vol in {"high", "low"}:
-                market_regime = f"{trend}_{vol}_vol"
-        except (KeyError, TypeError, ValueError, IndexError):
-            market_regime = "unknown"
-        components["market_regime"] = market_regime
 
     # --- News ---
     news_score = 0.0
@@ -167,6 +158,32 @@ def build_context_signal(
             except (TypeError, ValueError):
                 pass
 
+
+    # --- Market regime from price history (SMA / vol or backtesting.regimes) ---
+    market_regime = "neutral"
+    uncertainty_scale = 1.0
+    analyst_weight_scale = 1.0
+    try:
+        market_regime = _detect_market_regime(hist_df=hist_df, ind_df=ind_df)
+    except Exception:
+        market_regime = "neutral"
+    components["market_regime"] = market_regime
+    if market_regime == "bear_high_vol":
+        # Analyst targets lag in selloffs — cut their directional weight.
+        analyst_weight_scale = 0.5
+        notes.append(
+            "Market regime: bear / high-vol — widening uncertainty and de-weighting lagging analyst upside."
+        )
+    elif market_regime != "neutral":
+        notes.append(f"Market regime detected: {market_regime.replace('_', ' ')}.")
+
+    # Re-scale analyst contribution already in `parts` if present
+    if analyst_weight_scale != 1.0 and parts:
+        parts = [
+            ((w * analyst_weight_scale) if abs(s - analyst_score) < 1e-9 and w >= 0.30 else w, s)
+            for w, s in parts
+        ]
+
     # --- Weighted directional score ---
     if parts:
         w_sum = sum(w for w, _ in parts)
@@ -225,12 +242,6 @@ def build_context_signal(
         event_risk = "elevated"
         band_widen = 1.2
 
-    # Regime changes uncertainty width only; it never changes Kronos's
-    # central forecast path. Keep the larger of this floor and event widening.
-    if market_regime == "bear_high_vol":
-        band_widen = max(band_widen, 1.30)
-        notes.append("Bear/high-volatility regime: uncertainty band widened at least 1.30×; this is a risk adjustment, not a directional price signal.")
-
     # How much we trust the *context* itself
     conf = "medium"
     n_sources = 0
@@ -258,6 +269,16 @@ def build_context_signal(
             )
             band_widen = max(band_widen, 1.25)
 
+    if market_regime == "bear_high_vol":
+        band_widen = max(band_widen, 1.35)
+        event_risk = "elevated" if event_risk == "normal" else event_risk
+
+    # Map band width into a [0.5, 1.0] size scale for downstream risk modules
+    try:
+        uncertainty_scale = max(0.5, min(1.0, 1.0 / float(band_widen)))
+    except Exception:
+        uncertainty_scale = 1.0
+
     return ContextSignal(
         score=round(score, 3),
         label=label,
@@ -266,9 +287,10 @@ def build_context_signal(
         band_widen_factor=round(band_widen, 2),
         earnings_gate=earnings_gate,
         earnings_date=earnings_date_str,
+        market_regime=market_regime,
+        uncertainty_scale=round(float(uncertainty_scale), 3),
         notes=notes,
         components=components,
-        market_regime=market_regime,
     )
 
 
@@ -298,21 +320,11 @@ def widen_forecast_bands(forecast_result: dict, factor: float) -> dict:
     out["low_df"]["close"] = new_low
     out["high_df"]["close"] = new_high
     out["band_widen_factor"] = factor
-    reference_close = out.get("uncertainty_reference_close")
-    if reference_close is not None:
-        try:
-            from .forecaster import uncertainty_pct_from_bands
-            out["uncertainty_pct"] = uncertainty_pct_from_bands(
-                out["low_df"], out["high_df"], reference_close,
-            )
-        except Exception:
-            pass
     return out
 
 
 def apply_analyst_nudge(forecast_result: dict, analyst: Optional[dict], alpha: float = None) -> tuple:
-    """Legacy optional helper; built-in forecast/simulation flows do not call it.
-
+    """
     Soft-blend the Kronos close path toward a straight line from last known
     close to the analyst mean target over the horizon.
 
@@ -400,10 +412,114 @@ def format_context_block(signal: ContextSignal, beginner: bool = False) -> str:
         bits.append("A small analyst-target nudge was applied to the displayed path (model still primary).")
     if signal.band_widen_factor > 1.0:
         bits.append(
-            f"Forecast uncertainty band widened ×{signal.band_widen_factor} to reflect elevated uncertainty."
+            f"Confidence band widened ×{signal.band_widen_factor} to reflect elevated uncertainty."
         )
     bits.append(
         "Note: Kronos still forecasts from price history only; news and fundamentals "
-        "adjust interpretation and displayed uncertainty only, not the model weights or point forecast."
+        "adjust the interpretation, risk band, and a light path nudge — not the model weights."
     )
     return " ".join(bits)
+
+
+def _detect_market_regime(hist_df=None, ind_df=None) -> str:
+    """Classify into bull_low_vol | bull_high_vol | bear_high_vol | sideways | neutral."""
+    df = ind_df if ind_df is not None else hist_df
+    if df is None or getattr(df, "empty", True) or "close" not in getattr(df, "columns", []):
+        return "neutral"
+    import numpy as np
+    import pandas as pd
+
+    work = df.copy()
+    if "timestamps" not in work.columns:
+        work = work.reset_index(drop=True)
+        work["timestamps"] = pd.RangeIndex(len(work))
+
+    trend, vol = "unknown", "unknown"
+    try:
+        from backtesting.regimes import classify_regimes
+        classified = classify_regimes(work)
+        last = classified.iloc[-1]
+        trend = str(last.get("trend_regime", "unknown"))
+        vol = str(last.get("vol_regime", "unknown"))
+    except Exception:
+        close = work["close"].astype(float)
+        if len(close) >= 50:
+            sma50 = float(close.rolling(50).mean().iloc[-1])
+            sma200 = float(close.rolling(200).mean().iloc[-1]) if len(close) >= 200 else sma50
+            price = float(close.iloc[-1])
+            rets = close.pct_change().dropna()
+            vol20 = float(rets.tail(20).std()) if len(rets) >= 5 else 0.0
+            vol_med = float(rets.tail(min(60, len(rets))).std()) if len(rets) >= 5 else vol20
+            high_vol = vol20 >= (vol_med * 1.05 if vol_med > 0 else 0)
+            if price >= sma50 and (sma200 is None or price >= sma200):
+                trend = "bull"
+            elif sma200 is not None and price < sma200:
+                trend = "bear"
+            else:
+                trend = "sideways"
+            vol = "high" if high_vol else "low"
+
+    if trend == "bull" and vol == "low":
+        return "bull_low_vol"
+    if trend == "bull" and vol == "high":
+        return "bull_high_vol"
+    if trend == "bear" and vol == "high":
+        return "bear_high_vol"
+    if trend == "bear":
+        return "bear_high_vol" if vol != "low" else "sideways"
+    if trend == "sideways":
+        return "sideways"
+    return "neutral"
+
+
+def apply_context_covariate_nudge(
+    forecast_result: dict,
+    signal: "ContextSignal",
+    max_nudge: float = 0.03,
+) -> tuple:
+    """Soft-nudge the forecast close path by context score (max ±max_nudge at horizon end).
+
+    Applied only when context confidence is high and earnings gate is off.
+    Returns (updated_forecast_result, applied: bool).
+    """
+    import numpy as np
+
+    if signal is None:
+        return forecast_result, False
+    if getattr(signal, "confidence", None) != "high":
+        return forecast_result, False
+    if getattr(signal, "earnings_gate", False):
+        return forecast_result, False
+
+    pred = forecast_result.get("pred_df")
+    if pred is None or "close" not in pred.columns or len(pred) < 1:
+        return forecast_result, False
+
+    score = float(getattr(signal, "score", 0.0) or 0.0)
+    if abs(score) < 1e-9:
+        return forecast_result, False
+
+    max_nudge = float(max_nudge)
+    n = len(pred)
+    # Linear ramp: end-of-horizon shift = score * max_nudge (clamped ±max_nudge)
+    end_frac = max(-max_nudge, min(max_nudge, score * max_nudge))
+    ramp = (np.arange(1, n + 1, dtype=float) / n) * end_frac
+    kronos_close = pred["close"].values.astype(float)
+    blended = kronos_close * (1.0 + ramp)
+    delta = blended - kronos_close
+
+    out = dict(forecast_result)
+    new_pred = pred.copy()
+    new_pred["close"] = blended
+    for col in ("open", "high", "low"):
+        if col in new_pred.columns:
+            new_pred[col] = new_pred[col].values.astype(float) + delta
+    out["pred_df"] = new_pred
+    for key in ("mean_df", "low_df", "high_df"):
+        df = forecast_result.get(key)
+        if df is not None and "close" in df.columns and len(df) == n:
+            shifted = df.copy()
+            shifted["close"] = df["close"].values.astype(float) + delta
+            out[key] = shifted
+    out["context_covariate_nudge"] = round(float(end_frac), 5)
+    return out, True

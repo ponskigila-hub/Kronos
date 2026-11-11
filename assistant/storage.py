@@ -1,9 +1,10 @@
 """
-Small shared JSON persistence helpers, used by watchlist.py,
-watchlist_extras.py, and screener/config_store.py (saved screener setups).
+Shared persistence helpers for watchlist.py, watchlist_extras.py,
+simulation.py, and screener stores.
 
-SQLite is the primary document store, keyed by the same path strings; JSON
-files remain a compatibility mirror and the source for backup/restore UX.
+Primary store is SQLite (assistant_data/kronos.db via assistant.db).
+JSON files under assistant_data/ are still written as a durable mirror
+and for the existing backup/restore UI.
 
 Two reliability upgrades over a bare `json.dump(open(path, "w"))`:
 
@@ -48,18 +49,20 @@ _tracked_paths = set()  # every path saved via this module this run -- what gets
 
 
 def load_json(path):
-    """Read SQLite first, then the JSON mirror, then the newest valid backup.
+    """Load a document by path.
 
-    Legacy file/backup hits are promoted into SQLite. Returns {} only if no
-    representation is recoverable.
+    Order: SQLite (primary) → on-disk JSON file → rotating file backups.
+    First hit wins; file hits are promoted into SQLite so subsequent reads
+    stay on the database.
     """
     try:
         from . import db as db_mod
         data = db_mod.kv_get(path)
         if data is not None:
-            return data
+            return data if isinstance(data, dict) else data
     except Exception:
-        pass
+        data = None
+
     data = _try_load(path)
     if data is not None:
         try:
@@ -68,6 +71,7 @@ def load_json(path):
         except Exception:
             pass
         return data
+
     for backup_path in _backups_for(path):
         data = _try_load(backup_path)
         if data is not None:
@@ -81,14 +85,15 @@ def load_json(path):
 
 
 def save_json(path, data):
-    """Atomically write `data` as JSON to `path`, then rotate a backup."""
+    """Persist `data` to SQLite (primary) and keep an atomic JSON file +
+    rotating backup for restore UI / disaster recovery."""
     with _write_lock:
         _tracked_paths.add(path)
         try:
             from . import db as db_mod
             db_mod.kv_set(path, data)
         except Exception:
-            # The durable atomic file path remains available if SQLite fails.
+            # DB failure must not block the request — file path still works.
             pass
         _atomic_write(path, data)
         _write_backup(path, data)

@@ -26,7 +26,7 @@
     <nav class="nav" id="nav" aria-label="Primary">
       <a href="{{ url_for('index') }}" class="nav-link {{ 'active' if active == 'home' }}">Home</a>
 
-      <div class="nav-group {{ 'active' if active in ['forecast','news','screener','valuation'] }}">
+      <div class="nav-group {{ 'active' if active in ['forecast','news','screener','valuation','research'] }}">
         <button type="button" class="nav-group-btn" aria-expanded="false" aria-haspopup="true">
           Research
           <svg class="nav-chevron" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5L6 7.5L9 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
@@ -47,6 +47,10 @@
           <a href="{{ url_for('valuation') }}" class="{{ 'active' if active == 'valuation' }}" role="menuitem">
             <span class="nav-dd-title">Valuation</span>
             <span class="nav-dd-desc">Relative peer check</span>
+          </a>
+          <a href="{{ url_for('research_page') }}" class="nav-dd-item" role="menuitem">
+            <span class="nav-dd-title">Research desk</span>
+            <span class="nav-dd-desc">Compare · thesis · templates</span>
           </a>
         </div>
       </div>

@@ -1,23 +1,17 @@
 """
-Kronos AI Stock Assistant
-=========================
+Kronos AI Stock Assistant package.
 
-A modular layer built on top of the Kronos forecasting model that adds:
+Submodules (forecaster, data_fetcher, screener, …) can be imported without
+loading the heavy StockAssistant / model stack. Use:
 
-- Automatic Yahoo Finance data retrieval (assistant.data_fetcher)
-- Technical indicators (assistant.indicators)
-- Multi-run Kronos forecasting with confidence bands (assistant.forecaster)
-- News retrieval + lightweight sentiment (assistant.news)
-- Rule-based, indicator-grounded explanations (assistant.explain)
-- Interactive Plotly charts (assistant.charts)
-- Watchlists (assistant.watchlist)
-- Natural-language intent parsing + multi-turn context (assistant.nlp,
-  assistant.conversation)
-- A single platform-agnostic entry point (assistant.core_assistant.StockAssistant)
-  that Discord/WhatsApp/CLI adapters all call into.
-
-See ASSISTANT_README.md in the project root for setup and architecture notes.
+    from assistant.core_assistant import StockAssistant
 """
-from .core_assistant import StockAssistant
 
 __all__ = ["StockAssistant"]
+
+
+def __getattr__(name):
+    if name == "StockAssistant":
+        from .core_assistant import StockAssistant
+        return StockAssistant
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

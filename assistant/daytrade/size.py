@@ -365,7 +365,18 @@ def size_trade(plan, cfg, budget=None, limit=None, price=None, cash=None, today=
 
     limits = []
     max_loss = _f(c.get("max_loss_per_trade_usd"))
+    # Optional plan-level uncertainty scale (0.5–1.0) shrinks max loss when forecast is wide
+    unc_scale = plan.get("uncertainty_scale", 1.0)
+    try:
+        unc_scale = float(unc_scale)
+    except (TypeError, ValueError):
+        unc_scale = 1.0
+    if unc_scale < 0.5:
+        unc_scale = 0.5
+    if unc_scale > 1.0:
+        unc_scale = 1.0
     if max_loss:
+        max_loss = float(max_loss) * unc_scale
         limits.append({"name": "max loss", "usd": max_loss, "per": risk, "shares": shares_for(max_loss, risk),
                        "how": "%s max loss / %s risk a share" % (money(max_loss), _price(risk))})
     cap_pct = _f(c.get("max_position_pct"))
