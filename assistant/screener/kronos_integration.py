@@ -12,7 +12,8 @@ it would just contend for the same CPU/GPU resources.
 """
 
 
-def run_for_candidates(candidates, history_cache, pred_len=30, n_runs=1, progress_cb=None):
+def run_for_candidates(candidates, history_cache, pred_len=30, n_runs=1, progress_cb=None,
+                       user_id=None):
     """
     candidates: ordered list of ticker symbols (already technically ranked --
                 typically SCREENER_CONFIG["preselection_count"] of them)
@@ -42,6 +43,14 @@ def run_for_candidates(candidates, history_cache, pred_len=30, n_runs=1, progres
                 forecast_close = float(fc["pred_df"]["close"].iloc[-1])
                 expected_return = (forecast_close - last_close) / last_close
                 direction = "up" if expected_return > 0.01 else ("down" if expected_return < -0.01 else "flat")
+                reliability = None
+                try:
+                    from ..db import get_ticker_reliability
+                    reliability = get_ticker_reliability(
+                        ticker, horizon_days=pred_len, user_id=user_id,
+                    )
+                except Exception:
+                    pass
                 results[ticker] = {
                     "current_price": last_close,
                     "forecast_price": forecast_close,
@@ -49,6 +58,8 @@ def run_for_candidates(candidates, history_cache, pred_len=30, n_runs=1, progres
                     "direction": direction,
                     "pred_len": pred_len,
                     "lookback_used": fc.get("lookback_used"),
+                    "uncertainty_pct": fc.get("uncertainty_pct"),
+                    "reliability": reliability,
                     "error": None,
                 }
             except Exception as e:

@@ -84,6 +84,61 @@ def _anchor_to_last_close(pred_df, last_close):
     return pred_df
 
 
+def _historical_volatility_band(pred_df, hist_closes):
+    """Approximate a price range from recent daily log-return volatility.
+
+    This is an analytical range, not a calibrated model confidence interval.
+    It deliberately leaves the central forecast path unchanged.
+    """
+    prices = np.asarray(hist_closes, dtype=float)
+    prices = prices[np.isfinite(prices) & (prices > 0)]
+    log_returns = np.diff(np.log(prices))
+    # Use the latest 20 returns, or all available returns for short histories.
+    log_returns = log_returns[-20:]
+    sigma = float(np.std(log_returns, ddof=1)) if len(log_returns) >= 2 else 0.0
+    t = np.arange(1, len(pred_df) + 1, dtype=float)
+    spread = pred_df["close"].to_numpy(dtype=float) * 1.28 * sigma * np.sqrt(t)
+    return (
+        pd.DataFrame({"timestamps": pred_df["timestamps"].to_numpy(),
+                      "close": pred_df["close"].to_numpy(dtype=float) - spread}),
+        pd.DataFrame({"timestamps": pred_df["timestamps"].to_numpy(),
+                      "close": pred_df["close"].to_numpy(dtype=float) + spread}),
+    )
+
+
+def uncertainty_pct_from_bands(low_df, high_df, reference_close):
+    """Full horizon-end band width as a percent of the last observed close.
+
+    This is a sizing/context statistic, not a calibrated probability. Sampled
+    multi-run bands and the single-run historical-volatility band are distinct
+    estimates and should not be interpreted as equivalent confidence levels.
+    """
+    try:
+        reference_close = float(reference_close)
+        if reference_close <= 0 or low_df is None or high_df is None:
+            return None
+        low = float(low_df["close"].iloc[-1])
+        high = float(high_df["close"].iloc[-1])
+        if not np.isfinite([reference_close, low, high]).all():
+            return None
+        return round(max(0.0, high - low) / reference_close * 100.0, 4)
+    except (KeyError, IndexError, TypeError, ValueError, ZeroDivisionError):
+        return None
+
+
+def confidence_scale_from_uncertainty(uncertainty_pct):
+    """Conservative [0.5, 1.0] risk-budget multiplier from band width (% points)."""
+    try:
+        value = float(uncertainty_pct)
+        if not np.isfinite(value):
+            return 1.0
+    except (TypeError, ValueError):
+        return 1.0
+    if value <= 15.0:
+        return 1.0
+    return round(max(0.5, 1.0 - (value - 15.0) / 30.0), 4)
+
+
 def run_forecast(hist_df, pred_len=None, n_runs=None, lookback=None, T=None, top_p=0.9,
                   sample_count=None, anchor_to_last_close=True):
     """
@@ -104,8 +159,9 @@ def run_forecast(hist_df, pred_len=None, n_runs=None, lookback=None, T=None, top
         {
           "pred_df": DataFrame[timestamps, open, high, low, close, volume, amount],  (median across runs)
           "mean_df": DataFrame[timestamps, close] or None (mean across runs, if n_runs > 1),
-          "low_df":  DataFrame or None (10th percentile close, if n_runs > 1),
-          "high_df": DataFrame or None (90th percentile close, if n_runs > 1),
+          "low_df":  DataFrame (sampled percentile or historical-volatility range),
+          "high_df": DataFrame (sampled percentile or historical-volatility range),
+          "band_source": "sampled" or "analytical_vol",
           "all_runs": list of DataFrames, one per sampled path (always has
                        at least 1; useful for a spaghetti-style plot),
           "lookback_used": int,
@@ -135,6 +191,7 @@ def run_forecast(hist_df, pred_len=None, n_runs=None, lookback=None, T=None, top
     cache_key = forecast_cache.make_key(
         x_df, x_timestamp, pred_len, n_runs, lookback, T, top_p,
         sample_count, anchor_to_last_close, drift_blend=drift_blend,
+        band_version=2,
     )
     cached = forecast_cache.get(cache_key)
     if cached is not None:
@@ -163,6 +220,7 @@ def run_forecast(hist_df, pred_len=None, n_runs=None, lookback=None, T=None, top
 
     main_pred = runs[0]
     low_df = high_df = mean_df = None
+    band_source = "sampled" if len(runs) > 1 else "analytical_vol"
 
     if len(runs) > 1:
         stacked_close = np.stack([r["close"].values for r in runs], axis=0)
@@ -183,6 +241,10 @@ def run_forecast(hist_df, pred_len=None, n_runs=None, lookback=None, T=None, top
         low_df = pd.DataFrame({"timestamps": future_dates, "close": low_close})
         high_df = pd.DataFrame({"timestamps": future_dates, "close": high_close})
         mean_df = pd.DataFrame({"timestamps": future_dates, "close": mean_close})
+    else:
+        low_df, high_df = _historical_volatility_band(main_pred, hist_closes)
+
+    uncertainty_pct = uncertainty_pct_from_bands(low_df, high_df, last_close)
 
     result = {
         "pred_df": main_pred,
@@ -192,6 +254,9 @@ def run_forecast(hist_df, pred_len=None, n_runs=None, lookback=None, T=None, top
         "all_runs": runs,            # every individual sampled path, for spaghetti-style plots
         "lookback_used": lookback,
         "n_runs": len(runs),
+        "band_source": band_source,
+        "uncertainty_pct": uncertainty_pct,
+        "uncertainty_reference_close": last_close,
         "context_start": x_timestamp.iloc[0],  # first date actually fed to the model
         "forecast_start": last_date,           # last known real date (where forecasting begins)
     }

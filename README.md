@@ -12,16 +12,17 @@ The core forecasting engine is the open-source Kronos model. This project wraps 
 
 | Feature | Description |
 |---------|-------------|
-| **Kronos forecasting** | Multi-horizon OHLCV predictions with optional multi-sample paths & confidence bands |
+| **Kronos forecasting** | Multi-horizon OHLCV predictions with sampled multi-run bands or a clearly labeled historical-volatility range for single-run forecasts |
+| **Uncertainty-aware sizing** | Position-plan risk budget can scale down with forecast band width; does not change the point forecast and is not a calibrated confidence score |
 | **Conversational chat** | Natural-language intents (forecast, compare, why, risks, news, fundamentals, backtest, watchlist, …) |
 | **Technical indicators** | SMA/EMA, RSI, MACD, Bollinger, ATR, support/resistance, regime detection |
 | **News & sentiment** | Aggregated headlines (yfinance primary, optional Finnhub/NewsAPI) with simple sentiment |
 | **Fundamentals** | Key ratios, earnings dates, analyst consensus (via yfinance) |
-| **Stock screener** | Universe (S&P 500 / NASDAQ-100 / Dow / custom) → metrics → filters → score → optional Kronos re-rank |
+| **Stock screener** | Universe (S&P 500 / NASDAQ-100 / Dow / custom) → metrics → filters → score → optional Kronos re-rank; optional bear-regime and sufficiently sampled, user-/horizon-specific reliability weighting |
 | **Watchlist** | Per-user favorites + correlation matrix |
 | **Backtesting** | Walk-forward validation, baselines (naive, drift, MA, linear, ARIMA), metrics, regime analysis |
 | **Day Trade desk** | Scanner, entry timer, exit planner, risk sizing (pure Python, no Claude, no broker) |
-| **Paper trading** | Demo “buy at today’s price and track” against future real prices |
+| **Paper trading** | Demo “buy at today’s price and track” against future real prices; idempotent per-position forecast grades feed reliability summaries |
 | **Relative valuation** | Peer multiples (P/E, EV/EBITDA, etc.) with scenario ranges |
 | **Charts** | Interactive Plotly (history + forecast overlay, indicators, correlation) |
 | **Multi-interface** | Web app (primary), CLI chat, Discord bot, WhatsApp (Twilio) — all share the same `StockAssistant` core |
@@ -39,6 +40,7 @@ The core forecasting engine is the open-source Kronos model. This project wraps 
 │   └── …
 ├── webapp/                 # Flask web UI (chat, forecast, screener, backtest, watchlist, valuation)
 ├── backtesting/            # Walk-forward framework + baseline forecasters
+├── benchmarking/           # Pure benchmark aggregation / Markdown helpers
 ├── integrations/           # Thin Discord & WhatsApp adapters
 ├── tests/                  # Unit / integration tests
 ├── chat_cli.py             # Terminal chat for local testing
@@ -46,10 +48,14 @@ The core forecasting engine is the open-source Kronos model. This project wraps 
 ├── requirements.txt
 ├── .env.example
 ├── BACKTEST_README.md      # Deep-dive on the backtesting framework
+├── FORECAST_CONTEXT_README.md # Forecast bands, regime context, and paper-grade analytics
+├── PIPELINE_UPGRADES.md    # Grok merge notes: SQLite, risk sizing, reliability gates
 └── DEPLOYMENT.md           # Deploy webapp / bots
 ```
 
-Runtime data (watchlists, conversation history, forecast cache, paper positions) is stored under `assistant_data/` (created on first run, git-ignored).
+Runtime data is stored under `assistant_data/` (created on first run, git-ignored). SQLite (`assistant_data/kronos.sqlite3` by default) is the document store and forecast-grade database; existing JSON documents are imported on app startup, JSON files remain an atomic mirror, and rotating backups/recovery remain enabled. Forward forecast grades are stored once per position ID and queried with user/horizon filters for screener reliability summaries.
+
+Reliability-based screener weighting is deliberately gated to at least 10 matured paper-trade grades for the same user, ticker, and horizon, with accuracy shrunk toward a neutral 50% prior. It is a bounded ranking heuristic—not evidence that the forecast is profitable. Single-run uncertainty is a historical-volatility estimate; sampled bands and this estimate are not calibrated probabilities.
 
 ---
 
@@ -156,6 +162,7 @@ Universe → concurrent download (cached) → metrics → filters → weighted s
 - Metrics include momentum, volatility, volume, relative strength, fundamental screens, etc.
 - Presets + fully custom filters/weights.
 - Designed to be free of look-ahead bias within a single screen (all computed as-of latest bar).
+- With no custom weights and the `none` preset, a benchmark below its SMA200 shifts scoring weight toward risk, liquidity, and volatility; fewer than 200 bars disables this adjustment. Other presets/custom weights are unchanged.
 
 ### 7. Backtesting
 - Walk-forward validation (rolling train / test windows).
@@ -164,12 +171,19 @@ Universe → concurrent download (cached) → metrics → filters → weighted s
 - Regime splitting and residual diagnostics (normality, autocorrelation, heteroscedasticity).
 - See `BACKTEST_README.md` for full details.
 
-### 8. Additional modules
+### 8. Forecast uncertainty and forward grading
+- A single-run forecast retains Kronos's point path and adds a symmetric approximate 10–90% price range from the latest 20 daily log-return volatility observations (all available returns if fewer). This is a historical-volatility estimate, not a calibrated confidence interval or sampled model uncertainty.
+- Multi-run forecasts retain the empirical 10th/90th percentile path band and are labeled as sampled.
+- Bear/high-volatility context widens the displayed band by at least 1.30× around the unchanged central path. Built-in chat, web, and paper-trade flows do not apply analyst-target covariate nudges to the point price; market regime is informational and changes uncertainty only.
+- Matured paper-trade forecast grades are stored once per position ID and summarized by `assistant.db.get_forecast_grade_summary()`; a database write failure does not block portfolio reads.
+- See `FORECAST_CONTEXT_README.md` for formulas, units, limitations, and tests.
+
+### 9. Additional modules
 - **Relative valuation**: peer-group multiples, not DCF; transparent and offline-testable.
 - **Paper trading simulation**: “buy” at real price today, track P&L against future real prices (complements historical backtests).
 - **Portfolio helpers**: correlation, basic multi-ticker analysis.
 
-### 9. Web & integrations
+### 10. Web & integrations
 - Flask webapp with background job queue for long-running forecasts (so the browser can leave the chat page).
 - Persistent sessions → stable per-user identity for watchlist / paper positions / conversation history.
 - Discord & WhatsApp bots are pure adapters over `StockAssistant.handle_message()`.

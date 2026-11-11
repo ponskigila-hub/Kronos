@@ -8,7 +8,7 @@ retrain or feed news tokens into the transformer. Instead it:
   1. Scores recent news, earnings proximity, and analyst target vs price.
   2. Produces a structured signal used by explain.py and core_assistant
      so the user sees an honest "price model + market context" view.
-  3. Can widen the confidence band when event risk is high (earnings near,
+3. Can widen the displayed uncertainty band when event risk is high (earnings near,
      very negative news) so the chart reflects elevated uncertainty.
 
 This is the practical way to "integrate" news & fundamentals without
@@ -29,13 +29,14 @@ class ContextSignal:
     label: str = "neutral"  # bullish | lean bullish | neutral | lean bearish | bearish
     confidence: str = "medium"  # low | medium | high  (how much we trust the context itself)
     event_risk: str = "normal"  # normal | elevated | high
-    band_widen_factor: float = 1.0  # multiply confidence-band width by this
+    band_widen_factor: float = 1.0  # multiply uncertainty-band width by this
     # True when earnings is inside the gate window — UI should show a strong warning
     earnings_gate: bool = False
     earnings_date: Optional[str] = None
     analyst_nudge_applied: bool = False
     notes: list[str] = field(default_factory=list)
     components: dict[str, Any] = field(default_factory=dict)
+    market_regime: str = "unknown"
 
     def to_dict(self) -> dict:
         return {
@@ -47,6 +48,7 @@ class ContextSignal:
             "earnings_gate": self.earnings_gate,
             "earnings_date": self.earnings_date,
             "analyst_nudge_applied": self.analyst_nudge_applied,
+            "market_regime": self.market_regime,
             "notes": list(self.notes),
             "components": dict(self.components),
         }
@@ -63,6 +65,7 @@ def build_context_signal(
     fundamentals: Optional[dict] = None,
     pred_len: int = 14,
     kronos_pct_change: Optional[float] = None,
+    hist_df=None,
 ) -> ContextSignal:
     """
     Combine available side channels into one ContextSignal.
@@ -77,6 +80,18 @@ def build_context_signal(
     notes: list[str] = []
     components: dict[str, Any] = {}
     parts: list[tuple[float, float]] = []  # (weight, score)
+    market_regime = "unknown"
+    if hist_df is not None and len(hist_df):
+        try:
+            from backtesting.regimes import classify_regimes
+            latest = classify_regimes(hist_df).iloc[-1]
+            trend = str(latest.get("trend_regime", "unknown"))
+            vol = str(latest.get("vol_regime", "unknown"))
+            if trend in {"bull", "bear", "sideways"} and vol in {"high", "low"}:
+                market_regime = f"{trend}_{vol}_vol"
+        except (KeyError, TypeError, ValueError, IndexError):
+            market_regime = "unknown"
+        components["market_regime"] = market_regime
 
     # --- News ---
     news_score = 0.0
@@ -210,6 +225,12 @@ def build_context_signal(
         event_risk = "elevated"
         band_widen = 1.2
 
+    # Regime changes uncertainty width only; it never changes Kronos's
+    # central forecast path. Keep the larger of this floor and event widening.
+    if market_regime == "bear_high_vol":
+        band_widen = max(band_widen, 1.30)
+        notes.append("Bear/high-volatility regime: uncertainty band widened at least 1.30×; this is a risk adjustment, not a directional price signal.")
+
     # How much we trust the *context* itself
     conf = "medium"
     n_sources = 0
@@ -247,6 +268,7 @@ def build_context_signal(
         earnings_date=earnings_date_str,
         notes=notes,
         components=components,
+        market_regime=market_regime,
     )
 
 
@@ -276,11 +298,21 @@ def widen_forecast_bands(forecast_result: dict, factor: float) -> dict:
     out["low_df"]["close"] = new_low
     out["high_df"]["close"] = new_high
     out["band_widen_factor"] = factor
+    reference_close = out.get("uncertainty_reference_close")
+    if reference_close is not None:
+        try:
+            from .forecaster import uncertainty_pct_from_bands
+            out["uncertainty_pct"] = uncertainty_pct_from_bands(
+                out["low_df"], out["high_df"], reference_close,
+            )
+        except Exception:
+            pass
     return out
 
 
 def apply_analyst_nudge(forecast_result: dict, analyst: Optional[dict], alpha: float = None) -> tuple:
-    """
+    """Legacy optional helper; built-in forecast/simulation flows do not call it.
+
     Soft-blend the Kronos close path toward a straight line from last known
     close to the analyst mean target over the horizon.
 
@@ -368,10 +400,10 @@ def format_context_block(signal: ContextSignal, beginner: bool = False) -> str:
         bits.append("A small analyst-target nudge was applied to the displayed path (model still primary).")
     if signal.band_widen_factor > 1.0:
         bits.append(
-            f"Confidence band widened ×{signal.band_widen_factor} to reflect elevated uncertainty."
+            f"Forecast uncertainty band widened ×{signal.band_widen_factor} to reflect elevated uncertainty."
         )
     bits.append(
         "Note: Kronos still forecasts from price history only; news and fundamentals "
-        "adjust the interpretation, risk band, and a light path nudge — not the model weights."
+        "adjust interpretation and displayed uncertainty only, not the model weights or point forecast."
     )
     return " ".join(bits)

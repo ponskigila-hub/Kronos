@@ -11,15 +11,18 @@ and a simplified paper-trading simulation. It lives in `backtesting/` +
 The validator now records **one endpoint observation per forecast origin and
 horizon** (the predicted close at exactly `t+h`), rather than pooling all the
 intermediate points in each forecast path. Thus `n_predictions` is the number
-of origins for that horizon, not `origins × horizon`. Strategy signals use the
-forecast relative to the origin close and assume entry at the next bar's open,
-then exit at the horizon endpoint close. Forecast model comparison is ranked by
+of origins for that horizon, not `origins × horizon`. Forecast model comparison
+uses the origin close as the return reference. Trading signals instead compare
+the predicted endpoint with the assumed next-bar open fill, then exit at the
+horizon endpoint close. Forecast model comparison is ranked by
 endpoint return RMSE; price RMSE remains a scale-dependent diagnostic. The paper
 simulation also compares Kronos signals with an always-long baseline on the same
 evaluated intervals, with the same assumed 0.05% per-side cost. This is an
 interval-matched baseline, not continuous buy-and-hold during gaps between
-origins. It does not model spread, market impact, short borrow, dividends, or
-overlapping positions; Yahoo OHLC bars are not a verified total-return series.
+origins. Overlapping signals within a horizon are skipped, not stacked; separate
+horizons are not combined into one portfolio. It does not model spread, market
+impact, short borrow or dividends; Yahoo OHLC is not a verified total-return
+series.
 
 The DM comparison uses the **pre-specified naive last-close baseline** rather
 than selecting the apparent best baseline on the same test sample. The full
@@ -28,6 +31,29 @@ paired origins, the test deliberately reports “insufficient origins” instead
 of a p-value. Even a valid DM result tests forecast loss, not positive net
 strategy returns. Keep a final untouched time period for model/threshold
 selection and confirm any proposed edge with forward paper trading.
+
+### Execution and portfolio accounting
+
+When `max_windows` is set, the validator now selects the **latest eligible
+origins** in the requested history rather than stopping at the oldest part of
+the sample. Forecast accuracy still uses every valid forecast origin. The
+trading simulation uses starting capital sequentially and skips a new signal
+if its next-open entry would overlap an already-open trade;
+`overlap_skipped_origins` is reported in the portfolio CSV and quick summary.
+The strategy and forced always-long baseline apply the same rule.
+
+Equity is marked at each historical bar close while a position is open and
+carried flat through no-position bars. Drawdown therefore includes losses
+inside a holding period, includes starting capital as the initial high-water
+mark, and Sharpe/volatility/Sortino annualization uses daily marks (252 periods
+per year). Sortino uses RMS downside deviation versus the per-period risk-free
+hurdle. This remains a simplified fully-invested, single-asset simulation,
+not a margin/borrow or order-book model. Costs are assumed at 0.05% per side.
+
+Yahoo OHLC here is provider output without a verified point-in-time
+corporate-action/total-return series. Splits, dividends, delistings and symbol
+changes can materially distort results; inspect the source and do not interpret
+these results as executable or survivorship-free performance.
 
 The webapp backtest executes in a server-side background job. Switching away
 from its Chrome tab does not cancel the computation; the app's Python process
@@ -57,9 +83,9 @@ walk-forward window, and a model that predicted "down" on 100% of bars:
    smoother, more representative forecast.
 3. **Automatic reliability warnings** (`backtesting/metrics.py:reliability_flags`).
    Every metrics computation now flags:
-   - **low sample size** (<30 predictions) -- with an actual confidence
-     interval on the direction accuracy, so "64% accuracy" doesn't get
-     read as solid when it's actually consistent with anywhere from 45-83%.
+   - **low sample size** (<30 predictions) -- with a rough IID Wilson interval
+     for direction accuracy. It is not adjusted for serial or overlapping-origin
+     dependence, so it should not be treated as a formal strategy confidence interval.
    - **directional bias** (model predicts the same direction >90% of the
      time) -- because a model that always says "down" scores exactly as
      well as the market's own down-move base rate, regardless of any real
@@ -165,30 +191,22 @@ See `IMPROVEMENTS_REPORT.md` for the full design rationale (why each
 model needs its own process, why mini's different tokenizer/context
 length matters) if you're curious how it works under the hood.
 
-### `--max-windows` samples the *earliest* history, not a spread (methodological)
+### `--max-windows` selects the latest origins, not a representative sample
 
-Worth knowing exactly what capping windows does: `WalkForwardValidator`
-generates windows chronologically forward from the start of your data
-and stops as soon as it hits `--max-windows` (`backtesting/walk_forward.py`).
-That means `--max-windows 15` on 5 years of history tests only the
-*earliest* ~15 windows' worth of time (a few months), not 15 windows
-spread across the full 5 years -- so a quick sanity-check run can look
-fine (or bad) for reasons specific to that one early period, not
-necessarily representative of the model's behavior today.
-
-For a quick check that's still spread across your full history, widen
-`--step-size` instead of (or in addition to) capping windows:
+When capped, `WalkForwardValidator` now selects the **most recent** eligible
+origins. This avoids testing only an obsolete early period, but it is not a
+random or regime-stratified sample. Wider `--step-size` spreads those latest
+origins farther apart; an uncapped run is still needed to assess the whole
+available history.
 ```bash
-# 15 windows chronologically clustered near the start of your data
+# 15 latest origins, at the default spacing
 python run_backtest.py --tickers AAPL --max-windows 15
 
-# ~15 windows spread across the whole history instead (bigger gap between
-# each walk-forward step) -- still fast, more representative
+# 15 latest origins with wider spacing
 python run_backtest.py --tickers AAPL --step-size 120 --max-windows 15
 ```
-Always do a full, uncapped run (no `--max-windows`) before trusting a
-final number -- both of the above are for fast iteration, not the result
-you'd report.
+Both are quick diagnostics, not results to report as an untouched test. Keep
+a separate final holdout after any tuning.
 
 ## Statistical significance
 
@@ -252,7 +270,7 @@ bot> Backtest for AAPL -- example output only; horizons [5, 14, 30] days (expand
        h=14 bars: price RMSE=4.30, return RMSE=4.3%, MAE=3.10, direction accuracy=55.0%, IC=0.08
        h=30 bars: price RMSE=7.80, return RMSE=7.8%, MAE=5.90, direction accuracy=52.0%
      At 30-bar horizon, ranked by endpoint return RMSE (lower is better; not trading returns): Kronos, Linear Regression, Naive (last close)
-     Simulated trading at 30d horizon: total return 12.4%, Sharpe 1.35, win rate 61.0%, max drawdown -5.2%, 8 trades.
+     Simulated trading at 30-bar horizon: total return 12.4%, Sharpe 1.35, win rate 61.0%, max drawdown -5.2%, 8 trades; 2 overlapping origins skipped.
      Forecast-loss significance uses paired endpoint return errors; fewer than 20 origins yields no p-value. Historical results are not proof of future profit.
 ```
 
@@ -276,6 +294,9 @@ benchmarks, every plot and diagnostic), use `run_backtest.py` as shown above.
 Results land in `backtest_results/<TICKER>/`:
 - `metrics_by_model_horizon.csv` -- every metric, every model, every horizon
 - `portfolio_metrics_by_horizon.csv` -- Sharpe/Sortino/drawdown/etc. for Kronos's trading signals
+- `run_manifest.json` and `data_snapshot.csv` -- run parameters and the exact historical bars supplied to the runner
+- `endpoint_forecasts_<model>_h<N>.csv` -- per-origin forecast/actual/fill rows
+- `trades_*.csv` and `equity_*.csv` -- executed trade logs and daily mark-to-market portfolio curves for strategy and baseline
 - `residual_diagnostics.csv` -- Shapiro-Wilk/Durbin-Watson/Ljung-Box/Breusch-Pagan per horizon
 - `regime_metrics.json` -- accuracy split by bull/bear/sideways
 - `direction_summary_h<N>.png` -- real vs. Kronos price with correct/wrong
@@ -339,7 +360,7 @@ results = grid_search(
     param_grid={"lookback": [200, 400], "T": [0.8, 1.0], "top_p": [0.8, 0.9], "n_runs": [1]},
     horizons=(5, 14, 30),
     max_windows=5,          # keep this small -- grid search multiplies calls fast
-    score_metric="rmse",
+    score_metric="return_rmse",
 )
 print(results[0])  # best combination first
 ```
@@ -373,12 +394,12 @@ optional-and-skipped, or stubbed, and why:
   clear extension instructions. These need paid API keys / SDKs / a live broker
   connection that can't be provisioned generically. Yahoo Finance and CSV loaders
   are fully implemented and are what `BacktestRunner` uses by default.
-- **Trading simulation is single-position, one trade per walk-forward window**
-  (enter at the split date, exit at the end of the horizon) rather than a full
-  multi-asset portfolio/order-book simulator. This is a standard, honest way to
-  evaluate "would acting on these forecasts have made money" without building a
-  full execution engine -- but it doesn't model slippage beyond a flat
-  `transaction_cost`, partial fills, or overlapping positions across horizons.
+- **Trading simulation is single-position and non-overlapping within each
+  horizon** (enter next bar's open, exit at the endpoint close). Signals that
+  arrive before the prior position exits are skipped and counted. Each horizon
+  is simulated separately; it is not a combined multi-asset/multi-horizon
+  portfolio. The model does not include spread, market impact, borrow, margin,
+  partial fills, dividends or point-in-time corporate actions.
 - **Market regime classification is a simple rule** (trailing % change vs. a
   threshold for trend, rolling volatility vs. its own median for vol) — not a
   statistical regime-detection model (e.g. a Hidden Markov Model). Good enough to

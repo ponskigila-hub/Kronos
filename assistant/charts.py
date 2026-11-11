@@ -71,6 +71,9 @@ def build_forecast_png(ticker, hist_df, forecast_result, save_path=None, display
     pred_df = forecast_result["pred_df"]
     low_df = forecast_result.get("low_df")
     high_df = forecast_result.get("high_df")
+    band_label = ("Est. range (historical volatility)"
+                  if forecast_result.get("band_source") == "analytical_vol"
+                  else f"Forecast range ({forecast_result.get('n_runs', 1)} sampled runs)")
 
     display_hist = hist_df.tail(display_days)
 
@@ -82,7 +85,7 @@ def build_forecast_png(ticker, hist_df, forecast_result, save_path=None, display
     if low_df is not None and high_df is not None:
         plt.fill_between(pred_df["timestamps"], low_df["close"], high_df["close"],
                           color="#ff7f0e", alpha=0.15,
-                          label=f"Forecast range ({forecast_result.get('n_runs', 1)} runs)")
+                          label=band_label)
 
     plt.plot(pred_df["timestamps"], pred_df["close"], "--",
               linewidth=2.8, label="Kronos Forecast", color="#ff7f0e")
@@ -127,6 +130,9 @@ def build_detailed_forecast_png(ticker, hist_df, forecast_result, save_path=None
     high_df = forecast_result.get("high_df")
     mean_df = forecast_result.get("mean_df")
     n_runs = forecast_result.get("n_runs", len(all_runs))
+    band_label = ("Est. range (historical volatility)"
+                  if forecast_result.get("band_source") == "analytical_vol"
+                  else "10–90th percentile (sampled paths)")
     context_start = forecast_result.get("context_start")
     forecast_start = forecast_result.get("forecast_start", hist_df["timestamps"].iloc[-1])
 
@@ -150,7 +156,7 @@ def build_detailed_forecast_png(ticker, hist_df, forecast_result, save_path=None
 
     if low_df is not None and high_df is not None:
         plt.fill_between(pred_df["timestamps"], low_df["close"], high_df["close"],
-                          color="#f5a623", alpha=0.18, label="10-90th percentile")
+                          color="#f5a623", alpha=0.18, label=band_label)
 
     if context_start is not None and context_start >= display_hist["timestamps"].iloc[0]:
         plt.axvline(context_start, color="#2ca02c", linestyle=":", linewidth=2.0, label="Model Context Start")
@@ -201,6 +207,9 @@ def build_forecast_chart(ticker, hist_df, ind_df, forecast_result, news_items=No
     pred_df = forecast_result["pred_df"]
     low_df = forecast_result.get("low_df")
     high_df = forecast_result.get("high_df")
+    band_label = ("Est. range (historical volatility)"
+                  if forecast_result.get("band_source") == "analytical_vol"
+                  else "10–90th percentile (sampled runs)")
 
     fig = make_subplots(
         rows=3, cols=1, shared_xaxes=True,
@@ -240,7 +249,7 @@ def build_forecast_chart(ticker, hist_df, ind_df, forecast_result, news_items=No
             x=list(high_df["timestamps"]) + list(low_df["timestamps"])[::-1],
             y=list(high_df["close"]) + list(low_df["close"])[::-1],
             fill="toself", fillcolor="rgba(255,127,14,0.15)",
-            line=dict(color="rgba(255,255,255,0)"), name="Forecast range", showlegend=True,
+            line=dict(color="rgba(255,255,255,0)"), name=band_label, showlegend=True,
         ), row=1, col=1)
 
     # --- Forecast line ---

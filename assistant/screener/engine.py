@@ -61,6 +61,9 @@ def run_screen(
 
     preset = presets_mod.get(preset_key)
     active_weights = weights or preset.get("weights") or scoring_mod.DEFAULT_WEIGHTS
+    auto_regime_weights = not bool(weights) and preset_key == "none" and not preset.get("weights")
+    benchmark_regime = "unknown"
+    regime_adjustment_applied = False
     force_kronos = bool(preset.get("force_kronos"))
     enable_kronos = enable_kronos or force_kronos
 
@@ -77,7 +80,10 @@ def run_screen(
             "universe_size": 0, "rows": [], "skipped": [],
             "quality_summary": {"scanned": 0, "analyzed": 0, "insufficient_history": 0,
                                  "download_failed": 0, "low_liquidity": 0, "filtered_out": 0},
-            "config_used": {"universe": universe_key, "preset": preset_key},
+            "config_used": {"universe": universe_key, "preset": preset_key,
+                            "benchmark_regime": benchmark_regime,
+                            "regime_adjustment_applied": regime_adjustment_applied,
+                            "weights": active_weights},
             "kronos_ran": False, "elapsed_seconds": 0,
             "error": "That universe came back empty -- check the ticker list / CSV / watchlist.",
         }
@@ -90,6 +96,10 @@ def run_screen(
     fetch_list = tickers + [benchmark]
     history, failures = data_mod.fetch_universe(fetch_list, lookback_days=lookback_days, progress_cb=_dl_progress)
     benchmark_df = history.get(benchmark)
+    candidate_weights, benchmark_regime = scoring_mod.regime_adjusted_weights(active_weights, benchmark_df)
+    if auto_regime_weights and benchmark_regime == "bear":
+        active_weights = candidate_weights
+        regime_adjustment_applied = True
 
     # ------------------------------------------------------- metrics + filter
     scored = []
@@ -150,7 +160,8 @@ def run_screen(
                 progress_cb("kronos", done, total, ticker)
 
         kronos_results = kronos_integration.run_for_candidates(
-            kronos_tickers, history, pred_len=pred_len, n_runs=1, progress_cb=_kr_progress,
+            kronos_tickers, history, pred_len=pred_len, n_runs=1,
+            progress_cb=_kr_progress, user_id=user_id,
         )
         kronos_ran = True
 
@@ -161,7 +172,11 @@ def run_screen(
             row["category_scores"] = scoring_mod.compute_category_scores(
                 row["metrics"], min_dollar_volume=min_avg_dollar_volume, kronos_result=kr,
             )
-            row["overall_score"], _ = scoring_mod.composite_score(row["category_scores"], weights=active_weights)
+            row["reliability"] = kr.get("reliability") if isinstance(kr, dict) else None
+            row["overall_score"], _ = scoring_mod.composite_score(
+                row["category_scores"], weights=active_weights,
+                reliability=row["reliability"],
+            )
 
         scored.sort(key=lambda r: r["overall_score"], reverse=True)
 
@@ -176,6 +191,7 @@ def run_screen(
             "overall_score": row["overall_score"], "category_scores": row["category_scores"],
             "signal": signal, "in_kronos_stage": row["in_kronos_stage"],
             "kronos": row["kronos"], "metrics": row["metrics"], "reasons": explanation,
+            "reliability": row.get("reliability"),
         })
 
     quality_summary = {
@@ -198,6 +214,8 @@ def run_screen(
             "min_avg_dollar_volume": min_avg_dollar_volume, "min_history_days": min_history_days,
             "lookback_days": lookback_days, "preselection_count": preselection_count,
             "final_count": final_count, "weights": active_weights, "pred_len": pred_len,
+            "benchmark_regime": benchmark_regime,
+            "regime_adjustment_applied": regime_adjustment_applied,
         },
         "kronos_ran": kronos_ran,
         "elapsed_seconds": round(time.time() - t0, 1),

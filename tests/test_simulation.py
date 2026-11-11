@@ -34,6 +34,14 @@ class _FakeStorage:
 def fake_backend(monkeypatch):
     fake = _FakeStorage()
 
+    # A matured forecast test should grade the mocked forecast, not receive
+    # an unpredictable live analyst-target nudge/news/earnings event.
+    from assistant import news as news_mod
+    monkeypatch.setattr(news_mod, "get_news", lambda ticker: ([], {"label": "no data"}))
+    monkeypatch.setattr(simulation.fundamentals, "earnings_within_horizon", lambda *a, **k: None)
+    monkeypatch.setattr(simulation.fundamentals, "get_analyst_targets", lambda *a, **k: None)
+    monkeypatch.setattr(simulation.fundamentals, "get_fundamentals", lambda *a, **k: None)
+
     def fake_save(data):
         fake.data = data
 
@@ -251,3 +259,44 @@ def test_win_rate_and_forecast_accuracy_summary(monkeypatch):
     portfolio = simulation.get_portfolio("user1", mark_to_market=False)
     assert portfolio["closed_trade_count"] == 1
     assert portfolio["win_rate_pct"] == 100.0
+
+
+def test_matured_grade_is_persisted_once_without_changing_json_grade(monkeypatch):
+    calls = []
+    monkeypatch.setattr(simulation.db_store, "record_forecast_grade",
+                        lambda **kwargs: calls.append(kwargs) or True)
+    monkeypatch.setattr(simulation.fundamentals, "get_analyst_targets",
+                        lambda *a, **k: {"target_mean": 150.0, "current_price": 100.0})
+    monkeypatch.setattr(simulation, "_current_price", lambda ticker: 100.0)
+    hist_df = _fake_hist(30, 100.0)
+    monkeypatch.setattr(simulation.data_fetcher, "fetch_history",
+                        lambda ticker, lookback_days=None: hist_df)
+    past_target = pd.Timestamp.now() - pd.Timedelta(days=5)
+
+    def fake_run_forecast(hist_df, pred_len, n_runs=1):
+        return {"pred_df": pd.DataFrame({"timestamps": [past_target], "close": [110.0]})}
+    monkeypatch.setattr(simulation.forecaster, "run_forecast", fake_run_forecast)
+    position = simulation.buy("user-analytics", "AAPL", dollars=1000.0)
+    assert position["forecast"]["forecast_price"] == 110.0
+    assert position["forecast"]["expected_return_pct"] == 10.0
+    future_hist = pd.concat([
+        hist_df,
+        pd.DataFrame({"timestamps": [past_target + pd.Timedelta(days=1)], "open": [115.0],
+                      "high": [116.0], "low": [114.0], "close": [115.0],
+                      "volume": [1000], "amount": [115000.0]}),
+    ], ignore_index=True)
+    monkeypatch.setattr(simulation.data_fetcher, "fetch_history",
+                        lambda ticker, lookback_days=None: future_hist)
+
+    portfolio = simulation.get_portfolio("user-analytics", mark_to_market=True)
+    grade = portfolio["positions"][0]["graded"]
+    simulation.get_portfolio("user-analytics", mark_to_market=True)
+
+    assert grade["direction_correct"] is True
+    assert len(calls) == 1
+    assert calls[0]["position_id"] == position["id"]
+    assert calls[0]["user_id"] == "user-analytics"
+    assert calls[0]["ticker"] == "AAPL"
+    assert calls[0]["horizon_days"] == 14
+    assert calls[0]["predicted_return"] == 0.1
+    assert calls[0]["actual_return"] == 0.15
