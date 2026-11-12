@@ -47,52 +47,101 @@
 
   function drawChart(points, rangeChangePct) {
     chartSvg.innerHTML = "";
+    const minEl = document.getElementById("stkChartMin");
+    const midEl = document.getElementById("stkChartMid");
+    const maxEl = document.getElementById("stkChartMax");
     if (!points || points.length < 2) {
       chartStatus.hidden = false;
       chartStatus.textContent = "Not enough points for this range.";
+      minEl.textContent = midEl.textContent = maxEl.textContent = "—";
       return;
     }
     chartStatus.hidden = true;
-    const w = 640, h = 220, padL = 8, padR = 8, padT = 12, padB = 24;
     const closes = points.map((p) => p.c);
-    const min = Math.min(...closes), max = Math.max(...closes);
+    const min = Math.min(...closes);
+    const max = Math.max(...closes);
+    const mid = (min + max) / 2;
+    minEl.textContent = "Low " + fmtPrice(min);
+    midEl.textContent = points[0].t + " → " + points[points.length - 1].t;
+    maxEl.textContent = "High " + fmtPrice(max);
+
+    const w = 720, h = 280;
+    const padL = 52, padR = 16, padT = 16, padB = 28;
     const range = max - min || 1;
     const stepX = (w - padL - padR) / (points.length - 1);
-    const coords = points.map((p, i) => {
-      const x = padL + i * stepX;
-      const y = padT + (1 - (p.c - min) / range) * (h - padT - padB);
-      return [x, y];
-    });
+    const yOf = (v) => padT + (1 - (v - min) / range) * (h - padT - padB);
+    const coords = points.map((p, i) => [padL + i * stepX, yOf(p.c)]);
     const poly = coords.map(([x, y]) => x.toFixed(1) + "," + y.toFixed(1)).join(" ");
-    const up = (rangeChangePct == null) ? (closes[closes.length - 1] >= closes[0]) : rangeChangePct >= 0;
+    const up = rangeChangePct == null ? closes[closes.length - 1] >= closes[0] : rangeChangePct >= 0;
     const stroke = up ? "#3fb950" : "#f85149";
-    // area fill
-    const area = poly + " " + (padL + (points.length - 1) * stepX).toFixed(1) + "," + (h - padB) +
-      " " + padL + "," + (h - padB);
+    const area =
+      poly +
+      " " +
+      (padL + (points.length - 1) * stepX).toFixed(1) +
+      "," +
+      (h - padB) +
+      " " +
+      padL +
+      "," +
+      (h - padB);
+
+    // horizontal grid at min / mid / max
+    const gridYs = [min, mid, max].map(yOf);
 
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("viewBox", "0 0 " + w + " " + h);
+    svg.setAttribute("preserveAspectRatio", "none");
     svg.setAttribute("class", "stk-svg");
+
+    let grid = "";
+    gridYs.forEach(function (gy, i) {
+      const label = i === 0 ? min : i === 1 ? mid : max;
+      grid +=
+        '<line x1="' + padL + '" y1="' + gy.toFixed(1) + '" x2="' + (w - padR) +
+        '" y2="' + gy.toFixed(1) + '" class="stk-grid-line"/>' +
+        '<text x="' + (padL - 8) + '" y="' + (gy + 3).toFixed(1) +
+        '" class="stk-axis-label" text-anchor="end">' +
+        fmtPrice(label) +
+        "</text>";
+    });
+
+    // end labels
+    const first = points[0].t;
+    const last = points[points.length - 1].t;
+    grid +=
+      '<text x="' + padL + '" y="' + (h - 8) + '" class="stk-axis-label">' + esc(first) + "</text>" +
+      '<text x="' + (w - padR) + '" y="' + (h - 8) + '" class="stk-axis-label" text-anchor="end">' +
+      esc(last) +
+      "</text>";
+
     svg.innerHTML =
       '<defs><linearGradient id="stkGrad" x1="0" y1="0" x2="0" y2="1">' +
-      '<stop offset="0%" stop-color="' + stroke + '" stop-opacity="0.35"/>' +
+      '<stop offset="0%" stop-color="' + stroke + '" stop-opacity="0.28"/>' +
       '<stop offset="100%" stop-color="' + stroke + '" stop-opacity="0"/>' +
       "</linearGradient></defs>" +
+      grid +
       '<polygon points="' + area + '" fill="url(#stkGrad)"/>' +
       '<polyline points="' + poly + '" fill="none" stroke="' + stroke +
-      '" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>';
+      '" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>';
 
-    // hover
     const hoverLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
     hoverLine.setAttribute("y1", padT);
     hoverLine.setAttribute("y2", h - padB);
-    hoverLine.setAttribute("stroke", "#8b949e");
-    hoverLine.setAttribute("stroke-dasharray", "3 3");
+    hoverLine.setAttribute("class", "stk-hover-line");
     hoverLine.style.display = "none";
     svg.appendChild(hoverLine);
+
+    const hoverDot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    hoverDot.setAttribute("r", "4.5");
+    hoverDot.setAttribute("class", "stk-hover-dot");
+    hoverDot.setAttribute("fill", stroke);
+    hoverDot.style.display = "none";
+    svg.appendChild(hoverDot);
+
     const tip = document.createElement("div");
     tip.className = "stk-chart-tip";
     tip.style.display = "none";
+
     chartSvg.appendChild(svg);
     chartSvg.appendChild(tip);
 
@@ -105,12 +154,16 @@
       hoverLine.setAttribute("x1", x);
       hoverLine.setAttribute("x2", x);
       hoverLine.style.display = "block";
+      hoverDot.setAttribute("cx", x);
+      hoverDot.setAttribute("cy", y);
+      hoverDot.style.display = "block";
       tip.style.display = "block";
-      tip.style.left = (x / w) * 100 + "%";
-      tip.textContent = points[idx].t + " · " + fmtPrice(points[idx].c);
+      tip.style.left = Math.min(92, Math.max(8, (x / w) * 100)) + "%";
+      tip.textContent = points[idx].t + "  ·  " + fmtPrice(points[idx].c);
     });
     svg.addEventListener("mouseleave", function () {
       hoverLine.style.display = "none";
+      hoverDot.style.display = "none";
       tip.style.display = "none";
     });
   }
@@ -120,7 +173,9 @@
     chartStatus.hidden = false;
     chartStatus.textContent = "Loading chart…";
     try {
-      const resp = await fetch("/api/chart/" + encodeURIComponent(ticker) + "?range=" + encodeURIComponent(range));
+      const resp = await fetch(
+        "/api/chart/" + encodeURIComponent(ticker) + "?range=" + encodeURIComponent(range)
+      );
       const data = await resp.json();
       if (token !== chartToken) return;
       if (!resp.ok) {
@@ -140,7 +195,9 @@
       ch.className = "stk-change " + clsPct(data.day_change_pct);
       const rc = document.getElementById("stkRangeChg");
       rc.textContent = range + " " + fmtPct(data.range_change_pct);
-      rc.className = "stk-range-chg " + clsPct(data.range_change_pct);
+      rc.className = "stk-range-pill " + clsPct(data.range_change_pct);
+      const asof = document.getElementById("stkAsof");
+      if (asof) asof.textContent = "Range " + range + " · Yahoo (may be delayed)";
       drawChart(data.points, data.range_change_pct);
     } catch (e) {
       if (token === chartToken) chartStatus.textContent = "Could not load chart.";
@@ -154,7 +211,9 @@
       if (!resp.ok) throw new Error(d.error || "Profile failed");
       document.getElementById("stkSymbol").textContent = d.ticker || ticker;
       document.getElementById("stkName").textContent = d.name || ticker;
-      const bits = [d.exchange, d.sector, d.industry, d.country].filter(Boolean);
+      const ex = document.getElementById("stkExchange");
+      if (ex) ex.textContent = d.exchange || "";
+      const bits = [d.sector, d.industry, d.country].filter(Boolean);
       document.getElementById("stkMeta").textContent = bits.join(" · ");
 
       const stats = [
@@ -169,9 +228,17 @@
         ["Rev growth", d.revenue_growth != null ? fmtPct(Number(d.revenue_growth) * 100) : "—"],
         ["Profit margin", d.profit_margin != null ? (Number(d.profit_margin) * 100).toFixed(1) + "%" : "—"],
       ];
-      document.getElementById("stkStats").innerHTML = stats.map(function (row) {
-        return '<div class="stk-stat"><span>' + esc(row[0]) + "</span><strong>" + esc(row[1]) + "</strong></div>";
-      }).join("");
+      document.getElementById("stkStats").innerHTML = stats
+        .map(function (row) {
+          return (
+            '<div class="stk-stat"><span>' +
+            esc(row[0]) +
+            "</span><strong>" +
+            esc(row[1]) +
+            "</strong></div>"
+          );
+        })
+        .join("");
 
       const a = d.analyst || {};
       const ac = document.getElementById("stkAnalystCard");
@@ -183,9 +250,17 @@
           ["Mean target", fmtPrice(a.target_mean)],
           ["Low / high", fmtPrice(a.target_low) + " / " + fmtPrice(a.target_high)],
         ];
-        document.getElementById("stkAnalyst").innerHTML = rows.map(function (r) {
-          return '<div class="stk-stat"><span>' + esc(r[0]) + "</span><strong>" + esc(r[1]) + "</strong></div>";
-        }).join("");
+        document.getElementById("stkAnalyst").innerHTML = rows
+          .map(function (r) {
+            return (
+              '<div class="stk-stat"><span>' +
+              esc(r[0]) +
+              "</span><strong>" +
+              esc(r[1]) +
+              "</strong></div>"
+            );
+          })
+          .join("");
       } else {
         ac.hidden = true;
       }
@@ -204,22 +279,38 @@
 
   async function loadPerformance(ticker) {
     const el = document.getElementById("stkPerf");
-    el.innerHTML = "<div class='stk-perf-empty'>Loading performance…</div>";
+    el.innerHTML = "<div class='stk-perf-empty'>Loading…</div>";
     try {
       const resp = await fetch("/api/stock/performance/" + encodeURIComponent(ticker));
       const d = await resp.json();
       if (!resp.ok) throw new Error(d.error || "Failed");
       const order = ["1W", "1M", "3M", "6M", "YTD", "1Y", "5Y"];
       const periods = d.periods || {};
-      el.innerHTML = order.map(function (k) {
-        const v = periods[k];
-        return '<div class="stk-perf-cell"><span>' + k + '</span><strong class="' +
-          clsPct(v) + '">' + fmtPct(v) + "</strong></div>";
-      }).join("") +
+      el.innerHTML =
+        order
+          .map(function (k) {
+            const v = periods[k];
+            return (
+              '<div class="stk-perf-cell"><span>' +
+              k +
+              '</span><strong class="' +
+              clsPct(v) +
+              '">' +
+              fmtPct(v) +
+              "</strong></div>"
+            );
+          })
+          .join("") +
         '<div class="stk-perf-cell"><span>vs 52W high</span><strong class="' +
-        clsPct(d.from_high_pct) + '">' + fmtPct(d.from_high_pct) + "</strong></div>" +
+        clsPct(d.from_high_pct) +
+        '">' +
+        fmtPct(d.from_high_pct) +
+        "</strong></div>" +
         '<div class="stk-perf-cell"><span>vs 52W low</span><strong class="' +
-        clsPct(d.from_low_pct) + '">' + fmtPct(d.from_low_pct) + "</strong></div>";
+        clsPct(d.from_low_pct) +
+        '">' +
+        fmtPct(d.from_low_pct) +
+        "</strong></div>";
     } catch (e) {
       el.innerHTML = "<div class='stk-perf-empty'>" + esc(e.message || "Unavailable") + "</div>";
     }
@@ -234,16 +325,11 @@
     statusEl.hidden = false;
     statusEl.textContent = "Loading " + ticker + "…";
     setActions(ticker);
-    // update URL without reload
     try {
       history.replaceState(null, "", "/stock/" + encodeURIComponent(ticker));
     } catch (e) {}
-    await Promise.all([
-      loadChart(ticker, currentRange),
-      loadProfile(ticker),
-      loadPerformance(ticker),
-    ]);
-    statusEl.textContent = "Showing " + ticker;
+    await Promise.all([loadChart(ticker, currentRange), loadProfile(ticker), loadPerformance(ticker)]);
+    statusEl.textContent = ticker + " · Yahoo Finance";
   }
 
   form.addEventListener("submit", function (e) {
@@ -261,7 +347,6 @@
     loadChart(currentTicker, currentRange);
   });
 
-  // Prefill from server or query
   const pre = (input.value || "").trim();
   if (pre) showTicker(pre);
 })();

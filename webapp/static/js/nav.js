@@ -69,7 +69,7 @@
     { title: "Stock", desc: "Price chart & performance", href: "/stock", keywords: "pluang performance price chart stats" },
     { title: "Forecast", desc: "Kronos path + range outlook", href: "/forecast", keywords: "predict price kronos outlook cone" },
     { title: "Screener", desc: "Find candidates by rules", href: "/screener", keywords: "filter universe score" },
-    { title: "Valuation", desc: "Relative peer multiples", href: "/valuation", keywords: "pe ps peers fair value" },
+    { title: "Valuation", desc: "Competitors · growth · margins", href: "/valuation", keywords: "pe ps peers fair value" },
     { title: "News", desc: "Headlines & sentiment", href: "/news", keywords: "headlines sentiment" },
     { title: "Research", desc: "Deep research notes", href: "/research", keywords: "deep notes wall street breakdown" },
     { title: "Wall Street breakdown", desc: "Full equity-analyst style note", href: "/chat", keywords: "wall street full analysis equity report breakdown" },
