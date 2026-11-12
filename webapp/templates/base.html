@@ -132,6 +132,11 @@
   </header>
   <div class="nav-backdrop" id="navBackdrop"></div>
 
+  <div class="wl-ticker-strip" id="wlTickerStrip" hidden>
+    <div class="wl-ticker-strip-inner" id="wlTickerStripInner"></div>
+    <a class="wl-ticker-strip-more" href="/watchlist">Watchlist →</a>
+  </div>
+
   <main class="main {% block main_class %}{% endblock %}">
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
@@ -151,6 +156,7 @@
   <script src="{{ url_for('static', filename='js/markets.js') }}"></script>
   <script src="{{ url_for('static', filename='js/app.js') }}"></script>
   <script src="{{ url_for('static', filename='js/ticker-chart.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/wl-strip.js') }}"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>
