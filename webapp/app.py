@@ -408,6 +408,21 @@ def api_chat_sessions_switch(session_id):
     })
 
 
+
+@app.route("/api/chat/sessions/<session_id>/delete", methods=["POST", "DELETE"])
+def api_chat_sessions_delete(session_id):
+    context = get_context(_user_id())
+    ok = context.delete_session(session_id)
+    if not ok:
+        return jsonify({"error": "Session not found"}), 404
+    return jsonify({
+        "ok": True,
+        "session_id": context.active_session_id,
+        "history": context.history,
+        "beginner_mode": context.beginner_mode,
+        "sessions": context.list_sessions_grouped(),
+    })
+
 @app.route("/api/chat", methods=["POST"])
 def api_chat():
     """Synchronous path -- kept for the mode-toggle switch (instant, no

@@ -7,7 +7,7 @@
     <div class="stk-hero-text">
       <p class="eyebrow">Portfolio · performance</p>
       <h1 class="page-title">Stock</h1>
-      <p class="page-desc">Chart, period returns, and key stats in one view. Data via Yahoo Finance (may be delayed).</p>
+      <p class="page-desc">Chart, period returns, and key stats. Data via Yahoo Finance (may be delayed).</p>
     </div>
     <form id="stkForm" class="stk-search" autocomplete="off">
       <input type="text" id="stkTicker" class="stk-search-input" placeholder="Search ticker — AAPL, BBCA.JK…"
@@ -18,50 +18,42 @@
   <p class="stk-status" id="stkStatus" hidden></p>
 
   <div id="stkView" class="stk-view" hidden>
-    <!-- Unified price + chart panel -->
-    <section class="card stk-panel">
-      <div class="stk-panel-head">
+    <!-- Hero: identity + price LEFT, chart RIGHT (reference layout) -->
+    <section class="card stk-hero-panel">
+      <div class="stk-hero-left">
         <div class="stk-identity">
           <div class="stk-symbol-row">
             <h2 class="stk-symbol" id="stkSymbol">—</h2>
-            <span class="stk-exchange" id="stkExchange"></span>
           </div>
           <p class="stk-name" id="stkName">—</p>
           <p class="stk-meta" id="stkMeta"></p>
         </div>
         <div class="stk-price-block">
           <div class="stk-price" id="stkPrice">—</div>
-          <div class="stk-change-row">
-            <span class="stk-change" id="stkChange">—</span>
-            <span class="stk-range-pill" id="stkRangeChg"></span>
-          </div>
-          <p class="stk-asof" id="stkAsof"></p>
+          <div class="stk-change" id="stkChange">—</div>
+          <div class="stk-vs-close" id="stkVsClose"></div>
         </div>
+        <a class="btn stk-details-btn" id="stkLinkInsights" href="/insights">View Details →</a>
       </div>
-
-      <div class="stk-ranges" id="stkRanges" role="tablist" aria-label="Chart range">
-        {% for r in ['1D','1W','1M','3M','6M','YTD','1Y','5Y'] %}
-        <button type="button" class="stk-range-btn{% if r == '1M' %} active{% endif %}" data-range="{{ r }}">{{ r }}</button>
-        {% endfor %}
-      </div>
-
-      <div class="stk-chart-wrap" id="stkChartWrap">
-        <div class="stk-chart-status" id="stkChartStatus">Loading chart…</div>
-        <div class="stk-chart-svg" id="stkChartSvg"></div>
-        <div class="stk-chart-footer">
-          <span id="stkChartMin">—</span>
-          <span id="stkChartMid">—</span>
-          <span id="stkChartMax">—</span>
+      <div class="stk-hero-right">
+        <div class="stk-ranges" id="stkRanges" role="tablist" aria-label="Chart range">
+          {% for r in ['1D','1W','1M','3M','6M','YTD','1Y','5Y'] %}
+          <button type="button" class="stk-range-btn{% if r == '1M' %} active{% endif %}" data-range="{{ r }}">{{ r }}</button>
+          {% endfor %}
         </div>
+        <div class="stk-chart-wrap" id="stkChartWrap">
+          <div class="stk-chart-status" id="stkChartStatus">Loading chart…</div>
+          <div class="stk-chart-svg" id="stkChartSvg"></div>
+        </div>
+        <p class="stk-asof" id="stkAsof"></p>
       </div>
     </section>
 
-    <!-- Performance + Stats side by side -->
-    <div class="stk-grid-2">
+    <!-- 3-column: Performance | Key Stats | Analyst -->
+    <div class="stk-grid-3">
       <section class="card stk-panel">
         <div class="stk-panel-title-row">
           <h3 class="stk-section-title">Performance</h3>
-          <span class="stk-hint">Period returns</span>
         </div>
         <div class="stk-perf-grid" id="stkPerf">
           <div class="stk-perf-empty">Load a ticker to see returns.</div>
@@ -70,34 +62,34 @@
 
       <section class="card stk-panel">
         <div class="stk-panel-title-row">
-          <h3 class="stk-section-title">Key stats</h3>
+          <h3 class="stk-section-title">Key Stats</h3>
           <span class="stk-hint">TTM / latest</span>
         </div>
         <div class="stk-stats-grid" id="stkStats"></div>
       </section>
-    </div>
 
-    <div class="stk-grid-2">
-      <section class="card stk-panel" id="stkAnalystCard" hidden>
+      <section class="card stk-panel" id="stkAnalystCard">
         <div class="stk-panel-title-row">
-          <h3 class="stk-section-title">Analyst consensus</h3>
+          <h3 class="stk-section-title">Analyst Consensus</h3>
         </div>
-        <div class="stk-stats-grid" id="stkAnalyst"></div>
-      </section>
-
-      <section class="card stk-panel" id="stkAboutCard" hidden>
-        <div class="stk-panel-title-row">
-          <h3 class="stk-section-title">About</h3>
+        <div id="stkAnalyst">
+          <p class="stk-perf-empty">No consensus data.</p>
         </div>
-        <p class="stk-about" id="stkAbout"></p>
       </section>
     </div>
+
+    <!-- About full width -->
+    <section class="card stk-about-panel" id="stkAboutCard" hidden>
+      <div class="stk-panel-title-row">
+        <h3 class="stk-section-title">About</h3>
+        <a class="stk-explore" id="stkLinkChat" href="#">Explore More →</a>
+      </div>
+      <p class="stk-about" id="stkAbout"></p>
+    </section>
 
     <section class="stk-actions" id="stkActions">
       <a class="btn btn-ghost" id="stkLinkForecast" href="#">Forecast</a>
       <a class="btn btn-ghost" id="stkLinkNews" href="#">News</a>
-      <a class="btn btn-ghost" id="stkLinkInsights" href="#">Insights &amp; financials</a>
-      <a class="btn btn-ghost" id="stkLinkChat" href="#">Chat breakdown</a>
     </section>
   </div>
 </div>

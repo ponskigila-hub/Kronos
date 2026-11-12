@@ -188,6 +188,25 @@ class ConversationContext:
         self.save()
         return True
 
+
+    def delete_session(self, session_id: str) -> bool:
+        """Remove a session. If it was active, start a fresh empty session."""
+        self._sync_active_into_sessions()
+        before = len(self.sessions)
+        self.sessions = [s for s in self.sessions if s.get("id") != session_id]
+        if len(self.sessions) == before:
+            return False
+        if self.active_session_id == session_id:
+            if self.sessions:
+                self.sessions.sort(key=lambda s: s.get("updated_at") or "", reverse=True)
+                self.switch_session(self.sessions[0]["id"])
+            else:
+                self.active_session_id = None
+                self.history = []
+                self.new_session(title="New chat", persist=False)
+        self.save()
+        return True
+
     def list_sessions_grouped(self):
         self._sync_active_into_sessions()
         groups = {}
