@@ -364,7 +364,48 @@ def chat():
 @app.route("/api/chat/history")
 def api_chat_history():
     context = get_context(_user_id())
-    return jsonify({"history": context.history, "beginner_mode": context.beginner_mode})
+    return jsonify({
+        "history": context.history,
+        "beginner_mode": context.beginner_mode,
+        "session_id": context.active_session_id,
+        "sessions": context.list_sessions_grouped(),
+    })
+
+
+@app.route("/api/chat/sessions", methods=["GET"])
+def api_chat_sessions():
+    context = get_context(_user_id())
+    return jsonify({
+        "sessions": context.list_sessions_grouped(),
+        "active_session_id": context.active_session_id,
+        "beginner_mode": context.beginner_mode,
+    })
+
+
+@app.route("/api/chat/sessions/new", methods=["POST"])
+def api_chat_sessions_new():
+    context = get_context(_user_id())
+    sess = context.new_session(title="New chat")
+    return jsonify({
+        "session": sess,
+        "sessions": context.list_sessions_grouped(),
+        "history": [],
+        "beginner_mode": context.beginner_mode,
+    })
+
+
+@app.route("/api/chat/sessions/<session_id>/switch", methods=["POST"])
+def api_chat_sessions_switch(session_id):
+    context = get_context(_user_id())
+    ok = context.switch_session(session_id)
+    if not ok:
+        return jsonify({"error": "Session not found"}), 404
+    return jsonify({
+        "session_id": context.active_session_id,
+        "history": context.history,
+        "beginner_mode": context.beginner_mode,
+        "sessions": context.list_sessions_grouped(),
+    })
 
 
 @app.route("/api/chat", methods=["POST"])

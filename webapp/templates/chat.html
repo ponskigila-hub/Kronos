@@ -1,62 +1,96 @@
 {% extends "base.html" %}
 {% block title %}Kronos — Research Chat{% endblock %}
+{% block body_class %}page-chat{% endblock %}
 {% block content %}
-<div class="claude-chat" id="claudeChat">
-  <div class="claude-empty" id="researchHero">
-    <div class="claude-empty-inner">
-      <p class="research-eyebrow">Stock market research</p>
-      <h1 class="research-title">Tell it how you research.</h1>
-      <p class="research-sub">
-        Forecast, compare, news, and fundamentals in plain language.
-        Not a broker. Not trade execution.
-      </p>
-      <div class="style-chips" id="styleChips" role="tablist" aria-label="Research style">
-        <button type="button" class="style-chip active" data-style="overview" data-prompt="Give me a research overview of AAPL: recent price trend, forecast horizon 14 days, key risks, and what the model is uncertain about.">Overview</button>
-        <button type="button" class="style-chip" data-style="forecast" data-prompt="Forecast AAPL for 14 days and explain the path in plain language, including the uncertainty band.">Forecast</button>
-        <button type="button" class="style-chip" data-style="compare" data-prompt="Compare NVDA and AMD on recent trend, forecast direction, and which looks more stretched.">Compare</button>
-        <button type="button" class="style-chip" data-style="longterm" data-prompt="Build a longer-horizon research view on MSFT: entry zone ideas, invalidation, and fundamental checklist.">Long-term</button>
-        <button type="button" class="style-chip" data-style="news" data-prompt="What is the recent news tone around TSLA and does it conflict with the price forecast?">News &amp; context</button>
-        <button type="button" class="style-chip" data-style="risk" data-prompt="What are the main risks for AMZN over the next 2 weeks according to volatility, earnings, and the forecast band?">Risks</button>
+<div class="chat-shell" id="claudeChat">
+  <!-- Session sidebar (Gemini-style history) -->
+  <aside class="chat-sidebar" id="chatSidebar" aria-label="Chat sessions">
+    <div class="chat-sidebar-top">
+      <button type="button" class="btn chat-new-btn" id="newChatBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        New chat
+      </button>
+    </div>
+    <div class="chat-session-list" id="sessionList">
+      <p class="chat-session-empty">No past sessions yet.</p>
+    </div>
+  </aside>
+
+  <div class="chat-main">
+    <div class="claude-empty" id="researchHero">
+      <div class="claude-empty-inner">
+        <p class="research-eyebrow">Stock market research</p>
+        <h1 class="research-title">Tell it how you research.</h1>
+        <p class="research-sub">
+          Forecast, compare, news, and fundamentals in plain language.
+          Not a broker. Not trade execution.
+        </p>
+        <div class="style-chips" id="styleChips" role="tablist" aria-label="Research style">
+          <button type="button" class="style-chip active" data-style="overview" data-prompt="Give me a research overview of AAPL: recent price trend, forecast horizon 14 days, key risks, and what the model is uncertain about.">Overview</button>
+          <button type="button" class="style-chip" data-style="forecast" data-prompt="Forecast AAPL for 14 days and explain the path in plain language, including the uncertainty band.">Forecast</button>
+          <button type="button" class="style-chip" data-style="compare" data-prompt="Compare NVDA and AMD on recent trend, forecast direction, and which looks more stretched.">Compare</button>
+          <button type="button" class="style-chip" data-style="longterm" data-prompt="Build a longer-horizon research view on MSFT: entry zone ideas, invalidation, and fundamental checklist.">Long-term</button>
+          <button type="button" class="style-chip" data-style="news" data-prompt="What is the recent news tone around TSLA and does it conflict with the price forecast?">News &amp; context</button>
+          <button type="button" class="style-chip" data-style="risk" data-prompt="What are the main risks for AMZN over the next 2 weeks according to volatility, earnings, and the forecast band?">Risks</button>
+          <button type="button" class="style-chip" data-style="wall" data-prompt="Run the full Wall Street breakdown on AAPL: business model, revenue drivers, growth, margins, cash flow, competitive position, recent earnings, catalysts, biggest risks, and key numbers to monitor.">Wall Street</button>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div class="claude-thread" id="chatWrap">
-    <div class="claude-thread-scroll" id="chatLog"></div>
-  </div>
+    <div class="claude-thread" id="chatWrap">
+      <div class="claude-thread-scroll" id="chatLog"></div>
+    </div>
 
-  <div class="claude-composer-dock">
-    <div class="claude-composer-shell">
-      <div class="quick-row" id="suggestions">
-        <button class="suggestion-chip quick-chip" type="button">What can you do?</button>
-        <button class="suggestion-chip quick-chip" type="button">Forecast AAPL for 7 days</button>
-        <button class="suggestion-chip quick-chip" type="button">Compare NVDA and AMD</button>
-        <button class="suggestion-chip quick-chip" type="button">Is TSLA risky right now?</button>
-        <button class="suggestion-chip quick-chip" type="button">My watchlist</button>
-      </div>
-      <form class="composer" id="chatForm" autocomplete="off">
-        <label class="sr-only" for="chatInput">Message</label>
-        <textarea id="chatInput" class="composer-input" rows="1" placeholder="Message Kronos…" required></textarea>
-        <div class="composer-toolbar">
-          <div class="composer-tags" id="composerTags">
-            <span class="composer-tag" id="tagStyle">Overview</span>
-            <span class="composer-tag muted" id="tagMode">Beginner</span>
-          </div>
-          <div class="composer-actions">
-            <div class="mode-mini" id="modeToggle" title="Explanation style">
-              <button type="button" class="toggle-btn mode-mini-btn" data-mode="advanced">Advanced</button>
-              <button type="button" class="toggle-btn mode-mini-btn active" data-mode="beginner">Beginner</button>
-            </div>
-            <button class="composer-send" type="submit" aria-label="Send">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M12 19V5M12 5l-6 6M12 5l6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </button>
-          </div>
+    <div class="claude-composer-dock">
+      <div class="claude-composer-shell">
+        <div class="quick-row" id="suggestions">
+          <button class="suggestion-chip quick-chip" type="button">What can you do?</button>
+          <button class="suggestion-chip quick-chip" type="button">Forecast AAPL for 7 days</button>
+          <button class="suggestion-chip quick-chip" type="button">Compare NVDA and AMD</button>
+          <button class="suggestion-chip quick-chip" type="button">Is TSLA risky right now?</button>
+          <button class="suggestion-chip quick-chip" type="button">My watchlist</button>
         </div>
-        <div class="ticker-suggest" id="tickerSuggest"></div>
-      </form>
-      <p class="claude-footnote">Kronos can be wrong. Treat forecasts as research scenarios, not advice.</p>
+        <form class="composer" id="chatForm" autocomplete="off">
+          <label class="sr-only" for="chatInput">Message</label>
+          <textarea id="chatInput" class="composer-input" rows="1" placeholder="Message Kronos…" required></textarea>
+          <div class="composer-toolbar">
+            <div class="composer-tags" id="composerTags">
+              <span class="composer-tag" id="tagStyle">Overview</span>
+            </div>
+            <div class="composer-actions">
+              <!-- Model-style mode picker -->
+              <div class="model-picker" id="modelPicker">
+                <button type="button" class="model-picker-btn" id="modelPickerBtn" aria-haspopup="listbox" aria-expanded="false">
+                  <span class="model-picker-label" id="tagMode">Beginner</span>
+                  <svg class="model-picker-chevron" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5L6 7.5L9 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                </button>
+                <div class="model-picker-menu" id="modelPickerMenu" role="listbox" hidden>
+                  <button type="button" class="model-picker-option active" role="option" data-mode="beginner">
+                    <strong>Beginner</strong>
+                    <span>Plain language, less jargon</span>
+                  </button>
+                  <button type="button" class="model-picker-option" role="option" data-mode="advanced">
+                    <strong>Advanced</strong>
+                    <span>Technical detail &amp; metrics</span>
+                  </button>
+                </div>
+              </div>
+              <!-- Hidden legacy toggle for chat.js compatibility -->
+              <div class="mode-mini" id="modeToggle" hidden>
+                <button type="button" class="toggle-btn mode-mini-btn" data-mode="advanced">Advanced</button>
+                <button type="button" class="toggle-btn mode-mini-btn active" data-mode="beginner">Beginner</button>
+              </div>
+              <button class="composer-send" type="submit" aria-label="Send">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M12 19V5M12 5l-6 6M12 5l6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="ticker-suggest" id="tickerSuggest"></div>
+        </form>
+        <p class="claude-footnote">Kronos can be wrong. Treat forecasts as research scenarios, not advice.</p>
+      </div>
     </div>
   </div>
 </div>
@@ -70,46 +104,139 @@
   var hero = document.getElementById("researchHero");
   var input = document.getElementById("chatInput");
   var tagStyle = document.getElementById("tagStyle");
+  var tagMode = document.getElementById("tagMode");
   var chips = document.querySelectorAll("#styleChips .style-chip");
+  var sessionList = document.getElementById("sessionList");
+  var modeToggle = document.getElementById("modeToggle");
+
   window.__kronosSetChatSession = function (on) {
     if (!root) return;
     root.classList.toggle("has-session", !!on);
     if (hero) hero.hidden = !!on;
   };
+
   chips.forEach(function (chip) {
     chip.addEventListener("click", function () {
       chips.forEach(function (c) { c.classList.remove("active"); });
       chip.classList.add("active");
       if (tagStyle) tagStyle.textContent = chip.textContent.trim();
-      if (input && chip.getAttribute("data-prompt")) {
-        input.value = chip.getAttribute("data-prompt");
+      var prompt = chip.getAttribute("data-prompt") || "";
+      if (input && prompt) {
+        input.value = prompt;
         input.focus();
         input.dispatchEvent(new Event("input"));
       }
     });
   });
-  if (input) {
-    input.addEventListener("input", function () {
-      input.style.height = "auto";
-      input.style.height = Math.min(input.scrollHeight, 180) + "px";
+
+  // Model picker UI ↔ legacy modeToggle buttons (chat.js listens there)
+  var pickerBtn = document.getElementById("modelPickerBtn");
+  var pickerMenu = document.getElementById("modelPickerMenu");
+  if (pickerBtn && pickerMenu) {
+    pickerBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var open = pickerMenu.hidden;
+      pickerMenu.hidden = !open;
+      pickerBtn.setAttribute("aria-expanded", open ? "true" : "false");
     });
-    input.addEventListener("keydown", function (e) {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        var form = document.getElementById("chatForm");
-        if (form) form.requestSubmit();
+    pickerMenu.querySelectorAll("[data-mode]").forEach(function (opt) {
+      opt.addEventListener("click", function () {
+        var mode = opt.getAttribute("data-mode");
+        pickerMenu.querySelectorAll("[data-mode]").forEach(function (o) {
+          o.classList.toggle("active", o === opt);
+        });
+        if (tagMode) tagMode.textContent = mode === "beginner" ? "Beginner" : "Advanced";
+        pickerMenu.hidden = true;
+        // Drive existing chat.js handler
+        var legacy = modeToggle && modeToggle.querySelector('[data-mode="' + mode + '"]');
+        if (legacy) legacy.click();
+      });
+    });
+    document.addEventListener("click", function () {
+      pickerMenu.hidden = true;
+      pickerBtn.setAttribute("aria-expanded", "false");
+    });
+  }
+
+  function renderSessions(groups) {
+    if (!sessionList) return;
+    if (!groups || !groups.length) {
+      sessionList.innerHTML = '<p class="chat-session-empty">No past sessions yet.</p>';
+      return;
+    }
+    var html = "";
+    groups.forEach(function (g) {
+      html += '<div class="chat-session-group">';
+      html += '<div class="chat-session-day">' + (g.label || "") + "</div>";
+      (g.sessions || []).forEach(function (s) {
+        html += '<button type="button" class="chat-session-item' + (s.active ? " is-active" : "") + '" data-id="' + s.id + '">';
+        html += '<span class="chat-session-title">' + (s.title || "Chat").replace(/</g, "&lt;") + "</span>";
+        html += "</button>";
+      });
+      html += "</div>";
+    });
+    sessionList.innerHTML = html;
+  }
+
+  window.__kronosRenderSessions = renderSessions;
+
+  async function loadSessions() {
+    try {
+      var resp = await fetch("/api/chat/sessions");
+      var data = await resp.json();
+      renderSessions(data.sessions || []);
+      if (tagMode && data.beginner_mode != null) {
+        tagMode.textContent = data.beginner_mode ? "Beginner" : "Advanced";
       }
-    });
+    } catch (e) { /* ignore */ }
   }
-  var tagMode = document.getElementById("tagMode");
-  var modeToggle = document.getElementById("modeToggle");
-  if (modeToggle && tagMode) {
-    modeToggle.addEventListener("click", function (e) {
-      var btn = e.target.closest("[data-mode]");
-      if (!btn) return;
-      tagMode.textContent = btn.dataset.mode === "beginner" ? "Beginner" : "Advanced";
-    });
-  }
+
+  document.getElementById("newChatBtn").addEventListener("click", async function () {
+    try {
+      var resp = await fetch("/api/chat/sessions/new", { method: "POST" });
+      var data = await resp.json();
+      renderSessions(data.sessions || []);
+      var log = document.getElementById("chatLog");
+      if (log) log.innerHTML = "";
+      window.__kronosSetChatSession(false);
+      if (input) { input.value = ""; input.focus(); }
+    } catch (e) {
+      alert("Could not start a new session.");
+    }
+  });
+
+  sessionList.addEventListener("click", async function (e) {
+    var btn = e.target.closest(".chat-session-item");
+    if (!btn) return;
+    var id = btn.getAttribute("data-id");
+    try {
+      var resp = await fetch("/api/chat/sessions/" + id + "/switch", { method: "POST" });
+      var data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Switch failed");
+      renderSessions(data.sessions || []);
+      var log = document.getElementById("chatLog");
+      if (log) log.innerHTML = "";
+      var hist = data.history || [];
+      if (hist.length && window.__kronosReplayHistory) {
+        window.__kronosReplayHistory(hist);
+        window.__kronosSetChatSession(true);
+      } else {
+        window.__kronosSetChatSession(false);
+      }
+      if (tagMode && data.beginner_mode != null) {
+        tagMode.textContent = data.beginner_mode ? "Beginner" : "Advanced";
+        if (modeToggle) {
+          modeToggle.querySelectorAll("[data-mode]").forEach(function (b) {
+            b.classList.toggle("active", b.dataset.mode === (data.beginner_mode ? "beginner" : "advanced"));
+          });
+        }
+      }
+    } catch (err) {
+      alert(err.message || "Could not open session");
+    }
+  });
+
+  loadSessions();
 })();
 </script>
 {% endblock %}

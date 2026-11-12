@@ -278,6 +278,8 @@
             scenarios: data.scenarios,
           });
           setSuggestions(data.suggestions);
+          // Refresh session list titles / day groups
+          fetch("/api/chat/sessions").then(r => r.json()).then(d => refreshSessionSidebar(d.sessions)).catch(() => {});
         }
         setSending(false);
         input.focus();
@@ -341,7 +343,22 @@
     } catch (err) { /* non-critical */ }
   });
 
-  // -------------------------------------------------------- chat history
+  // -------------------------------------------------------- chat history / sessions
+  function refreshSessionSidebar(groups) {
+    if (typeof window.__kronosRenderSessions === "function" && groups) {
+      window.__kronosRenderSessions(groups);
+    }
+  }
+
+  window.__kronosReplayHistory = function (history) {
+    if (!log) return;
+    log.innerHTML = "";
+    (history || []).forEach((turn) => {
+      addMessage(turn.role === "user" ? "user" : "bot", turn.text);
+    });
+    markSessionActive();
+  };
+
   async function loadHistory() {
     try {
       const resp = await fetch("/api/chat/history");
@@ -349,17 +366,18 @@
       (data.history || []).forEach((turn) => {
         addMessage(turn.role === "user" ? "user" : "bot", turn.text);
       });
-      if (data.beginner_mode) {
+      if (modeToggle) {
+        const beginner = data.beginner_mode !== false;
         modeToggle.querySelectorAll(".toggle-btn").forEach((b) =>
-          b.classList.toggle("active", b.dataset.mode === "beginner")
+          b.classList.toggle("active", b.dataset.mode === (beginner ? "beginner" : "advanced"))
         );
+        const tagMode = document.getElementById("tagMode");
+        if (tagMode) tagMode.textContent = beginner ? "Beginner" : "Advanced";
       }
+      refreshSessionSidebar(data.sessions);
       markSessionActive();
     } catch (err) { /* fine to start with an empty log */ }
 
-    // Resume watching a reply that was still computing when this page was
-    // last left (e.g. the user switched to Screener mid-forecast) -- the
-    // background job kept running server-side the whole time.
     try {
       const resp = await fetch("/api/chat/pending");
       const data = await resp.json();
