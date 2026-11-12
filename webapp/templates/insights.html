@@ -6,8 +6,9 @@
     <p class="eyebrow">Medium to long term</p>
     <h1 class="page-title">Fundamentals &amp; context</h1>
     <p class="page-desc">
-      Earnings surprise cues, relative multiples, a transparent DCF range, headline sentiment,
-      and a small macro panel — kept in one quiet layout.
+      Earnings cues, multi-period financial statements (income / balance / cash flow),
+      relative multiples, a transparent DCF range, headline sentiment, and macro —
+      when you look up a stock.
     </p>
   </header>
 
@@ -60,6 +61,13 @@
         <div id="insSent" class="ins-body"></div>
       </section>
     </div>
+
+    <section class="card ins-card ins-financials" id="insFinancialsCard" hidden>
+      <h3>Dig through the financials</h3>
+      <p class="ins-muted" style="margin-top:0">Multi-period income, balance sheet, and cash flow — trends and red flags.</p>
+      <div id="insFinancialsFlags" class="ins-flags"></div>
+      <div id="insFinancialsBody" class="ins-body ins-fin-text"></div>
+    </section>
 
     <section class="card ins-card" id="insMacroCard" hidden>
       <h3>Macro snapshot</h3>
@@ -217,6 +225,37 @@
     }
     sh += notes(s.notes);
     document.getElementById("insSent").innerHTML = sh || "<p class='ins-muted'>No headlines.</p>";
+
+    // Financials dig
+    var fd = d.financials_dig || {};
+    var fc = document.getElementById("insFinancialsCard");
+    if (fc) {
+      if (fd.text || (fd.flags && fd.flags.length)) {
+        fc.hidden = false;
+        var flagsEl = document.getElementById("insFinancialsFlags");
+        if (flagsEl) {
+          var flags = fd.flags || [];
+          flagsEl.innerHTML = flags.length
+            ? "<ul class='ins-flag-list'>" + flags.map(function (f) {
+                return "<li>" + esc(f) + "</li>";
+              }).join("") + "</ul>"
+            : "";
+        }
+        var body = document.getElementById("insFinancialsBody");
+        if (body) {
+          var s = esc(fd.text || "");
+          s = s.replace(/^### (.+)$/gm, "<h4>$1</h4>");
+          s = s.replace(/^## (.+)$/gm, "<h3>$1</h3>");
+          s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+          s = s.replace(/^- (.+)$/gm, "<div class='rd-md-li'>• $1</div>");
+          s = s.replace(/\n\n/g, "</p><p>");
+          s = s.replace(/\n/g, "<br>");
+          body.innerHTML = "<p>" + s + "</p>";
+        }
+      } else {
+        fc.hidden = true;
+      }
+    }
 
     // Macro
     var m = d.macro || {};

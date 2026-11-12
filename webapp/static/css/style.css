@@ -4277,3 +4277,25 @@ body.page-chat .main {
 .rd-card-head .btn-ghost {
   flex-shrink: 0;
 }
+
+.ins-financials { margin-top: 16px; }
+.ins-flag-list {
+  margin: 8px 0 14px;
+  padding-left: 1.1rem;
+  color: var(--bone, #e6edf3);
+  line-height: 1.45;
+  font-size: 0.9rem;
+}
+.ins-flag-list li { margin-bottom: 4px; }
+.ins-fin-text {
+  max-height: 480px;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.ins-fin-text h3, .ins-fin-text h4 {
+  color: var(--gold, #c4a35a);
+  margin: 0.9em 0 0.35em;
+  font-size: 0.95rem;
+}

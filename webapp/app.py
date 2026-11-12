@@ -1361,7 +1361,34 @@ def api_insights():
         result = deep_research.build_fundamental_insight(
             ticker, peer_tickers=peers, include_macro=bool(include_macro),
         )
+        # Multi-period statement dig when viewing a stock on Insights
+        try:
+            from assistant import financials_dig
+            result["financials_dig"] = financials_dig.dig_financials(ticker)
+        except Exception as fe:
+            result["financials_dig"] = {
+                "ticker": ticker,
+                "error": str(fe),
+                "text": f"Financial statement dig unavailable: {fe}",
+                "flags": [],
+            }
         return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/financials/dig", methods=["POST"])
+def api_financials_dig():
+    """Standalone dig-through of income / balance / cash flow (multi-period)."""
+    from assistant import financials_dig
+    payload = request.get_json(silent=True) or {}
+    ticker = (payload.get("ticker") or "").strip().upper()
+    if not ticker:
+        return jsonify({"error": "ticker required"}), 400
+    try:
+        return jsonify(financials_dig.dig_financials(ticker))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

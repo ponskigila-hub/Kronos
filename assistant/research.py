@@ -12,6 +12,15 @@ _lock = threading.Lock()
 
 RESEARCH_TEMPLATES = [
     {
+        "id": "financials",
+        "label": "Dig through financials",
+        "prompt": (
+            "Dig through {ticker}'s financials: latest income statement, balance sheet, "
+            "and cash flow across multiple periods — revenue growth, margins, debt, cash, "
+            "free cash flow, dilution, and red flags vs prior periods."
+        ),
+    },
+    {
         "id": "wall_street",
         "label": "Wall Street breakdown",
         "prompt": (
@@ -418,6 +427,18 @@ def run_research_template(template_id: str, ticker: str, ticker2: str | None = N
     )
 
     # --- Wall Street full breakdown ---
+    if template_id == "financials":
+        from . import financials_dig
+        report = financials_dig.dig_financials(ticker)
+        return {
+            "template_id": template_id,
+            "title": title,
+            "ticker": ticker,
+            "text": report.get("text") or "",
+            "data": {"flags": report.get("flags"), "annual": report.get("annual")},
+            "disclaimer": report.get("disclaimer") or disclaimer,
+        }
+
     if template_id == "wall_street":
         from . import deep_research
         report = deep_research.build_wall_street_breakdown(ticker)
