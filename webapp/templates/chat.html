@@ -5,10 +5,12 @@
 <div class="chat-shell" id="claudeChat">
   <!-- Session sidebar (Gemini-style history) -->
   <aside class="chat-sidebar" id="chatSidebar" aria-label="Chat sessions">
+    <div class="chat-sidebar-head">
+      <h2 class="chat-sidebar-title">Chats</h2>
+    </div>
     <div class="chat-sidebar-top">
       <button type="button" class="btn chat-new-btn" id="newChatBtn">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
-        New chat
+        <span aria-hidden="true">+</span> New chat
       </button>
     </div>
     <div class="chat-session-list" id="sessionList">
@@ -17,27 +19,24 @@
   </aside>
 
   <div class="chat-main">
-    <div class="claude-empty" id="researchHero">
-      <div class="claude-empty-inner">
-        <p class="research-eyebrow">Stock market research</p>
-        <h1 class="research-title">Tell it how you research.</h1>
-        <p class="research-sub">
-          Forecast, compare, news, and fundamentals in plain language.
-          Not a broker. Not trade execution.
+        <div class="claude-empty" id="researchHero">
+      <div class="claude-empty-inner chat-welcome">
+        <div class="chat-welcome-spark" aria-hidden="true">✦</div>
+        <h1 class="research-title chat-welcome-title">Welcome back to <span class="chat-welcome-brand">Kronos</span></h1>
+        <p class="research-sub chat-welcome-sub">
+          Your intelligent research companion for smarter financial decisions.
         </p>
-        <div class="style-chips" id="styleChips" role="tablist" aria-label="Research style">
-          <button type="button" class="style-chip active" data-style="overview" data-prompt="Give me a research overview of AAPL: recent price trend, forecast horizon 14 days, key risks, and what the model is uncertain about.">Overview</button>
-          <button type="button" class="style-chip" data-style="forecast" data-prompt="Forecast AAPL for 14 days and explain the path in plain language, including the uncertainty band.">Forecast</button>
-          <button type="button" class="style-chip" data-style="compare" data-prompt="Compare NVDA and AMD on recent trend, forecast direction, and which looks more stretched.">Compare</button>
-          <button type="button" class="style-chip" data-style="longterm" data-prompt="Build a longer-horizon research view on MSFT: entry zone ideas, invalidation, and fundamental checklist.">Long-term</button>
-          <button type="button" class="style-chip" data-style="news" data-prompt="What is the recent news tone around TSLA and does it conflict with the price forecast?">News &amp; context</button>
-          <button type="button" class="style-chip" data-style="risk" data-prompt="What are the main risks for AMZN over the next 2 weeks according to volatility, earnings, and the forecast band?">Risks</button>
-          <button type="button" class="style-chip" data-style="wall" data-prompt="Run the full Wall Street breakdown on AAPL: business model, revenue drivers, growth, margins, cash flow, competitive position, recent earnings, catalysts, biggest risks, and key numbers to monitor.">Wall Street</button>
+        <div class="style-chips chat-quick-actions" id="styleChips" role="tablist" aria-label="Quick actions">
+          <button type="button" class="style-chip chat-qa-btn" data-style="forecast" data-prompt="Forecast AAPL for 14 days and explain the path in plain language, including the uncertainty band.">Analyze a Stock</button>
+          <button type="button" class="style-chip chat-qa-btn" data-style="compare" data-prompt="Compare NVDA and AMD on recent trend, forecast direction, margins, and valuation.">Compare Companies</button>
+          <button type="button" class="style-chip chat-qa-btn" data-style="news" data-prompt="What is the recent market news tone and what should I watch this week?">Get Market Insights</button>
+          <button type="button" class="style-chip chat-qa-btn" data-style="overview" data-prompt="Review my watchlist: recent moves, risks, and which names look interesting.">Review My Portfolio</button>
+          <button type="button" class="style-chip chat-qa-btn" data-style="wall" data-prompt="Run the full Wall Street breakdown on AAPL: business model, revenue drivers, growth, margins, cash flow, competitive position, recent earnings, catalysts, biggest risks, and key numbers to monitor.">Wall Street Breakdown</button>
         </div>
       </div>
     </div>
 
-    <div class="claude-thread" id="chatWrap">
+<div class="claude-thread" id="chatWrap">
       <div class="claude-thread-scroll" id="chatLog"></div>
     </div>
 
@@ -52,7 +51,7 @@
         </div>
         <form class="composer" id="chatForm" autocomplete="off">
           <label class="sr-only" for="chatInput">Message</label>
-          <textarea id="chatInput" class="composer-input" rows="1" placeholder="Message Kronos…" required></textarea>
+          <textarea id="chatInput" class="composer-input" rows="1" placeholder="Ask Kronos anything…" required></textarea>
           <div class="composer-toolbar">
             <div class="composer-tags" id="composerTags">
               <span class="composer-tag" id="tagStyle">Overview</span>
@@ -89,7 +88,7 @@
           </div>
           <div class="ticker-suggest" id="tickerSuggest"></div>
         </form>
-        <p class="claude-footnote">Kronos can be wrong. Treat forecasts as research scenarios, not advice.</p>
+        <p class="claude-footnote">Powered by advanced AI · Research scenarios, not advice</p>
       </div>
     </div>
   </div>
