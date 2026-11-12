@@ -6,7 +6,8 @@
     <p class="eyebrow">Research desk</p>
     <h1 class="page-title">Compare · Thesis · Templates</h1>
     <p class="page-desc">
-      Triage tickers side by side, save a short thesis per name, and reuse research prompts.
+      Triage tickers side by side, save a short thesis per name, and run research templates
+      directly on this page (Wall Street breakdown, forecast, risks, and more).
       This is a research workspace — not order execution.
     </p>
   </header>
@@ -127,22 +128,63 @@
     </div>
   </section>
 
-  <!-- TEMPLATES -->
+  <!-- TEMPLATES (run in-page) -->
   <section class="card rd-card">
     <div class="rd-card-head">
       <div>
         <h2 class="card-title">Research templates</h2>
-        <p class="rd-help">Open Chat with a ready-made research prompt.</p>
+        <p class="rd-help">Pick a template, enter ticker(s), and run the analysis on this page — no chat redirect.</p>
       </div>
     </div>
-    <div class="rd-template-grid">
+
+    <div class="rd-template-grid" id="templateGrid" role="listbox" aria-label="Research templates">
       {% for t in templates %}
-      <button type="button" class="rd-template-card template-card"
-              data-prompt="{{ t.prompt.replace('{ticker}', 'AAPL').replace('{ticker2}', 'MSFT') }}">
-        <strong>{{ t.label }}</strong>
-        <span>{{ t.prompt[:100] }}{% if t.prompt|length > 100 %}…{% endif %}</span>
+      <button type="button"
+              class="rd-template-card template-card"
+              role="option"
+              data-id="{{ t.id }}"
+              data-needs-ticker2="{{ '1' if '{ticker2}' in t.prompt else '0' }}"
+              aria-selected="false">
+        <strong class="rd-template-title">{{ t.label }}</strong>
+        <span class="rd-template-desc">{{ t.prompt[:110] }}{% if t.prompt|length > 110 %}…{% endif %}</span>
       </button>
       {% endfor %}
+    </div>
+
+    <div class="rd-runner" id="templateRunner" hidden>
+      <div class="rd-runner-head">
+        <h3 class="rd-runner-title" id="runnerTitle">Template</h3>
+        <button type="button" class="rd-runner-clear" id="runnerClear" aria-label="Clear selection">Clear</button>
+      </div>
+      <form id="templateForm" class="rd-form" autocomplete="off">
+        <div class="rd-grid rd-grid-runner">
+          <label class="rd-field">
+            <span class="rd-label">Ticker</span>
+            <input type="text" id="tplTicker" class="rd-input" placeholder="e.g. AAPL" required maxlength="15">
+          </label>
+          <label class="rd-field" id="tplTicker2Wrap" hidden>
+            <span class="rd-label">Ticker 2</span>
+            <input type="text" id="tplTicker2" class="rd-input" placeholder="e.g. MSFT" maxlength="15">
+          </label>
+          <div class="rd-field rd-field-action">
+            <span class="rd-label rd-label-spacer" aria-hidden="true">&nbsp;</span>
+            <button class="btn rd-btn" type="submit" id="tplSubmit">Run template</button>
+          </div>
+        </div>
+      </form>
+      <p class="rd-status" id="tplStatus" hidden></p>
+    </div>
+
+    <div class="rd-result" id="tplResult" hidden>
+      <div class="rd-result-head">
+        <div>
+          <p class="eyebrow" id="tplResultEyebrow">Result</p>
+          <h3 class="rd-result-title" id="tplResultTitle">—</h3>
+        </div>
+        <span class="result-tag" id="tplResultTag"></span>
+      </div>
+      <div class="rd-result-body" id="tplResultBody"></div>
+      <p class="rd-disclaimer" id="tplResultDisclaimer"></p>
     </div>
   </section>
 </div>
@@ -246,12 +288,108 @@
     location.reload();
   });
 
-  document.querySelectorAll(".template-card").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var prompt = btn.getAttribute("data-prompt") || "";
-      try { sessionStorage.setItem("kronos-research-prompt", prompt); } catch (e) {}
-      window.location.href = "{{ url_for('chat') }}";
+  // ---- In-page template runner ----
+  var selectedTpl = null;
+  var runner = document.getElementById("templateRunner");
+  var runnerTitle = document.getElementById("runnerTitle");
+  var tplForm = document.getElementById("templateForm");
+  var tplStatus = document.getElementById("tplStatus");
+  var tplResult = document.getElementById("tplResult");
+  var ticker2Wrap = document.getElementById("tplTicker2Wrap");
+
+  function simpleMarkdown(src) {
+    // Minimal safe rendering: escape, then light **bold** and newlines
+    var s = esc(src || "");
+    s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    s = s.replace(/^### (.+)$/gm, "<h4 class='rd-md-h'>$1</h4>");
+    s = s.replace(/^## (.+)$/gm, "<h3 class='rd-md-h'>$1</h3>");
+    s = s.replace(/^- (.+)$/gm, "<div class='rd-md-li'>• $1</div>");
+    s = s.replace(/\n\n/g, "</p><p class='rd-md-p'>");
+    s = s.replace(/\n/g, "<br>");
+    return "<p class='rd-md-p'>" + s + "</p>";
+  }
+
+  function selectTemplate(btn) {
+    document.querySelectorAll(".template-card").forEach(function (b) {
+      b.classList.remove("is-selected");
+      b.setAttribute("aria-selected", "false");
     });
+    btn.classList.add("is-selected");
+    btn.setAttribute("aria-selected", "true");
+    selectedTpl = {
+      id: btn.getAttribute("data-id"),
+      needs2: btn.getAttribute("data-needs-ticker2") === "1",
+      label: (btn.querySelector(".rd-template-title") || btn.querySelector("strong") || {}).textContent || "Template"
+    };
+    runner.hidden = false;
+    runnerTitle.textContent = selectedTpl.label;
+    ticker2Wrap.hidden = !selectedTpl.needs2;
+    if (!selectedTpl.needs2) document.getElementById("tplTicker2").value = "";
+    tplResult.hidden = true;
+    tplStatus.hidden = true;
+    document.getElementById("tplTicker").focus();
+  }
+
+  document.querySelectorAll(".template-card").forEach(function (btn) {
+    btn.addEventListener("click", function () { selectTemplate(btn); });
+  });
+
+  document.getElementById("runnerClear").addEventListener("click", function () {
+    selectedTpl = null;
+    runner.hidden = true;
+    tplResult.hidden = true;
+    tplStatus.hidden = true;
+    document.querySelectorAll(".template-card").forEach(function (b) {
+      b.classList.remove("is-selected");
+      b.setAttribute("aria-selected", "false");
+    });
+  });
+
+  tplForm.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    if (!selectedTpl) return;
+    var ticker = (document.getElementById("tplTicker").value || "").trim().toUpperCase();
+    var ticker2 = (document.getElementById("tplTicker2").value || "").trim().toUpperCase();
+    if (!ticker) {
+      tplStatus.hidden = false;
+      tplStatus.textContent = "Enter a ticker first.";
+      return;
+    }
+    if (selectedTpl.needs2 && !ticker2) {
+      tplStatus.hidden = false;
+      tplStatus.textContent = "This template needs a second ticker.";
+      return;
+    }
+    var submitBtn = document.getElementById("tplSubmit");
+    submitBtn.disabled = true;
+    tplStatus.hidden = false;
+    tplStatus.textContent = "Running “" + selectedTpl.label + "”… first model load can take a minute.";
+    tplResult.hidden = true;
+    try {
+      var resp = await fetch("/api/research/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          template_id: selectedTpl.id,
+          ticker: ticker,
+          ticker2: ticker2 || null
+        })
+      });
+      var data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Run failed");
+      document.getElementById("tplResultEyebrow").textContent = data.title || selectedTpl.label;
+      document.getElementById("tplResultTitle").textContent = data.ticker + (data.ticker2 ? " vs " + data.ticker2 : "");
+      document.getElementById("tplResultTag").textContent = data.template_id || "";
+      document.getElementById("tplResultBody").innerHTML = simpleMarkdown(data.text || "");
+      document.getElementById("tplResultDisclaimer").textContent = data.disclaimer || "";
+      tplResult.hidden = false;
+      tplStatus.textContent = "Done.";
+      tplResult.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (err) {
+      tplStatus.textContent = err.message || String(err);
+    } finally {
+      submitBtn.disabled = false;
+    }
   });
 })();
 </script>
