@@ -4299,3 +4299,188 @@ body.page-chat .main {
   margin: 0.9em 0 0.35em;
   font-size: 0.95rem;
 }
+
+/* ===== Stock tab (Pluang-style performance) ===== */
+.stk-page { max-width: min(1100px, 100%); margin: 0 auto; }
+.stk-hero { margin-bottom: 20px; }
+.stk-search-card { margin-bottom: 16px; }
+.stk-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+.stk-field { flex: 1; min-width: 160px; display: flex; flex-direction: column; gap: 6px; }
+
+.stk-head-card { padding: 20px 20px 16px; margin-bottom: 14px; }
+.stk-head-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.stk-symbol {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--bone, #e6edf3);
+}
+.stk-name { margin: 4px 0 0; color: var(--bone-dim, #8b949e); font-size: 0.95rem; }
+.stk-meta { margin: 4px 0 0; font-size: 0.8rem; color: var(--bone-dim, #8b949e); }
+.stk-price-block { text-align: right; }
+.stk-price {
+  font-family: var(--mono);
+  font-size: 1.85rem;
+  font-weight: 700;
+  color: var(--bone, #e6edf3);
+}
+.stk-change {
+  font-family: var(--mono);
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-top: 2px;
+}
+.stk-range-chg {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  margin-top: 4px;
+  color: var(--bone-dim, #8b949e);
+}
+.stk-change.pos, .stk-range-chg.pos, .stk-perf-cell strong.pos { color: #3fb950; }
+.stk-change.neg, .stk-range-chg.neg, .stk-perf-cell strong.neg { color: #f85149; }
+
+.stk-ranges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.stk-range-btn {
+  border: 1px solid var(--line, #30363d);
+  background: transparent;
+  color: var(--bone-dim, #8b949e);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.stk-range-btn:hover { border-color: var(--gold-dim, #9c6d1e); color: var(--bone, #e6edf3); }
+.stk-range-btn.active {
+  background: color-mix(in srgb, var(--gold, #c4a35a) 18%, transparent);
+  border-color: var(--gold, #c4a35a);
+  color: var(--gold, #c4a35a);
+}
+
+.stk-chart-wrap {
+  position: relative;
+  min-height: 200px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--ink-2, #161b22) 80%, transparent);
+  padding: 8px 4px 4px;
+  overflow: hidden;
+}
+.stk-chart-status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bone-dim, #8b949e);
+  font-size: 0.9rem;
+  z-index: 1;
+}
+.stk-svg { width: 100%; height: auto; display: block; cursor: crosshair; }
+.stk-chart-tip {
+  position: absolute;
+  top: 8px;
+  transform: translateX(-50%);
+  background: #161b22;
+  border: 1px solid #30363d;
+  color: #e6edf3;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 2;
+}
+.stk-chart-svg { position: relative; }
+
+.stk-card { margin-bottom: 14px; padding: 18px 20px; }
+.stk-section-title {
+  margin: 0 0 14px;
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--bone, #e6edf3);
+}
+.stk-perf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 10px;
+}
+.stk-perf-cell {
+  background: color-mix(in srgb, var(--ink-2, #161b22) 70%, transparent);
+  border: 1px solid var(--line, #30363d);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.stk-perf-cell span {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--bone-dim, #8b949e);
+}
+.stk-perf-cell strong {
+  font-family: var(--mono);
+  font-size: 1rem;
+  font-weight: 650;
+  color: var(--bone, #e6edf3);
+}
+.stk-perf-empty { color: var(--bone-dim, #8b949e); font-size: 0.9rem; }
+
+.stk-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px 16px;
+}
+.stk-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.stk-stat span {
+  font-size: 0.75rem;
+  color: var(--bone-dim, #8b949e);
+}
+.stk-stat strong {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--bone, #e6edf3);
+  overflow-wrap: anywhere;
+}
+.stk-about {
+  margin: 0;
+  line-height: 1.55;
+  color: var(--bone-dim, #8b949e);
+  font-size: 0.92rem;
+}
+.stk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 8px 0 28px;
+}
+
+@media (max-width: 640px) {
+  .stk-price-block { text-align: left; width: 100%; }
+  .stk-price { font-size: 1.5rem; }
+}

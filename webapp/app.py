@@ -652,9 +652,11 @@ def api_stock_profile(ticker):
         "sector": fund.get("sector"),
         "industry": fund.get("industry"),
         "description": description,
+        "current_price": fund.get("current_price"),
         "market_cap": fund.get("market_cap"),
         "pe_ratio": fund.get("pe_ratio"),
         "forward_pe": fund.get("forward_pe"),
+        "eps": fund.get("eps"),
         "beta": fund.get("beta"),
         "dividend_yield": fund.get("dividend_yield"),
         "fifty_two_week_low": fund.get("fifty_two_week_low"),
@@ -662,6 +664,8 @@ def api_stock_profile(ticker):
         "employees": fund.get("employees"),
         "country": fund.get("country"),
         "exchange": fund.get("exchange"),
+        "profit_margin": fund.get("profit_margin"),
+        "revenue_growth": fund.get("revenue_growth"),
         "analyst": {
             "target_mean": analyst.get("target_mean"),
             "target_low": analyst.get("target_low"),
@@ -676,6 +680,84 @@ def api_stock_profile(ticker):
 # ---------------------------------------------------------------------------
 # Stock Screener (assistant/screener/)
 # ---------------------------------------------------------------------------
+
+@app.route("/stock")
+@app.route("/stock/<ticker>")
+def stock_page(ticker=None):
+    """Pluang-style stock performance page."""
+    return render_template(
+        "stock.html",
+        active="stock",
+        prefill_ticker=(ticker or request.args.get("ticker") or "").strip().upper(),
+    )
+
+
+@app.route("/api/stock/performance/<ticker>")
+def api_stock_performance(ticker):
+    """Period returns (1W…5Y) + 52w context for the Stock tab."""
+    ticker = (ticker or "").strip().upper()
+    try:
+        df = data_fetcher.fetch_history(ticker, lookback_days=1300, interval="1d")
+    except TickerNotFoundError as e:
+        return jsonify({"error": str(e)}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
+    if df is None or df.empty or len(df) < 2:
+        return jsonify({"error": f"No history for {ticker}."}), 404
+
+    import pandas as pd
+    closes = df["close"].astype(float)
+    last = float(closes.iloc[-1])
+    ts = pd.to_datetime(df["timestamps"])
+
+    def ret_after(n_bars):
+        if len(closes) <= n_bars:
+            return None
+        base = float(closes.iloc[-(n_bars + 1)])
+        if not base:
+            return None
+        return round((last - base) / base * 100.0, 2)
+
+    def ret_since(mask):
+        sub = closes[mask]
+        if sub is None or len(sub) < 1:
+            return None
+        base = float(sub.iloc[0])
+        if not base:
+            return None
+        return round((last - base) / base * 100.0, 2)
+
+    year = pd.Timestamp.now().year
+    ytd_mask = ts.dt.year == year
+
+    periods = {
+        "1W": ret_after(5),
+        "1M": ret_after(21),
+        "3M": ret_after(63),
+        "6M": ret_after(126),
+        "YTD": ret_since(ytd_mask.values if hasattr(ytd_mask, "values") else ytd_mask),
+        "1Y": ret_after(252),
+        "5Y": ret_after(1260) if len(closes) > 1260 else ret_after(max(len(closes) - 2, 1)),
+    }
+    # Prefer true 5Y when enough bars; else MAX available
+    if periods["5Y"] is None and len(closes) > 2:
+        base = float(closes.iloc[0])
+        periods["5Y"] = round((last - base) / base * 100.0, 2) if base else None
+
+    high_52 = float(closes.tail(252).max()) if len(closes) >= 20 else float(closes.max())
+    low_52 = float(closes.tail(252).min()) if len(closes) >= 20 else float(closes.min())
+
+    return jsonify({
+        "ticker": ticker,
+        "last": round(last, 2),
+        "periods": periods,
+        "fifty_two_week_high": round(high_52, 2),
+        "fifty_two_week_low": round(low_52, 2),
+        "from_high_pct": round((last - high_52) / high_52 * 100, 2) if high_52 else None,
+        "from_low_pct": round((last - low_52) / low_52 * 100, 2) if low_52 else None,
+    })
+
+
 @app.route("/screener", methods=["GET"])
 def screener():
     return render_template(

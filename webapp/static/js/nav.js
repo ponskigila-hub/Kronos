@@ -66,6 +66,7 @@
   if (!input || !results) return;
 
   var TOOLS = [
+    { title: "Stock", desc: "Price chart & performance", href: "/stock", keywords: "pluang performance price chart stats" },
     { title: "Forecast", desc: "Kronos path + range outlook", href: "/forecast", keywords: "predict price kronos outlook cone" },
     { title: "Screener", desc: "Find candidates by rules", href: "/screener", keywords: "filter universe score" },
     { title: "Valuation", desc: "Relative peer multiples", href: "/valuation", keywords: "pe ps peers fair value" },

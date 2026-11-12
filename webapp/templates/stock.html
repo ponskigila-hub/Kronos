@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Kronos — Stock{% endblock %}
+{% block content %}
+<div class="stk-page">
+  <header class="stk-hero">
+    <p class="eyebrow">Stock performance</p>
+    <h1 class="page-title">Stock</h1>
+    <p class="page-desc">Price, chart, period returns, and key stats — Pluang-style snapshot for any ticker.</p>
+  </header>
+
+  <section class="card stk-search-card">
+    <form id="stkForm" class="stk-form" autocomplete="off">
+      <label class="stk-field">
+        <span class="rd-label">Ticker</span>
+        <input type="text" id="stkTicker" class="rd-input" placeholder="AAPL, BBCA.JK, TSLA…"
+               value="{{ prefill_ticker or '' }}" required maxlength="20">
+      </label>
+      <button class="btn" type="submit" id="stkSubmit">View stock</button>
+    </form>
+    <p class="rd-status" id="stkStatus" hidden></p>
+  </section>
+
+  <div id="stkView" class="stk-view" hidden>
+    <!-- Header: name + price (Pluang-like) -->
+    <section class="card stk-head-card">
+      <div class="stk-head-top">
+        <div class="stk-identity">
+          <h2 class="stk-symbol" id="stkSymbol">—</h2>
+          <p class="stk-name" id="stkName">—</p>
+          <p class="stk-meta" id="stkMeta"></p>
+        </div>
+        <div class="stk-price-block">
+          <div class="stk-price" id="stkPrice">—</div>
+          <div class="stk-change" id="stkChange">—</div>
+          <div class="stk-range-chg" id="stkRangeChg"></div>
+        </div>
+      </div>
+
+      <div class="stk-ranges" id="stkRanges" role="tablist">
+        {% for r in ['1D','1W','1M','3M','6M','YTD','1Y','5Y'] %}
+        <button type="button" class="stk-range-btn{% if r == '1M' %} active{% endif %}" data-range="{{ r }}">{{ r }}</button>
+        {% endfor %}
+      </div>
+
+      <div class="stk-chart-wrap" id="stkChartWrap">
+        <div class="stk-chart-status" id="stkChartStatus">Loading chart…</div>
+        <div class="stk-chart-svg" id="stkChartSvg"></div>
+      </div>
+    </section>
+
+    <!-- Performance periods -->
+    <section class="card stk-card">
+      <h3 class="stk-section-title">Performance</h3>
+      <div class="stk-perf-grid" id="stkPerf">
+        <div class="stk-perf-empty">Run a ticker to see period returns.</div>
+      </div>
+    </section>
+
+    <!-- Key stats -->
+    <section class="card stk-card">
+      <h3 class="stk-section-title">Key stats</h3>
+      <div class="stk-stats-grid" id="stkStats"></div>
+    </section>
+
+    <!-- Analyst -->
+    <section class="card stk-card" id="stkAnalystCard" hidden>
+      <h3 class="stk-section-title">Analyst consensus</h3>
+      <div class="stk-stats-grid" id="stkAnalyst"></div>
+    </section>
+
+    <!-- About -->
+    <section class="card stk-card" id="stkAboutCard" hidden>
+      <h3 class="stk-section-title">About</h3>
+      <p class="stk-about" id="stkAbout"></p>
+    </section>
+
+    <!-- Quick actions -->
+    <section class="stk-actions" id="stkActions">
+      <a class="btn btn-ghost" id="stkLinkForecast" href="#">Forecast</a>
+      <a class="btn btn-ghost" id="stkLinkNews" href="#">News</a>
+      <a class="btn btn-ghost" id="stkLinkInsights" href="#">Insights &amp; financials</a>
+      <a class="btn btn-ghost" id="stkLinkChat" href="#">Chat breakdown</a>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/stock.js') }}"></script>
+{% endblock %}
