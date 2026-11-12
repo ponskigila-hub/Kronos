@@ -385,3 +385,329 @@ def compare_tickers(tickers, pred_len=14):
             "Uncertainty is a model band width estimate."
         ),
     }
+
+
+# ---------------------------------------------------------------------------
+# In-page template runner (Research desk — no chat redirect)
+# ---------------------------------------------------------------------------
+def run_research_template(template_id: str, ticker: str, ticker2: str | None = None) -> dict:
+    """
+    Execute a research template against live data and return a structured
+    payload suitable for the Research desk UI (not chat).
+
+    Returns:
+      {
+        "template_id", "title", "ticker", "ticker2",
+        "text": markdown-ish narrative,
+        "sections": [{"heading", "body_html" | "bullets"}],  # optional
+        "data": {...},  # raw structured fields when available
+        "disclaimer": str,
+      }
+    """
+    template_id = (template_id or "").strip().lower()
+    ticker = (ticker or "").strip().upper()
+    ticker2 = (ticker2 or "").strip().upper() or None
+    if not ticker:
+        raise ValueError("Enter a ticker first.")
+
+    meta = next((t for t in RESEARCH_TEMPLATES if t["id"] == template_id), None)
+    title = meta["label"] if meta else template_id.replace("_", " ").title()
+    disclaimer = (
+        "Research synthesis only — not a recommendation to buy or sell. "
+        "Provider data can lag or be incomplete."
+    )
+
+    # --- Wall Street full breakdown ---
+    if template_id == "wall_street":
+        from . import deep_research
+        report = deep_research.build_wall_street_breakdown(ticker)
+        return {
+            "template_id": template_id,
+            "title": title,
+            "ticker": ticker,
+            "text": report.get("text") or "",
+            "sections": None,
+            "data": {
+                "business": report.get("business"),
+                "growth": report.get("growth"),
+                "margins": report.get("margins"),
+                "cash": report.get("cash"),
+                "earnings": report.get("earnings"),
+                "catalysts": report.get("catalysts"),
+                "risks": report.get("risks"),
+                "monitor": report.get("monitor"),
+            },
+            "disclaimer": report.get("disclaimer") or disclaimer,
+        }
+
+    # --- Forecast path summary ---
+    if template_id == "forecast":
+        from . import data_fetcher, forecaster
+        hist = data_fetcher.fetch_history(ticker, lookback_days=400)
+        fc = forecaster.run_forecast(hist, pred_len=14)
+        last = float(hist["close"].iloc[-1])
+        pred = fc.get("mean_df") if fc.get("mean_df") is not None else fc["pred_df"]
+        end = float(pred["close"].iloc[-1])
+        pct = (end - last) / last * 100 if last else 0.0
+        low = high = None
+        if fc.get("low_df") is not None:
+            low = float(fc["low_df"]["close"].iloc[-1])
+        if fc.get("high_df") is not None:
+            high = float(fc["high_df"]["close"].iloc[-1])
+        evidence = build_evidence(ticker, hist_df=hist, forecast_result=fc)
+        scenarios = build_scenarios(fc, last_close=last)
+        text = (
+            f"**{ticker}** 14-day Kronos path\n\n"
+            f"- Last: **{last:.2f}** → Centre: **{end:.2f}** ({pct:+.2f}%)\n"
+        )
+        if low is not None and high is not None:
+            text += f"- Range: **{low:.2f} – {high:.2f}**\n"
+        text += "\n" + format_research_card_text(evidence, scenarios)
+        return {
+            "template_id": template_id,
+            "title": title,
+            "ticker": ticker,
+            "text": text,
+            "data": {"last": last, "centre": end, "low": low, "high": high, "pct": pct},
+            "disclaimer": disclaimer,
+        }
+
+    # --- Overview ---
+    if template_id == "overview":
+        from . import data_fetcher, fundamentals, news as news_mod, forecaster
+        fund = fundamentals.get_fundamentals(ticker)
+        hist = data_fetcher.fetch_history(ticker, lookback_days=120)
+        last = float(hist["close"].iloc[-1])
+        fc = forecaster.run_forecast(hist, pred_len=14)
+        pred = fc.get("mean_df") if fc.get("mean_df") is not None else fc["pred_df"]
+        end = float(pred["close"].iloc[-1])
+        pct = (end - last) / last * 100 if last else 0.0
+        try:
+            _items, news_summary = news_mod.get_news(ticker)
+            news_label = (news_summary or {}).get("label") or "n/a"
+        except Exception:
+            news_label = "n/a"
+        name = fund.get("name") or ticker
+        text = (
+            f"**{name} ({ticker})** — research overview\n\n"
+            f"- Sector / industry: **{fund.get('sector') or 'n/a'}** / **{fund.get('industry') or 'n/a'}**\n"
+            f"- Last price: **{last:.2f}** | 14d centre path: **{end:.2f}** ({pct:+.2f}%)\n"
+            f"- Trailing P/E: **{fund.get('pe_ratio') if fund.get('pe_ratio') is not None else 'n/a'}** | "
+            f"Revenue growth: **{(fund.get('revenue_growth') or 0) * 100:.1f}%** "
+            f"(provider YoY when available)\n"
+            f"- Headline tone: **{news_label}**\n\n"
+            f"_Key uncertainty: Kronos uses price history only — event risk "
+            f"(earnings, guidance) is not priced into the path numbers themselves._"
+        )
+        return {
+            "template_id": template_id,
+            "title": title,
+            "ticker": ticker,
+            "text": text,
+            "data": {"fundamentals": fund, "pct": pct, "news_label": news_label},
+            "disclaimer": disclaimer,
+        }
+
+    # --- Compare two names ---
+    if template_id == "compare":
+        if not ticker2:
+            raise ValueError("Compare needs a second ticker (Ticker 2).")
+        result = compare_tickers([ticker, ticker2], pred_len=14)
+        rows = result.get("rows") or []
+        lines = [f"**Compare {ticker} vs {ticker2}** (14-day path)\n"]
+        for r in rows:
+            if r.get("error"):
+                lines.append(f"- **{r.get('ticker')}**: {r['error']}")
+                continue
+            er = r.get("expected_return_pct")
+            er_s = f"{er:+.2f}%" if er is not None else "—"
+            lines.append(
+                f"- **{r.get('ticker')}**: last {r.get('last_close')} → "
+                f"{r.get('forecast_close')} ({er_s}), "
+                f"uncertainty {r.get('uncertainty_pct')}%, "
+                f"regime {r.get('regime') or '—'}, news {r.get('news_label') or '—'}"
+            )
+        lines.append("\n_Which looks more stretched is a judgment call from band width vs expected move — not a signal._")
+        return {
+            "template_id": template_id,
+            "title": title,
+            "ticker": ticker,
+            "ticker2": ticker2,
+            "text": "\n".join(lines),
+            "data": result,
+            "disclaimer": result.get("disclaimer") or disclaimer,
+        }
+
+    # --- News & context ---
+    if template_id == "news":
+        from . import news as news_mod, data_fetcher, forecaster
+        items, summary = news_mod.get_news(ticker)
+        hist = data_fetcher.fetch_history(ticker, lookback_days=90)
+        last = float(hist["close"].iloc[-1])
+        fc = forecaster.run_forecast(hist, pred_len=14)
+        pred = fc.get("mean_df") if fc.get("mean_df") is not None else fc["pred_df"]
+        end = float(pred["close"].iloc[-1])
+        pct = (end - last) / last * 100 if last else 0.0
+        label = (summary or {}).get("label") or "n/a"
+        lines = [
+            f"**News & context — {ticker}**\n",
+            f"- Headline tone: **{label}**",
+            f"- 14d centre path vs last: **{pct:+.2f}%**",
+            "",
+            "Recent headlines:",
+        ]
+        for it in (items or [])[:6]:
+            title_h = it.get("title") or it.get("headline") or str(it)
+            lines.append(f"- {title_h}")
+        if not items:
+            lines.append("- No headlines returned by the provider right now.")
+        conflict = ""
+        if label in ("mostly positive", "positive") and pct < -1:
+            conflict = "\n_Tone is constructive while the near-term path is soft — possible news/price divergence._"
+        elif label in ("mostly negative", "negative") and pct > 1:
+            conflict = "\n_Tone is cautious while the near-term path is firmer — treat headlines as context, not confirmation._"
+        lines.append(conflict)
+        return {
+            "template_id": template_id,
+            "title": title,
+            "ticker": ticker,
+            "text": "\n".join(lines),
+            "data": {"summary": summary, "items": items[:8] if items else []},
+            "disclaimer": disclaimer,
+        }
+
+    # --- Risks ---
+    if template_id == "risk":
+        from . import data_fetcher, fundamentals, indicators, forecaster
+        hist = data_fetcher.fetch_history(ticker, lookback_days=120)
+        ind = indicators.compute_indicators(hist)
+        last = float(hist["close"].iloc[-1])
+        fc = forecaster.run_forecast(hist, pred_len=14)
+        pred = fc.get("mean_df") if fc.get("mean_df") is not None else fc["pred_df"]
+        end = float(pred["close"].iloc[-1])
+        low = float(fc["low_df"]["close"].iloc[-1]) if fc.get("low_df") is not None else None
+        high = float(fc["high_df"]["close"].iloc[-1]) if fc.get("high_df") is not None else None
+        fund = fundamentals.get_fundamentals(ticker)
+        earn = None
+        try:
+            earn = fundamentals.get_next_earnings_info(ticker)
+        except Exception:
+            pass
+        rsi = None
+        try:
+            if ind is not None and "rsi_14" in ind.columns:
+                rsi = float(ind["rsi_14"].iloc[-1])
+        except Exception:
+            pass
+        risks = []
+        if earn and earn.get("days_until") is not None and 0 <= earn["days_until"] <= 14:
+            risks.append(f"Earnings in ~{earn['days_until']}d ({earn.get('date')}) — event risk.")
+        if low is not None and high is not None and last:
+            width = (high - low) / last * 100
+            risks.append(f"Forecast band width ≈ {width:.1f}% of last price over 14 trading days.")
+        if rsi is not None:
+            if rsi >= 70:
+                risks.append(f"RSI(14) elevated at {rsi:.0f} — stretch / pullback risk.")
+            elif rsi <= 30:
+                risks.append(f"RSI(14) depressed at {rsi:.0f} — bounce or continued stress.")
+        if fund.get("beta") is not None and float(fund["beta"]) > 1.3:
+            risks.append(f"Beta {float(fund['beta']):.2f} — larger moves vs the market.")
+        if fund.get("debt_to_equity") is not None and float(fund["debt_to_equity"]) > 150:
+            risks.append("Elevated debt-to-equity — refinancing / rate sensitivity.")
+        if not risks:
+            risks.append("No extreme flags from band width, RSI, leverage, or near-term earnings.")
+        lines = [f"**Main risks — {ticker} (≈2 weeks)**\n"]
+        for r in risks:
+            lines.append(f"- {r}")
+        lines.append(
+            f"\nPath context: last **{last:.2f}** → centre **{end:.2f}**"
+            + (f", range **{low:.2f}–{high:.2f}**" if low is not None and high is not None else "")
+            + "."
+        )
+        return {
+            "template_id": template_id,
+            "title": title,
+            "ticker": ticker,
+            "text": "\n".join(lines),
+            "data": {"risks": risks},
+            "disclaimer": disclaimer,
+        }
+
+    # --- Long-term / invest-style ---
+    if template_id == "longterm":
+        try:
+            from . import position_plan as pp
+            plan = pp.build_position_plan(ticker, pred_len=42, equity=100000, risk_pct=1.0)
+            text = plan.get("text") or plan.get("summary") or str(plan)
+            return {
+                "template_id": template_id,
+                "title": title,
+                "ticker": ticker,
+                "text": text if isinstance(text, str) else f"Long-term view for {ticker} generated.",
+                "data": plan if isinstance(plan, dict) else {},
+                "disclaimer": disclaimer,
+            }
+        except Exception as e:
+            from . import deep_research
+            insight = deep_research.build_fundamental_insight(ticker)
+            text = (
+                f"**Longer-horizon research — {ticker}**\n\n"
+                f"- Stance: **{insight.get('stance')}**\n"
+                f"- Drivers: {', '.join(insight.get('stance_drivers') or []) or 'n/a'}\n\n"
+                f"_Position-plan detail unavailable ({e}). Fundamental insight used instead._"
+            )
+            return {
+                "template_id": template_id,
+                "title": title,
+                "ticker": ticker,
+                "text": text,
+                "data": insight,
+                "disclaimer": disclaimer,
+            }
+
+    # --- Pre-earnings ---
+    if template_id == "pre_earnings":
+        from . import fundamentals, data_fetcher, forecaster
+        earn = fundamentals.get_next_earnings_info(ticker)
+        hist = data_fetcher.fetch_history(ticker, lookback_days=120)
+        fc = forecaster.run_forecast(hist, pred_len=14)
+        last = float(hist["close"].iloc[-1])
+        pred = fc.get("mean_df") if fc.get("mean_df") is not None else fc["pred_df"]
+        end = float(pred["close"].iloc[-1])
+        low = float(fc["low_df"]["close"].iloc[-1]) if fc.get("low_df") is not None else None
+        high = float(fc["high_df"]["close"].iloc[-1]) if fc.get("high_df") is not None else None
+        days = (earn or {}).get("days_until")
+        lines = [f"**Pre-earnings research — {ticker}**\n"]
+        if earn and earn.get("date"):
+            lines.append(f"- Next report: **{earn['date']}**" + (f" ({days}d)" if days is not None else ""))
+            lines.append(f"- Reporting quarter (est.): **{earn.get('quarter') or 'n/a'}**")
+        else:
+            lines.append("- Next earnings date not available from the provider.")
+        lines.append(f"- Pre-event path: last **{last:.2f}** → centre **{end:.2f}**")
+        if low is not None and high is not None:
+            lines.append(f"- Band: **{low:.2f} – {high:.2f}** (treat as wider under event risk)")
+        lines.append(
+            "\n_Why the band should be treated as wider: earnings can gap the stock "
+            "beyond ordinary path uncertainty. A bullish stance is falsified by a clear "
+            "miss + guidance cut that breaks support; a bearish stance is falsified by a "
+            "clean beat + raised outlook that reclaims resistance with volume._"
+        )
+        return {
+            "template_id": template_id,
+            "title": title,
+            "ticker": ticker,
+            "text": "\n".join(lines),
+            "data": {"earnings": earn},
+            "disclaimer": disclaimer,
+        }
+
+    # Fallback: return the rendered prompt only (should not happen for known ids)
+    prompt = render_template(template_id, ticker=ticker, ticker2=ticker2 or "MSFT")
+    return {
+        "template_id": template_id,
+        "title": title,
+        "ticker": ticker,
+        "text": prompt,
+        "data": {},
+        "disclaimer": disclaimer,
+    }

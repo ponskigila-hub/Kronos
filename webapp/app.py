@@ -1347,6 +1347,27 @@ def api_research_templates():
     return jsonify({"templates": research_mod.list_templates()})
 
 
+@app.route("/api/research/run", methods=["POST"])
+def api_research_run():
+    """Run a research template in-page (no chat redirect)."""
+    from assistant import research as research_mod
+    payload = request.get_json(silent=True) or {}
+    template_id = (payload.get("template_id") or "").strip()
+    ticker = (payload.get("ticker") or "").strip().upper()
+    ticker2 = (payload.get("ticker2") or "").strip().upper() or None
+    if not template_id:
+        return jsonify({"error": "template_id is required"}), 400
+    if not ticker:
+        return jsonify({"error": "Enter a ticker first."}), 400
+    try:
+        result = research_mod.run_research_template(template_id, ticker, ticker2)
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": f"Template run failed: {e}"}), 500
+
+
 @app.route("/api/research/thesis", methods=["GET", "POST", "DELETE"])
 def api_research_thesis():
     from assistant import research as research_mod
