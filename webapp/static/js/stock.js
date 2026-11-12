@@ -260,6 +260,41 @@
     }
   }
 
+
+  async function loadTechnical(ticker) {
+    const body = document.getElementById("stkTechBody");
+    const flags = document.getElementById("stkTechFlags");
+    if (!body) return;
+    body.textContent = "Loading technical read…";
+    if (flags) flags.innerHTML = "";
+    try {
+      const resp = await fetch("/api/stock/technical/" + encodeURIComponent(ticker));
+      const d = await resp.json();
+      if (!resp.ok) throw new Error(d.error || "Failed");
+      if (flags) {
+        const chips = [];
+        if (d.trend) chips.push('<span class="stk-tech-chip">' + esc(d.trend) + " trend</span>");
+        if (d.rsi_14 != null) chips.push('<span class="stk-tech-chip">RSI ' + Number(d.rsi_14).toFixed(1) + "</span>");
+        if (d.support_20 != null) chips.push('<span class="stk-tech-chip">Supp ' + fmtPrice(d.support_20) + "</span>");
+        if (d.resistance_20 != null) chips.push('<span class="stk-tech-chip">Res ' + fmtPrice(d.resistance_20) + "</span>");
+        flags.innerHTML = chips.join("");
+      }
+      let s = esc(d.text || "");
+      s = s.replace(/^### (.+)$/gm, "<h4>$1</h4>");
+      s = s.replace(/^## (.+)$/gm, "<h3>$1</h3>");
+      s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+      s = s.replace(/^- (.+)$/gm, "<div class='rd-md-li'>• $1</div>");
+      s = s.replace(/\n\n/g, "</p><p>");
+      s = s.replace(/\n/g, "<br>");
+      body.innerHTML = "<p>" + s + "</p>";
+      if (d.disclaimer) {
+        body.innerHTML += "<p class='stk-tech-disc'>" + esc(d.disclaimer) + "</p>";
+      }
+    } catch (e) {
+      body.textContent = e.message || "Technical analysis unavailable.";
+    }
+  }
+
   async function showTicker(ticker) {
     ticker = (ticker || "").trim().toUpperCase();
     if (!ticker) return;
@@ -270,7 +305,7 @@
     statusEl.textContent = "Loading " + ticker + "…";
     setActions(ticker);
     try { history.replaceState(null, "", "/stock/" + encodeURIComponent(ticker)); } catch (e) {}
-    await Promise.all([loadChart(ticker, currentRange), loadProfile(ticker), loadPerformance(ticker)]);
+    await Promise.all([loadChart(ticker, currentRange), loadProfile(ticker), loadPerformance(ticker), loadTechnical(ticker)]);
     statusEl.textContent = ticker + " · Yahoo Finance";
   }
 

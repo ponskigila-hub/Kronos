@@ -1,32 +1,84 @@
 {% extends "base.html" %}
-{% block title %}Kronos — Research desk{% endblock %}
+{% block title %}Kronos — Research Hub{% endblock %}
+{% block body_class %}page-research{% endblock %}
 {% block content %}
-<div class="rd-page">
-  <header class="rd-hero">
-    <p class="eyebrow">Research desk</p>
-    <h1 class="page-title">Compare · Templates · Thesis</h1>
-    <p class="page-desc">
-      Triage tickers side by side, save a short thesis per name, and run research templates
-      directly on this page (Wall Street breakdown, forecast, risks, and more).
-      This is a research workspace — not order execution.
-    </p>
+<div class="rd-hub">
+  <header class="rd-hub-hero">
+    <div class="rd-hub-hero-copy">
+      <p class="eyebrow rd-hub-eyebrow"><span class="rd-hub-dot"></span> Research Hub</p>
+      <h1 class="page-title rd-hub-title">Compare · Templates · <span class="rd-hub-accent">Thesis</span></h1>
+      <p class="page-desc rd-hub-desc">
+        One research workspace: compare names, run prepared templates, and keep thesis notes —
+        without leaving this desk. Not order execution.
+      </p>
+    </div>
   </header>
 
-  <!-- COMPARE -->
-  <section class="card rd-card">
-    <div class="rd-card-head">
-      <div>
-        <h2 class="card-title">Comparable research table</h2>
-        <p class="rd-help">Up to 8 tickers. Uses the same Kronos path and uncertainty band as chat.</p>
+  <nav class="rd-tabs" role="tablist" aria-label="Research sections">
+    <button type="button" class="rd-tab is-active" role="tab" aria-selected="true" data-tab="overview">Overview</button>
+    <button type="button" class="rd-tab" role="tab" aria-selected="false" data-tab="compare">Compare</button>
+    <button type="button" class="rd-tab" role="tab" aria-selected="false" data-tab="thesis">Thesis</button>
+    <button type="button" class="rd-tab" role="tab" aria-selected="false" data-tab="templates">Templates</button>
+  </nav>
+
+  <!-- OVERVIEW -->
+  <div class="rd-tab-panel is-active" id="tab-overview" role="tabpanel">
+    <div class="rd-overview-grid">
+      <button type="button" class="card rd-overview-card" data-goto="compare">
+        <div class="rd-overview-icon" aria-hidden="true">⚖</div>
+        <div>
+          <h3 class="rd-overview-title">Comparable research table</h3>
+          <p class="rd-overview-text">Side-by-side Kronos path, uncertainty, regime, and context for up to 8 tickers.</p>
+        </div>
+        <span class="rd-overview-go">Open Compare →</span>
+      </button>
+      <button type="button" class="card rd-overview-card" data-goto="thesis">
+        <div class="rd-overview-icon" aria-hidden="true">✎</div>
+        <div>
+          <h3 class="rd-overview-title">Thesis topics</h3>
+          <p class="rd-overview-text">Desk list of saved theses. Edit notes per name on Watchlist; manage here.</p>
+        </div>
+        <span class="rd-overview-go">Open Thesis →</span>
+      </button>
+      <button type="button" class="card rd-overview-card" data-goto="templates">
+        <div class="rd-overview-icon" aria-hidden="true">▣</div>
+        <div>
+          <h3 class="rd-overview-title">Research templates</h3>
+          <p class="rd-overview-text">Wall Street breakdown, financials dig, forecast, risks — run in-page.</p>
+        </div>
+        <span class="rd-overview-go">Open Templates →</span>
+      </button>
+    </div>
+    <div class="card rd-overview-meta">
+      <div class="rd-overview-stat">
+        <span>Saved theses</span>
+        <strong>{{ theses|length if theses else 0 }}</strong>
+      </div>
+      <div class="rd-overview-stat">
+        <span>Templates ready</span>
+        <strong>{{ templates|length if templates else 0 }}</strong>
+      </div>
+      <div class="rd-overview-stat">
+        <span>Workflow</span>
+        <strong>Compare → Template → Thesis</strong>
       </div>
     </div>
+  </div>
 
-    <form id="compareForm" class="rd-form" autocomplete="off">
-      <div class="rd-grid rd-grid-compare">
+  <!-- COMPARE -->
+  <div class="rd-tab-panel" id="tab-compare" role="tabpanel" hidden>
+    <section class="card rd-card">
+      <div class="rd-card-head">
+        <div>
+          <h2 class="card-title">Comparable research table</h2>
+          <p class="rd-help">Compare multiple stocks side-by-side with key metrics and insights. Up to 8 tickers.</p>
+        </div>
+      </div>
+      <form id="compareForm" class="rd-form rd-compare-bar" autocomplete="off">
         <label class="rd-field rd-field-tickers">
           <span class="rd-label">Tickers</span>
           <input type="text" id="compareTickers" class="rd-input"
-                 placeholder="AAPL, MSFT, NVDA, GOOGL" required>
+                 placeholder="Enter tickers (e.g. AAPL, MSFT, GOOGL)…" required>
         </label>
         <label class="rd-field rd-field-horizon">
           <span class="rd-label">Horizon (days)</span>
@@ -34,127 +86,125 @@
         </label>
         <div class="rd-field rd-field-action">
           <span class="rd-label rd-label-spacer" aria-hidden="true">&nbsp;</span>
-          <button class="btn rd-btn" type="submit">Run comparison</button>
-        </div>
-      </div>
-    </form>
-
-    <p class="rd-status" id="compareStatus" hidden></p>
-    <div class="rd-table-wrap">
-      <table class="data-table rd-table" id="compareTable" hidden>
-        <thead>
-          <tr>
-            <th>Ticker</th>
-            <th>Last</th>
-            <th>Forecast</th>
-            <th>Exp. %</th>
-            <th>Uncertainty %</th>
-            <th>Regime</th>
-            <th>Context</th>
-            <th>News</th>
-            <th>RSI</th>
-            <th>Earnings</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-    <p class="rd-disclaimer" id="compareDisclaimer" hidden></p>
-  </section>
-
-  <!-- THESIS (read-only desk summary — edit on Watchlist) -->
-  <section class="card rd-card">
-    <div class="rd-card-head">
-      <div>
-        <h2 class="card-title">Thesis notes</h2>
-        <p class="rd-help">
-          Thesis lives with the name you’re tracking.
-          <strong>Edit notes on Watchlist</strong> (per-ticker thesis box).
-          Saved desk theses are listed here for quick scan.
-        </p>
-      </div>
-      <a class="btn btn-ghost" href="{{ url_for('watchlist') }}">Open Watchlist</a>
-    </div>
-
-    <div class="rd-thesis-list" id="thesisList">
-      {% if theses %}
-        {% for row in theses %}
-        <article class="rd-thesis-card" data-ticker="{{ row.ticker }}">
-          <header class="rd-thesis-head">
-            <strong class="rd-thesis-ticker">{{ row.ticker }}</strong>
-            <span class="rd-badge">{{ row.stance }}</span>
-            <span class="rd-meta">{{ row.horizon_days }}d</span>
-          </header>
-          {% if row.thesis %}<p class="rd-thesis-body">{{ row.thesis }}</p>{% endif %}
-          {% if row.risks %}<p class="rd-thesis-risks"><span>Risks</span> {{ row.risks }}</p>{% endif %}
-          <button type="button" class="rd-link thesis-delete" data-ticker="{{ row.ticker }}">Remove</button>
-        </article>
-        {% endfor %}
-      {% else %}
-        <p class="rd-empty" id="thesisEmpty">No desk theses yet — add notes on the Watchlist page for each ticker.</p>
-      {% endif %}
-    </div>
-  </section>
-
-  <!-- TEMPLATES (run in-page) -->
-  <section class="card rd-card">
-    <div class="rd-card-head">
-      <div>
-        <h2 class="card-title">Research templates</h2>
-        <p class="rd-help">Pick a template, enter ticker(s), and run the analysis on this page — no chat redirect.</p>
-      </div>
-    </div>
-
-    <div class="rd-template-grid" id="templateGrid" role="listbox" aria-label="Research templates">
-      {% for t in templates %}
-      <button type="button"
-              class="rd-template-card template-card"
-              role="option"
-              data-id="{{ t.id }}"
-              data-needs-ticker2="{{ '1' if '{ticker2}' in t.prompt else '0' }}"
-              aria-selected="false">
-        <strong class="rd-template-title">{{ t.label }}</strong>
-        <span class="rd-template-desc">{{ t.prompt[:110] }}{% if t.prompt|length > 110 %}…{% endif %}</span>
-      </button>
-      {% endfor %}
-    </div>
-
-    <div class="rd-runner" id="templateRunner" hidden>
-      <div class="rd-runner-head">
-        <h3 class="rd-runner-title" id="runnerTitle">Template</h3>
-        <button type="button" class="rd-runner-clear" id="runnerClear" aria-label="Clear selection">Clear</button>
-      </div>
-      <form id="templateForm" class="rd-form" autocomplete="off">
-        <div class="rd-grid rd-grid-runner">
-          <label class="rd-field">
-            <span class="rd-label">Ticker</span>
-            <input type="text" id="tplTicker" class="rd-input" placeholder="e.g. AAPL" required maxlength="15">
-          </label>
-          <label class="rd-field" id="tplTicker2Wrap" hidden>
-            <span class="rd-label">Ticker 2</span>
-            <input type="text" id="tplTicker2" class="rd-input" placeholder="e.g. MSFT" maxlength="15">
-          </label>
-          <div class="rd-field rd-field-action">
-            <span class="rd-label rd-label-spacer" aria-hidden="true">&nbsp;</span>
-            <button class="btn rd-btn" type="submit" id="tplSubmit">Run template</button>
-          </div>
+          <button class="btn rd-btn" type="submit">Run Comparison →</button>
         </div>
       </form>
-      <p class="rd-status" id="tplStatus" hidden></p>
-    </div>
-
-    <div class="rd-result" id="tplResult" hidden>
-      <div class="rd-result-head">
-        <div>
-          <p class="eyebrow" id="tplResultEyebrow">Result</p>
-          <h3 class="rd-result-title" id="tplResultTitle">—</h3>
-        </div>
-        <span class="result-tag" id="tplResultTag"></span>
+      <p class="rd-status" id="compareStatus" hidden></p>
+      <div class="rd-table-wrap">
+        <table class="data-table rd-table" id="compareTable" hidden>
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Last</th>
+              <th>Forecast</th>
+              <th>Exp. %</th>
+              <th>Uncertainty %</th>
+              <th>Regime</th>
+              <th>Context</th>
+              <th>News</th>
+              <th>RSI</th>
+              <th>Earnings</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
       </div>
-      <div class="rd-result-body" id="tplResultBody"></div>
-      <p class="rd-disclaimer" id="tplResultDisclaimer"></p>
-    </div>
-  </section>
+      <p class="rd-disclaimer" id="compareDisclaimer" hidden></p>
+    </section>
+  </div>
+
+  <!-- THESIS -->
+  <div class="rd-tab-panel" id="tab-thesis" role="tabpanel" hidden>
+    <section class="card rd-card">
+      <div class="rd-card-head">
+        <div>
+          <h2 class="card-title">Thesis topics</h2>
+          <p class="rd-help">
+            Investment rationale and risks per name.
+            <strong>Edit notes on Watchlist</strong>; desk list is for quick scan and cleanup.
+          </p>
+        </div>
+        <a class="btn btn-ghost" href="{{ url_for('watchlist') }}">Open Watchlist →</a>
+      </div>
+      <div class="rd-thesis-list" id="thesisList">
+        {% if theses %}
+          {% for row in theses %}
+          <article class="rd-thesis-card" data-ticker="{{ row.ticker }}">
+            <header class="rd-thesis-head">
+              <strong class="rd-thesis-ticker">{{ row.ticker }}</strong>
+              <span class="rd-badge">{{ row.stance }}</span>
+              <span class="rd-meta">{{ row.horizon_days }}d</span>
+            </header>
+            {% if row.thesis %}<p class="rd-thesis-body">{{ row.thesis }}</p>{% endif %}
+            {% if row.risks %}<p class="rd-thesis-risks"><span>Risks</span> {{ row.risks }}</p>{% endif %}
+            <button type="button" class="rd-link thesis-delete" data-ticker="{{ row.ticker }}">Remove</button>
+          </article>
+          {% endfor %}
+        {% else %}
+          <p class="rd-empty" id="thesisEmpty">No desk theses yet — add notes on the Watchlist page for each ticker.</p>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+
+  <!-- TEMPLATES -->
+  <div class="rd-tab-panel" id="tab-templates" role="tabpanel" hidden>
+    <section class="card rd-card">
+      <div class="rd-card-head">
+        <div>
+          <h2 class="card-title">Research templates</h2>
+          <p class="rd-help">Start with ready-to-use research templates. Run analysis on this page — no chat redirect.</p>
+        </div>
+      </div>
+      <div class="rd-template-grid" id="templateGrid" role="listbox" aria-label="Research templates">
+        {% for t in templates %}
+        <button type="button"
+                class="rd-template-card template-card"
+                role="option"
+                data-id="{{ t.id }}"
+                data-needs-ticker2="{{ '1' if '{ticker2}' in t.prompt else '0' }}"
+                aria-selected="false">
+          <strong class="rd-template-title">{{ t.label }}</strong>
+          <span class="rd-template-desc">{{ t.prompt[:110] }}{% if t.prompt|length > 110 %}…{% endif %}</span>
+        </button>
+        {% endfor %}
+      </div>
+      <div class="rd-runner" id="templateRunner" hidden>
+        <div class="rd-runner-head">
+          <h3 class="rd-runner-title" id="runnerTitle">Template</h3>
+          <button type="button" class="rd-runner-clear" id="runnerClear" aria-label="Clear selection">Clear</button>
+        </div>
+        <form id="templateForm" class="rd-form" autocomplete="off">
+          <div class="rd-grid rd-grid-runner">
+            <label class="rd-field">
+              <span class="rd-label">Ticker</span>
+              <input type="text" id="tplTicker" class="rd-input" placeholder="e.g. AAPL" required maxlength="15">
+            </label>
+            <label class="rd-field" id="tplTicker2Wrap" hidden>
+              <span class="rd-label">Ticker 2</span>
+              <input type="text" id="tplTicker2" class="rd-input" placeholder="e.g. MSFT" maxlength="15">
+            </label>
+            <div class="rd-field rd-field-action">
+              <span class="rd-label rd-label-spacer" aria-hidden="true">&nbsp;</span>
+              <button class="btn rd-btn" type="submit" id="tplSubmit">Run template</button>
+            </div>
+          </div>
+        </form>
+        <p class="rd-status" id="tplStatus" hidden></p>
+      </div>
+      <div class="rd-result" id="tplResult" hidden>
+        <div class="rd-result-head">
+          <div>
+            <p class="eyebrow" id="tplResultEyebrow">Result</p>
+            <h3 class="rd-result-title" id="tplResultTitle">—</h3>
+          </div>
+          <span class="result-tag" id="tplResultTag"></span>
+        </div>
+        <div class="rd-result-body" id="tplResultBody"></div>
+        <p class="rd-disclaimer" id="tplResultDisclaimer"></p>
+      </div>
+    </section>
+  </div>
 </div>
 {% endblock %}
 
@@ -166,38 +216,63 @@
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
   function fmt(n, d) {
-    if (n == null || n === "") return "—";
-    var x = Number(n);
-    if (!isFinite(x)) return "—";
-    return x.toFixed(d == null ? 2 : d);
+    if (n == null || !isFinite(Number(n))) return "—";
+    return Number(n).toFixed(d == null ? 2 : d);
   }
 
-  var compareForm = document.getElementById("compareForm");
-  var statusEl = document.getElementById("compareStatus");
-  var table = document.getElementById("compareTable");
-  var tbody = table.querySelector("tbody");
-  var disc = document.getElementById("compareDisclaimer");
+  // ---- Tabs ----
+  function showTab(id) {
+    document.querySelectorAll(".rd-tab").forEach(function (t) {
+      var on = t.getAttribute("data-tab") === id;
+      t.classList.toggle("is-active", on);
+      t.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    document.querySelectorAll(".rd-tab-panel").forEach(function (p) {
+      var on = p.id === "tab-" + id;
+      p.hidden = !on;
+      p.classList.toggle("is-active", on);
+    });
+    try { history.replaceState(null, "", "#"+id); } catch (e) {}
+  }
+  document.querySelectorAll(".rd-tab").forEach(function (btn) {
+    btn.addEventListener("click", function () { showTab(btn.getAttribute("data-tab")); });
+  });
+  document.querySelectorAll("[data-goto]").forEach(function (btn) {
+    btn.addEventListener("click", function () { showTab(btn.getAttribute("data-goto")); });
+  });
+  var hash = (location.hash || "").replace("#", "");
+  if (hash && document.getElementById("tab-" + hash)) showTab(hash);
 
+  // ---- Compare ----
+  var compareForm = document.getElementById("compareForm");
   compareForm.addEventListener("submit", async function (e) {
     e.preventDefault();
-    var raw = document.getElementById("compareTickers").value || "";
-    var tickers = raw.split(/[,;\s]+/).map(function (x) { return x.trim().toUpperCase(); }).filter(Boolean);
-    var pred_len = parseInt(document.getElementById("compareHorizon").value || "14", 10);
+    var statusEl = document.getElementById("compareStatus");
+    var table = document.getElementById("compareTable");
+    var disc = document.getElementById("compareDisclaimer");
+    var raw = (document.getElementById("compareTickers").value || "").trim();
+    var horizon = parseInt(document.getElementById("compareHorizon").value, 10) || 14;
+    var tickers = raw.split(/[\s,;]+/).map(function (t) { return t.trim().toUpperCase(); }).filter(Boolean);
+    if (tickers.length < 2) {
+      statusEl.hidden = false;
+      statusEl.textContent = "Enter at least two tickers.";
+      return;
+    }
+    if (tickers.length > 8) tickers = tickers.slice(0, 8);
     statusEl.hidden = false;
-    statusEl.textContent = "Running comparison (first model load can take a minute)…";
+    statusEl.textContent = "Running comparison…";
     table.hidden = true;
+    disc.hidden = true;
     try {
       var resp = await fetch("/api/research/compare", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tickers: tickers, pred_len: pred_len })
+        body: JSON.stringify({ tickers: tickers, horizon: horizon })
       });
       var data = await resp.json();
-      if (!resp.ok) throw new Error(data.error || "Compare failed");
+      if (!resp.ok) throw new Error(data.error || "Comparison failed");
+      var tbody = table.querySelector("tbody");
       tbody.innerHTML = (data.rows || []).map(function (r) {
-        if (r.error) {
-          return "<tr><td><strong>" + esc(r.ticker) + "</strong></td><td colspan='9' class='rd-muted'>" + esc(r.error) + "</td></tr>";
-        }
         var er = r.expected_return_pct;
         var erCls = er > 0 ? "pos" : (er < 0 ? "neg" : "");
         return "<tr>"
@@ -222,6 +297,7 @@
     }
   });
 
+  // ---- Thesis ----
   var thesisList = document.getElementById("thesisList");
   if (thesisList) {
     thesisList.addEventListener("click", async function (e) {
@@ -238,7 +314,7 @@
     });
   }
 
-  // ---- In-page template runner ----
+  // ---- Templates ----
   var selectedTpl = null;
   var runner = document.getElementById("templateRunner");
   var runnerTitle = document.getElementById("runnerTitle");
@@ -248,7 +324,6 @@
   var ticker2Wrap = document.getElementById("tplTicker2Wrap");
 
   function simpleMarkdown(src) {
-    // Minimal safe rendering: escape, then light **bold** and newlines
     var s = esc(src || "");
     s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
     s = s.replace(/^### (.+)$/gm, "<h4 class='rd-md-h'>$1</h4>");
