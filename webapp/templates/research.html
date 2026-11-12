@@ -4,7 +4,7 @@
 <div class="rd-page">
   <header class="rd-hero">
     <p class="eyebrow">Research desk</p>
-    <h1 class="page-title">Compare · Thesis · Templates</h1>
+    <h1 class="page-title">Compare · Templates · Thesis</h1>
     <p class="page-desc">
       Triage tickers side by side, save a short thesis per name, and run research templates
       directly on this page (Wall Street breakdown, forecast, risks, and more).
@@ -62,51 +62,19 @@
     <p class="rd-disclaimer" id="compareDisclaimer" hidden></p>
   </section>
 
-  <!-- THESIS -->
+  <!-- THESIS (read-only desk summary — edit on Watchlist) -->
   <section class="card rd-card">
     <div class="rd-card-head">
       <div>
         <h2 class="card-title">Thesis notes</h2>
-        <p class="rd-help">Why the name is interesting, the risks, and your research horizon.</p>
+        <p class="rd-help">
+          Thesis lives with the name you’re tracking.
+          <strong>Edit notes on Watchlist</strong> (per-ticker thesis box).
+          Saved desk theses are listed here for quick scan.
+        </p>
       </div>
+      <a class="btn btn-ghost" href="{{ url_for('watchlist') }}">Open Watchlist</a>
     </div>
-
-    <form id="thesisForm" class="rd-form" autocomplete="off">
-      <div class="rd-grid rd-grid-meta">
-        <label class="rd-field">
-          <span class="rd-label">Ticker</span>
-          <input type="text" id="thesisTicker" class="rd-input" placeholder="AAPL" required>
-        </label>
-        <label class="rd-field">
-          <span class="rd-label">Stance</span>
-          <select id="thesisStance" class="rd-input">
-            <option value="watching">Watching</option>
-            <option value="bullish">Bullish</option>
-            <option value="bearish">Bearish</option>
-            <option value="neutral">Neutral</option>
-          </select>
-        </label>
-        <label class="rd-field">
-          <span class="rd-label">Horizon (days)</span>
-          <input type="number" id="thesisHorizon" class="rd-input" value="14" min="1" max="365">
-        </label>
-      </div>
-      <div class="rd-grid rd-grid-text">
-        <label class="rd-field">
-          <span class="rd-label">Thesis</span>
-          <textarea id="thesisText" class="rd-input rd-textarea" rows="3"
-                    placeholder="Why this name is on the desk…"></textarea>
-        </label>
-        <label class="rd-field">
-          <span class="rd-label">Risks</span>
-          <textarea id="thesisRisks" class="rd-input rd-textarea" rows="3"
-                    placeholder="What would invalidate the thesis…"></textarea>
-        </label>
-      </div>
-      <div class="rd-actions">
-        <button class="btn rd-btn" type="submit">Save thesis</button>
-      </div>
-    </form>
 
     <div class="rd-thesis-list" id="thesisList">
       {% if theses %}
@@ -123,7 +91,7 @@
         </article>
         {% endfor %}
       {% else %}
-        <p class="rd-empty" id="thesisEmpty">No thesis notes yet.</p>
+        <p class="rd-empty" id="thesisEmpty">No desk theses yet — add notes on the Watchlist page for each ticker.</p>
       {% endif %}
     </div>
   </section>
@@ -254,39 +222,21 @@
     }
   });
 
-  var thesisForm = document.getElementById("thesisForm");
   var thesisList = document.getElementById("thesisList");
-  thesisForm.addEventListener("submit", async function (e) {
-    e.preventDefault();
-    var body = {
-      ticker: document.getElementById("thesisTicker").value,
-      stance: document.getElementById("thesisStance").value,
-      horizon_days: document.getElementById("thesisHorizon").value,
-      thesis: document.getElementById("thesisText").value,
-      risks: document.getElementById("thesisRisks").value
-    };
-    var resp = await fetch("/api/research/thesis", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
+  if (thesisList) {
+    thesisList.addEventListener("click", async function (e) {
+      var btn = e.target.closest(".thesis-delete");
+      if (!btn) return;
+      var ticker = btn.getAttribute("data-ticker");
+      if (!ticker || !confirm("Remove thesis for " + ticker + "?")) return;
+      await fetch("/api/research/thesis", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker: ticker })
+      });
+      location.reload();
     });
-    var data = await resp.json();
-    if (!resp.ok) { alert(data.error || "Save failed"); return; }
-    location.reload();
-  });
-
-  thesisList.addEventListener("click", async function (e) {
-    var btn = e.target.closest(".thesis-delete");
-    if (!btn) return;
-    var ticker = btn.getAttribute("data-ticker");
-    if (!ticker || !confirm("Remove thesis for " + ticker + "?")) return;
-    await fetch("/api/research/thesis", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ticker: ticker })
-    });
-    location.reload();
-  });
+  }
 
   // ---- In-page template runner ----
   var selectedTpl = null;

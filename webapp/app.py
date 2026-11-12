@@ -364,7 +364,48 @@ def chat():
 @app.route("/api/chat/history")
 def api_chat_history():
     context = get_context(_user_id())
-    return jsonify({"history": context.history, "beginner_mode": context.beginner_mode})
+    return jsonify({
+        "history": context.history,
+        "beginner_mode": context.beginner_mode,
+        "session_id": context.active_session_id,
+        "sessions": context.list_sessions_grouped(),
+    })
+
+
+@app.route("/api/chat/sessions", methods=["GET"])
+def api_chat_sessions():
+    context = get_context(_user_id())
+    return jsonify({
+        "sessions": context.list_sessions_grouped(),
+        "active_session_id": context.active_session_id,
+        "beginner_mode": context.beginner_mode,
+    })
+
+
+@app.route("/api/chat/sessions/new", methods=["POST"])
+def api_chat_sessions_new():
+    context = get_context(_user_id())
+    sess = context.new_session(title="New chat")
+    return jsonify({
+        "session": sess,
+        "sessions": context.list_sessions_grouped(),
+        "history": [],
+        "beginner_mode": context.beginner_mode,
+    })
+
+
+@app.route("/api/chat/sessions/<session_id>/switch", methods=["POST"])
+def api_chat_sessions_switch(session_id):
+    context = get_context(_user_id())
+    ok = context.switch_session(session_id)
+    if not ok:
+        return jsonify({"error": "Session not found"}), 404
+    return jsonify({
+        "session_id": context.active_session_id,
+        "history": context.history,
+        "beginner_mode": context.beginner_mode,
+        "sessions": context.list_sessions_grouped(),
+    })
 
 
 @app.route("/api/chat", methods=["POST"])
@@ -1320,7 +1361,34 @@ def api_insights():
         result = deep_research.build_fundamental_insight(
             ticker, peer_tickers=peers, include_macro=bool(include_macro),
         )
+        # Multi-period statement dig when viewing a stock on Insights
+        try:
+            from assistant import financials_dig
+            result["financials_dig"] = financials_dig.dig_financials(ticker)
+        except Exception as fe:
+            result["financials_dig"] = {
+                "ticker": ticker,
+                "error": str(fe),
+                "text": f"Financial statement dig unavailable: {fe}",
+                "flags": [],
+            }
         return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/financials/dig", methods=["POST"])
+def api_financials_dig():
+    """Standalone dig-through of income / balance / cash flow (multi-period)."""
+    from assistant import financials_dig
+    payload = request.get_json(silent=True) or {}
+    ticker = (payload.get("ticker") or "").strip().upper()
+    if not ticker:
+        return jsonify({"error": "ticker required"}), 400
+    try:
+        return jsonify(financials_dig.dig_financials(ticker))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
