@@ -12,6 +12,16 @@ _lock = threading.Lock()
 
 RESEARCH_TEMPLATES = [
     {
+        "id": "wall_street",
+        "label": "Wall Street breakdown",
+        "prompt": (
+            "Run the full Wall Street breakdown on {ticker}: business model, "
+            "revenue drivers, growth, margins, cash flow, competitive position, "
+            "recent earnings, catalysts, biggest risks, and the key numbers "
+            "an investor should monitor."
+        ),
+    },
+    {
         "id": "overview",
         "label": "Overview",
         "prompt": (
