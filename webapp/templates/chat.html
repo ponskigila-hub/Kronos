@@ -169,9 +169,13 @@
       html += '<div class="chat-session-group">';
       html += '<div class="chat-session-day">' + (g.label || "") + "</div>";
       (g.sessions || []).forEach(function (s) {
-        html += '<button type="button" class="chat-session-item' + (s.active ? " is-active" : "") + '" data-id="' + s.id + '">';
+        html += '<div class="chat-session-row' + (s.active ? " is-active" : "") + '" data-id="' + s.id + '">';
+        html += '<button type="button" class="chat-session-item" data-id="' + s.id + '">';
         html += '<span class="chat-session-title">' + (s.title || "Chat").replace(/</g, "&lt;") + "</span>";
         html += "</button>";
+        html += '<button type="button" class="chat-session-delete" data-id="' + s.id + '" title="Delete chat" aria-label="Delete chat">';
+        html += '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 7h12M10 11v6M14 11v6M9 7V5h6v2M8 7l1 12h6l1-12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        html += "</button></div>";
       });
       html += "</div>";
     });
@@ -206,6 +210,34 @@
   });
 
   sessionList.addEventListener("click", async function (e) {
+    var del = e.target.closest(".chat-session-delete");
+    if (del) {
+      e.preventDefault();
+      e.stopPropagation();
+      var id = del.getAttribute("data-id");
+      if (!id || !confirm("Delete this chat session? This cannot be undone.")) return;
+      try {
+        var resp = await fetch("/api/chat/sessions/" + id + "/delete", { method: "POST" });
+        var data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || "Delete failed");
+        renderSessions(data.sessions || []);
+        var log = document.getElementById("chatLog");
+        if (log) log.innerHTML = "";
+        var hist = data.history || [];
+        if (hist.length && window.__kronosReplayHistory) {
+          window.__kronosReplayHistory(hist);
+          window.__kronosSetChatSession(true);
+        } else {
+          window.__kronosSetChatSession(false);
+        }
+        if (tagMode && data.beginner_mode != null) {
+          tagMode.textContent = data.beginner_mode ? "Beginner" : "Advanced";
+        }
+      } catch (err) {
+        alert(err.message || "Could not delete session");
+      }
+      return;
+    }
     var btn = e.target.closest(".chat-session-item");
     if (!btn) return;
     var id = btn.getAttribute("data-id");
