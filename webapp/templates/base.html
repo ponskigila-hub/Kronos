@@ -26,16 +26,12 @@
     <nav class="nav" id="nav" aria-label="Primary">
       <a href="{{ url_for('index') }}" class="nav-link {{ 'active' if active == 'home' }}">Home</a>
 
-      <div class="nav-group {{ 'active' if active in ['stock','forecast','news','screener','valuation','research','insights'] }}">
+      <div class="nav-group {{ 'active' if active in ['forecast','news','screener','valuation','research','insights'] }}">
         <button type="button" class="nav-group-btn" aria-expanded="false" aria-haspopup="true">
           Research
           <svg class="nav-chevron" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5L6 7.5L9 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
         </button>
         <div class="nav-dropdown" role="menu">
-          <a href="{{ url_for('stock_page') }}" class="{{ 'active' if active == 'stock' }}" role="menuitem">
-            <span class="nav-dd-title">Stock</span>
-            <span class="nav-dd-desc">Price, chart &amp; performance</span>
-          </a>
           <a href="{{ url_for('forecast') }}" class="{{ 'active' if active == 'forecast' }}" role="menuitem">
             <span class="nav-dd-title">Forecast</span>
             <span class="nav-dd-desc">Kronos path + context</span>
@@ -50,7 +46,7 @@
           </a>
           <a href="{{ url_for('valuation') }}" class="{{ 'active' if active == 'valuation' }}" role="menuitem">
             <span class="nav-dd-title">Valuation</span>
-            <span class="nav-dd-desc">Relative peer check</span>
+            <span class="nav-dd-desc">Competitors · growth · margins</span>
           </a>
           <a href="{{ url_for('research_page') }}" class="nav-dd-item" role="menuitem">
             <span class="nav-dd-title">Research desk</span>
@@ -63,12 +59,16 @@
         </div>
       </div>
 
-      <div class="nav-group {{ 'active' if active in ['invest','watchlist','simulation'] }}">
+      <div class="nav-group {{ 'active' if active in ['stock','invest','watchlist','simulation'] }}">
         <button type="button" class="nav-group-btn" aria-expanded="false" aria-haspopup="true">
           Portfolio
           <svg class="nav-chevron" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5L6 7.5L9 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
         </button>
         <div class="nav-dropdown" role="menu">
+          <a href="{{ url_for('stock_page') }}" class="{{ 'active' if active == 'stock' }}" role="menuitem">
+            <span class="nav-dd-title">Stock</span>
+            <span class="nav-dd-desc">Price, chart &amp; performance</span>
+          </a>
           <a href="{{ url_for('invest_page') }}" class="{{ 'active' if active == 'invest' }}" role="menuitem">
             <span class="nav-dd-title">Invest plan</span>
             <span class="nav-dd-desc">Entry zone &amp; sell targets</span>

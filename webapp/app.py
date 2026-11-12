@@ -1037,9 +1037,18 @@ _valuation_provider_lock = threading.Lock()
 
 
 def _run_relative_valuation_job(ticker, peers):
+    """Competitive analysis (primary) + classic relative multiples (secondary)."""
+    from assistant import competitive_analysis as ca
     from assistant.valuation import fetch_relative_valuation
-    with _valuation_provider_lock:
-        return fetch_relative_valuation(ticker, peers)
+    competitive = ca.analyze_competitors(ticker, peers)
+    relative = None
+    try:
+        with _valuation_provider_lock:
+            relative = fetch_relative_valuation(ticker, peers)
+    except Exception as e:
+        relative = {"error": str(e)}
+    competitive["relative_valuation"] = relative
+    return competitive
 
 
 @app.route("/valuation", methods=["GET"])
@@ -1055,10 +1064,10 @@ def valuation_run():
     peers = [item.strip().upper() for item in peer_text.replace(";", ",").split(",") if item.strip()]
     if not ticker:
         return jsonify({"error": "Enter the target ticker."}), 400
-    if not 3 <= len(peers) <= 8:
-        return jsonify({"error": "Enter between 3 and 8 peer tickers, separated by commas."}), 400
+    if not 3 <= len(peers) <= 5:
+        return jsonify({"error": "Enter 3 to 5 closest competitors, separated by commas."}), 400
     if ticker in peers or len(set(peers)) != len(peers):
-        return jsonify({"error": "Target and peer tickers must be unique."}), 400
+        return jsonify({"error": "Target and competitor tickers must be unique."}), 400
     job_id = _valuation_jobs.submit(_run_relative_valuation_job, ticker, peers)
     return jsonify({"job_id": job_id})
 
