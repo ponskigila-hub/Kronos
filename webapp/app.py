@@ -160,10 +160,9 @@ def _run_forecast_ticker_job(job_id, ticker, pred_len, lookback, detailed):
         if detailed:
             from assistant.config import DETAILED_FORECAST_RUNS
             fc = forecaster_mod.run_forecast(hist_df, pred_len=pred_len, n_runs=DETAILED_FORECAST_RUNS)
-            image_path = charts.build_detailed_forecast_png(ticker, hist_df, fc)
         else:
-            fc = forecaster_mod.run_forecast(hist_df, pred_len=pred_len)
-            image_path = charts.build_forecast_png(ticker, hist_df, fc)
+            # Default path also benefits from a small multi-sample for a real range band
+            fc = forecaster_mod.run_forecast(hist_df, pred_len=pred_len, n_runs=max(3, 1))
 
         last_close = float(hist_df["close"].iloc[-1])
         # Raw Kronos % before context adjustments (for signal alignment)
@@ -172,6 +171,8 @@ def _run_forecast_ticker_job(job_id, ticker, pred_len, lookback, detailed):
 
         context_block = ""
         ctx_dict = None
+        analyst = None
+        analyst_target = None
         try:
             from assistant.context_signal import (
                 build_context_signal, widen_forecast_bands, format_context_block,
@@ -181,6 +182,15 @@ def _run_forecast_ticker_job(job_id, ticker, pred_len, lookback, detailed):
             earnings_warning = fundamentals.earnings_within_horizon(ticker, pred_len)
             try:
                 analyst = fundamentals.get_analyst_targets(ticker)
+                if analyst and isinstance(analyst, dict):
+                    # Common keys: targetMeanPrice / mean / target
+                    for k in ("targetMeanPrice", "mean", "target", "target_mean"):
+                        if analyst.get(k) is not None:
+                            try:
+                                analyst_target = float(analyst[k])
+                                break
+                            except (TypeError, ValueError):
+                                pass
             except Exception:
                 analyst = None
             try:
@@ -203,13 +213,20 @@ def _run_forecast_ticker_job(job_id, ticker, pred_len, lookback, detailed):
                 fc, _cov = apply_context_covariate_nudge(fc, ctx)
             if ctx.band_widen_factor > 1.0 and not detailed:
                 fc = widen_forecast_bands(fc, ctx.band_widen_factor)
-            # Rebuild chart after path/band adjustments
-            if not detailed:
-                image_path = charts.build_forecast_png(ticker, hist_df, fc)
             context_block = " " + format_context_block(ctx, beginner=True)
             ctx_dict = ctx.to_dict()
         except Exception:
             context_block = ""
+
+        # Rebuild chart after any path/band adjustments (both modes)
+        if detailed:
+            image_path = charts.build_detailed_forecast_png(
+                ticker, hist_df, fc, analyst_target=analyst_target
+            )
+        else:
+            image_path = charts.build_forecast_png(
+                ticker, hist_df, fc, analyst_target=analyst_target
+            )
 
         if detailed and fc.get("mean_df") is not None:
             forecast_close = float(fc["mean_df"]["close"].iloc[-1])
@@ -217,16 +234,33 @@ def _run_forecast_ticker_job(job_id, ticker, pred_len, lookback, detailed):
             forecast_close = float(fc["pred_df"]["close"].iloc[-1])
         pct = (forecast_close - last_close) / last_close * 100 if last_close else 0.0
 
+        # Range numbers for the new KPI strip (end of horizon)
+        range_high = range_low = None
+        if fc.get("high_df") is not None:
+            range_high = float(fc["high_df"]["close"].iloc[-1])
+        if fc.get("low_df") is not None:
+            range_low = float(fc["low_df"]["close"].iloc[-1])
+        range_centre = forecast_close
+
         result_text = (
             f"{ticker}: {last_close:.2f} -> {forecast_close:.2f} over {pred_len} trading days "
             f"({pct:+.2f}%). Lookback used: {fc['lookback_used']} days."
         )
-        if detailed:
-            result_text += f" ({fc['n_runs']} sampled paths shown.)"
+        if detailed or fc.get("n_runs", 1) > 1:
+            result_text += f" ({fc.get('n_runs', 1)} sampled paths.)"
         result_text += context_block
         _finish_forecast_job(job_id, status="done", result={
-            "text": result_text, "ticker": ticker, "image_path": image_path,
+            "text": result_text,
+            "ticker": ticker,
+            "image_path": image_path,
             "context_signal": ctx_dict,
+            "last_close": last_close,
+            "range_high": range_high,
+            "range_centre": range_centre,
+            "range_low": range_low,
+            "analyst_target": analyst_target,
+            "pred_len": pred_len,
+            "n_runs": fc.get("n_runs", 1),
         })
     except TickerNotFoundError as e:
         _finish_forecast_job(job_id, status="error", error=str(e))
@@ -804,6 +838,13 @@ def forecast_job(job_id):
         "ticker": result["ticker"],
         "image_url": _to_url(result.get("image_path")),
         "context_signal": result.get("context_signal"),
+        "last_close": result.get("last_close"),
+        "range_high": result.get("range_high"),
+        "range_centre": result.get("range_centre"),
+        "range_low": result.get("range_low"),
+        "analyst_target": result.get("analyst_target"),
+        "pred_len": result.get("pred_len"),
+        "n_runs": result.get("n_runs"),
     })
 
 

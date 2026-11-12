@@ -61,114 +61,190 @@ class LazyFigure:
         return True
 
 
-def build_forecast_png(ticker, hist_df, forecast_result, save_path=None, display_days=150):
+def build_forecast_png(ticker, hist_df, forecast_result, save_path=None, display_days=150, analyst_target=None):
     """
-    Static PNG version of the forecast chart, styled like the original
-    yahoopredict.py / csvpredict.py output: historical close line, dashed
-    predicted line, optional shaded confidence range, saved to disk.
-    Returns the file path.
+    Modern dark-theme outlook chart inspired by professional valuation /
+    range-cone views: historical price, projected centre path, high/low
+    band, end-point annotations (Range high / Centre / Low), optional
+    analyst consensus target, and a clear "now" vertical.
     """
     pred_df = forecast_result["pred_df"]
     low_df = forecast_result.get("low_df")
     high_df = forecast_result.get("high_df")
+    mean_df = forecast_result.get("mean_df")
+    n_runs = forecast_result.get("n_runs", 1)
 
     display_hist = hist_df.tail(display_days)
+    forecast_start = forecast_result.get("forecast_start", display_hist["timestamps"].iloc[-1])
 
-    plt.figure(figsize=(14, 7))
+    # Prefer mean path when multi-sample available
+    centre_df = mean_df if mean_df is not None else pred_df
 
-    plt.plot(display_hist["timestamps"], display_hist["close"],
-              label="Historical", linewidth=2.2, color="#1f77b4")
+    fig, ax = plt.subplots(figsize=(14.5, 7.2), facecolor="#0d1117")
+    ax.set_facecolor("#0d1117")
 
+    # Historical price (white)
+    ax.plot(display_hist["timestamps"], display_hist["close"],
+            color="#e6edf3", linewidth=2.0, label="Price", zorder=3)
+
+    # Range band (projected high / low)
     if low_df is not None and high_df is not None:
-        plt.fill_between(pred_df["timestamps"], low_df["close"], high_df["close"],
-                          color="#ff7f0e", alpha=0.15,
-                          label=f"Forecast range ({forecast_result.get('n_runs', 1)} runs)")
+        ax.fill_between(
+            centre_df["timestamps"], low_df["close"], high_df["close"],
+            color="#3fb950", alpha=0.12, label="Projected range", zorder=1
+        )
+        ax.plot(high_df["timestamps"], high_df["close"],
+                color="#3fb950", linewidth=1.6, linestyle="--", alpha=0.9, label="Range high", zorder=2)
+        ax.plot(low_df["timestamps"], low_df["close"],
+                color="#f85149", linewidth=1.6, linestyle="--", alpha=0.9, label="Range low", zorder=2)
 
-    plt.plot(pred_df["timestamps"], pred_df["close"], "--",
-              linewidth=2.8, label="Kronos Forecast", color="#ff7f0e")
+    # Centre / mean path
+    ax.plot(centre_df["timestamps"], centre_df["close"],
+            color="#58a6ff", linewidth=2.6, label="Centre (mean path)", zorder=4)
 
-    plt.axvline(x=display_hist["timestamps"].iloc[-1], linestyle=":", linewidth=1.8, color="gray")
+    # Analyst target (horizontal if provided)
+    if analyst_target is not None and analyst_target > 0:
+        ax.axhline(analyst_target, color="#bc8cff", linewidth=1.5, linestyle=":",
+                   label=f"Analyst target {analyst_target:.2f}", zorder=2)
 
-    plt.title(f"{ticker} Forecast -- Next {len(pred_df)} Trading Days")
-    plt.xlabel("Date")
-    plt.ylabel("Close Price")
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.xticks(rotation=45)
-    plt.tight_layout()
+    # "Now" vertical
+    ax.axvline(forecast_start, color="#8b949e", linestyle=":", linewidth=1.4, alpha=0.85, zorder=0)
+
+    # End-point annotations (right side)
+    last_x = centre_df["timestamps"].iloc[-1]
+    def _annot(y, color, label, offset_y=0):
+        ax.annotate(
+            f"{label}  {y:.2f}",
+            xy=(last_x, y), xytext=(12, offset_y),
+            textcoords="offset points",
+            color=color, fontsize=9, fontweight="600",
+            va="center",
+            bbox=dict(boxstyle="round,pad=0.25", facecolor="#161b22", edgecolor=color, alpha=0.9),
+            arrowprops=dict(arrowstyle="-", color=color, lw=0.8),
+        )
+
+    if high_df is not None:
+        _annot(float(high_df["close"].iloc[-1]), "#3fb950", "High", 18)
+    _annot(float(centre_df["close"].iloc[-1]), "#58a6ff", "Centre", 0)
+    if low_df is not None:
+        _annot(float(low_df["close"].iloc[-1]), "#f85149", "Low", -18)
+    if analyst_target is not None and analyst_target > 0:
+        # small purple marker at the right edge height of target
+        ax.scatter([last_x], [analyst_target], color="#bc8cff", s=28, zorder=5, marker="D")
+
+    # Styling
+    ax.set_title(f"{ticker}  ·  Kronos outlook  ·  next {len(centre_df)} trading days"
+                 + (f"  ({n_runs} paths)" if n_runs > 1 else ""),
+                 color="#e6edf3", fontsize=13, pad=12, loc="left")
+    ax.set_xlabel("")
+    ax.set_ylabel("Price", color="#8b949e")
+    ax.tick_params(colors="#8b949e", labelsize=9)
+    for spine in ax.spines.values():
+        spine.set_color("#30363d")
+    ax.grid(True, color="#21262d", alpha=0.7, linewidth=0.6)
+    ax.legend(loc="upper left", fontsize=8.5, frameon=True,
+              facecolor="#161b22", edgecolor="#30363d", labelcolor="#e6edf3")
+
+    fig.autofmt_xdate(rotation=25)
+    fig.tight_layout()
 
     if save_path is None:
         save_path = os.path.join(CHARTS_DIR, f"{ticker}_kronos_prediction.png")
-    plt.savefig(save_path, dpi=150)
-    plt.close()
+    fig.savefig(save_path, dpi=160, facecolor=fig.get_facecolor(), edgecolor="none")
+    plt.close(fig)
     return save_path
 
 
-def build_detailed_forecast_png(ticker, hist_df, forecast_result, save_path=None, display_days=150):
+def build_detailed_forecast_png(ticker, hist_df, forecast_result, save_path=None, display_days=150, analyst_target=None):
     """
-    Detailed "spaghetti plot" forecast chart: full historical close, a
-    marker for where the model's context window begins, a marker for
-    where the forecast starts, every individual sampled path (thin,
-    translucent), the mean forecast across all paths (bold), and a
-    10-90th percentile band. Matches the style of Kronos forecast
-    visualizations commonly used to sanity-check how much the sampled
-    paths actually agree with each other.
-
-    Only meaningfully different from build_forecast_png() when
-    forecast_result came from run_forecast(..., n_runs > 1) -- with
-    n_runs=1 there's only one path to plot and no band, so prefer
-    build_forecast_png() for the fast/default case. This one costs
-    n_runs x the Kronos inference time; call it deliberately (e.g. a
-    "detailed forecast" command), not as the default fast path.
+    Detailed multi-path outlook (dark range-cone style). Shows individual
+    sampled paths faintly, the mean centre, high/low band, end annotations,
+    and optional analyst target. Preferred when n_runs > 1.
     """
+    # Re-use the polished single-view builder for consistent styling;
+    # individual paths are still drawn when present.
     pred_df = forecast_result["pred_df"]
     all_runs = forecast_result.get("all_runs") or [pred_df]
     low_df = forecast_result.get("low_df")
     high_df = forecast_result.get("high_df")
     mean_df = forecast_result.get("mean_df")
     n_runs = forecast_result.get("n_runs", len(all_runs))
-    context_start = forecast_result.get("context_start")
     forecast_start = forecast_result.get("forecast_start", hist_df["timestamps"].iloc[-1])
 
     display_hist = hist_df.tail(display_days)
+    centre_df = mean_df if mean_df is not None else pred_df
 
-    plt.figure(figsize=(15, 7.5))
+    fig, ax = plt.subplots(figsize=(14.5, 7.2), facecolor="#0d1117")
+    ax.set_facecolor("#0d1117")
 
-    plt.plot(display_hist["timestamps"], display_hist["close"],
-              color="#4c78a8", linewidth=2.2, label="Historical Close (Full Data)")
+    ax.plot(display_hist["timestamps"], display_hist["close"],
+            color="#e6edf3", linewidth=2.0, label="Price", zorder=3)
 
+    # Faint individual paths
     for i, run in enumerate(all_runs):
-        plt.plot(run["timestamps"], run["close"], color="#f5a623", alpha=0.4, linewidth=1.3,
-                  label="Forecast Paths" if i == 0 else None)
-
-    if mean_df is not None:
-        plt.plot(mean_df["timestamps"], mean_df["close"], color="#a91e1e",
-                  linewidth=3.0, label="Mean Forecast")
-    elif len(all_runs) == 1:
-        plt.plot(pred_df["timestamps"], pred_df["close"], color="#a91e1e",
-                  linewidth=3.0, label="Forecast")
+        ax.plot(run["timestamps"], run["close"], color="#f0c14b",
+                alpha=0.22, linewidth=1.0,
+                label="Sample paths" if i == 0 else None, zorder=1)
 
     if low_df is not None and high_df is not None:
-        plt.fill_between(pred_df["timestamps"], low_df["close"], high_df["close"],
-                          color="#f5a623", alpha=0.18, label="10-90th percentile")
+        ax.fill_between(centre_df["timestamps"], low_df["close"], high_df["close"],
+                        color="#3fb950", alpha=0.12, label="Projected range", zorder=1)
+        ax.plot(high_df["timestamps"], high_df["close"],
+                color="#3fb950", linewidth=1.5, linestyle="--", alpha=0.85, label="Range high", zorder=2)
+        ax.plot(low_df["timestamps"], low_df["close"],
+                color="#f85149", linewidth=1.5, linestyle="--", alpha=0.85, label="Range low", zorder=2)
 
-    if context_start is not None and context_start >= display_hist["timestamps"].iloc[0]:
-        plt.axvline(context_start, color="#2ca02c", linestyle=":", linewidth=2.0, label="Model Context Start")
-    plt.axvline(forecast_start, color="gray", linestyle=":", linewidth=2.0, label="Forecast Start")
+    ax.plot(centre_df["timestamps"], centre_df["close"],
+            color="#58a6ff", linewidth=2.8, label="Centre (mean)", zorder=4)
 
-    plt.title(f"{ticker} Price Forecast (Kronos) -- {n_runs} sampled path{'s' if n_runs != 1 else ''}")
-    plt.xlabel("Date")
-    plt.ylabel("Price ($)")
-    plt.legend(loc="upper left", fontsize=9)
-    plt.grid(alpha=0.25)
-    plt.xticks(rotation=30)
-    plt.tight_layout()
+    if analyst_target is not None and analyst_target > 0:
+        ax.axhline(analyst_target, color="#bc8cff", linewidth=1.5, linestyle=":",
+                   label=f"Analyst target {analyst_target:.2f}", zorder=2)
+
+    ax.axvline(forecast_start, color="#8b949e", linestyle=":", linewidth=1.4, alpha=0.85)
+
+    last_x = centre_df["timestamps"].iloc[-1]
+    def _annot(y, color, label, offset_y=0):
+        ax.annotate(
+            f"{label}  {y:.2f}",
+            xy=(last_x, y), xytext=(12, offset_y),
+            textcoords="offset points",
+            color=color, fontsize=9, fontweight="600",
+            va="center",
+            bbox=dict(boxstyle="round,pad=0.25", facecolor="#161b22", edgecolor=color, alpha=0.9),
+            arrowprops=dict(arrowstyle="-", color=color, lw=0.8),
+        )
+
+    if high_df is not None:
+        _annot(float(high_df["close"].iloc[-1]), "#3fb950", "High", 18)
+    _annot(float(centre_df["close"].iloc[-1]), "#58a6ff", "Centre", 0)
+    if low_df is not None:
+        _annot(float(low_df["close"].iloc[-1]), "#f85149", "Low", -18)
+    if analyst_target is not None and analyst_target > 0:
+        ax.scatter([last_x], [analyst_target], color="#bc8cff", s=28, zorder=5, marker="D")
+
+    ax.set_title(
+        f"{ticker}  ·  Kronos detailed outlook  ·  {n_runs} sampled paths  ·  next {len(centre_df)} days",
+        color="#e6edf3", fontsize=13, pad=12, loc="left"
+    )
+    ax.set_xlabel("")
+    ax.set_ylabel("Price", color="#8b949e")
+    ax.tick_params(colors="#8b949e", labelsize=9)
+    for spine in ax.spines.values():
+        spine.set_color("#30363d")
+    ax.grid(True, color="#21262d", alpha=0.7, linewidth=0.6)
+    ax.legend(loc="upper left", fontsize=8.5, frameon=True,
+              facecolor="#161b22", edgecolor="#30363d", labelcolor="#e6edf3")
+
+    fig.autofmt_xdate(rotation=25)
+    fig.tight_layout()
 
     if save_path is None:
         save_path = os.path.join(CHARTS_DIR, f"{ticker}_detailed_forecast.png")
-    plt.savefig(save_path, dpi=150)
-    plt.close()
+    fig.savefig(save_path, dpi=160, facecolor=fig.get_facecolor(), edgecolor="none")
+    plt.close(fig)
     return save_path
+
 
 
 def build_comparison_png(ticker_dfs, save_path=None):

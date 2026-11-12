@@ -3769,3 +3769,119 @@ select.rd-input {
   .ins-grid { grid-template-columns: 1fr; }
   .ins-stance-row { flex-direction: column; }
 }
+
+/* ---- Outlook KPI strip (forecast results redesign) ---- */
+.outlook-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 18px 0 8px;
+}
+.outlook-kpi {
+  background: color-mix(in srgb, var(--surface, #161b22) 90%, transparent);
+  border: 1px solid var(--line, #30363d);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.outlook-kpi-label {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--bone-dim, #8b949e);
+}
+.outlook-kpi-value {
+  font-family: var(--mono);
+  font-size: 1.35rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--bone, #e6edf3);
+}
+.outlook-kpi-value.high { color: #3fb950; }
+.outlook-kpi-value.centre { color: #58a6ff; }
+.outlook-kpi-value.low { color: #f85149; }
+.outlook-kpi-value.analyst { color: #bc8cff; }
+
+.outlook-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--bone-dim, #8b949e);
+  margin: 0 0 14px;
+}
+.outlook-legend .leg-high { color: #3fb950; }
+.outlook-legend .leg-centre { color: #58a6ff; }
+.outlook-legend .leg-low { color: #f85149; }
+.outlook-legend .leg-analyst { color: #bc8cff; }
+
+@media (max-width: 720px) {
+  .outlook-kpis { grid-template-columns: 1fr 1fr; }
+}
+
+/* ---- Tool search bar (topbar) ---- */
+.tool-search-wrap {
+  position: relative;
+  margin-right: 8px;
+}
+.tool-search {
+  width: 180px;
+  max-width: 28vw;
+  background: color-mix(in srgb, var(--surface, #161b22) 80%, transparent);
+  border: 1px solid var(--line, #30363d);
+  border-radius: 8px;
+  color: var(--bone, #e6edf3);
+  padding: 6px 10px 6px 12px;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s, width 0.15s;
+}
+.tool-search:focus {
+  border-color: var(--gold-dim, #9c6d1e);
+  width: 240px;
+}
+.tool-search::placeholder { color: var(--bone-dim, #8b949e); }
+.tool-search-results {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: min(320px, 90vw);
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+  z-index: 200;
+  padding: 6px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+.tool-search-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  color: #e6edf3;
+  text-decoration: none;
+}
+.tool-search-item:hover,
+.tool-search-item:focus {
+  background: color-mix(in srgb, var(--gold, #9c6d1e) 18%, transparent);
+  text-decoration: none;
+}
+.tool-search-title { font-weight: 600; font-size: 13.5px; }
+.tool-search-desc { font-size: 11.5px; color: #8b949e; }
+.tool-search-empty {
+  padding: 12px;
+  color: #8b949e;
+  font-size: 13px;
+  text-align: center;
+}
+@media (max-width: 900px) {
+  .tool-search { width: 140px; }
+  .tool-search:focus { width: 180px; }
+}
