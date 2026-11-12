@@ -773,6 +773,19 @@ def api_stock_performance(ticker):
     })
 
 
+
+@app.route("/api/stock/technical/<ticker>")
+def api_stock_technical(ticker):
+    """Price/volume technical read: trend, S/R, momentum, patterns."""
+    from assistant import technical_analysis as ta
+    ticker = (ticker or "").strip().upper()
+    try:
+        return jsonify(ta.analyze_technicals(ticker))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route("/screener", methods=["GET"])
 def screener():
     return render_template(

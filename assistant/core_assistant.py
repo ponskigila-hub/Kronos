@@ -441,6 +441,18 @@ class StockAssistant:
         return {"text": text, "chart": None, "data": {"ticker": ticker, "fundamentals": data}}
 
 
+
+    def _technicals(self, tickers):
+        if not tickers:
+            return {"text": "Which ticker? e.g. `technicals AAPL`", "chart": None, "data": {}}
+        from . import technical_analysis as ta
+        report = ta.analyze_technicals(tickers[0])
+        return {
+            "text": report.get("text") or "No technical data.",
+            "chart": None,
+            "data": {"ticker": tickers[0], "kind": "technicals"},
+        }
+
     def _dig_financials(self, tickers):
         if not tickers:
             return {"text": "Which ticker should I dig into? e.g. `dig through financials AAPL`", "chart": None, "data": {}}
