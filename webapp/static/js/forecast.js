@@ -127,10 +127,38 @@
     }
   }
 
+  function fmt(n) {
+    if (n === null || n === undefined || isNaN(n)) return "—";
+    return Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
   function showResult(data) {
     if (resultTag) resultTag.textContent = data.ticker || "";
     if (resultText) resultText.textContent = data.text || "";
     renderContextBadges(data.context_signal || null);
+
+    // Outlook KPI strip
+    var kpis = document.getElementById("outlookKpis");
+    var legend = document.getElementById("outlookLegend");
+    if (kpis) {
+      var hasRange = data.range_high != null || data.range_centre != null || data.range_low != null;
+      if (hasRange || data.analyst_target != null) {
+        var elH = document.getElementById("kpiHigh");
+        var elC = document.getElementById("kpiCentre");
+        var elL = document.getElementById("kpiLow");
+        var elA = document.getElementById("kpiAnalyst");
+        if (elH) elH.textContent = fmt(data.range_high);
+        if (elC) elC.textContent = fmt(data.range_centre);
+        if (elL) elL.textContent = fmt(data.range_low);
+        if (elA) elA.textContent = fmt(data.analyst_target);
+        kpis.style.display = "grid";
+        if (legend) legend.style.display = "flex";
+      } else {
+        kpis.style.display = "none";
+        if (legend) legend.style.display = "none";
+      }
+    }
+
     if (chartFrame) {
       if (data.image_url) {
         chartFrame.style.display = "";

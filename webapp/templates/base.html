@@ -101,6 +101,11 @@
     </nav>
 
     <div class="topbar-actions">
+      <div class="tool-search-wrap" id="toolSearchWrap">
+        <input type="search" id="toolSearch" class="tool-search" placeholder="Search tools… (Ctrl+K)"
+               autocomplete="off" aria-label="Search tools" aria-controls="toolSearchResults">
+        <div class="tool-search-results" id="toolSearchResults" role="listbox" hidden></div>
+      </div>
       <div class="market-clocks" id="marketClocks" title="Session status in your local time">
         <div class="mkt-pill" data-mkt="us">
           <span class="mkt-dot" id="usDot"></span>

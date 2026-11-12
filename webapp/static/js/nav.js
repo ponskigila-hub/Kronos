@@ -57,3 +57,79 @@
     });
   }
 })();
+
+/* ---- Global tool search / command palette ---- */
+(function () {
+  var input = document.getElementById("toolSearch");
+  var results = document.getElementById("toolSearchResults");
+  var wrap = document.getElementById("toolSearchWrap");
+  if (!input || !results) return;
+
+  var TOOLS = [
+    { title: "Forecast", desc: "Kronos path + range outlook", href: "/forecast", keywords: "predict price kronos outlook cone" },
+    { title: "Screener", desc: "Find candidates by rules", href: "/screener", keywords: "filter universe score" },
+    { title: "Valuation", desc: "Relative peer multiples", href: "/valuation", keywords: "pe ps peers fair value" },
+    { title: "News", desc: "Headlines & sentiment", href: "/news", keywords: "headlines sentiment" },
+    { title: "Research", desc: "Deep research notes", href: "/research", keywords: "deep notes" },
+    { title: "Insights", desc: "Macro & market insights", href: "/insights", keywords: "macro" },
+    { title: "Watchlist", desc: "Favorites, notes, zones", href: "/watchlist", keywords: "favorites list" },
+    { title: "Chat", desc: "Conversational assistant", href: "/chat", keywords: "ask assistant llm" },
+    { title: "Day trade", desc: "Scanner, entry, exits", href: "/daytrade", keywords: "intraday scanner" },
+    { title: "Backtest", desc: "Walk-forward history", href: "/backtest", keywords: "validation history" },
+    { title: "Simulation", desc: "Paper trading portfolio", href: "/simulation", keywords: "paper trade portfolio" },
+    { title: "Invest plan", desc: "Entry zone & targets", href: "/invest", keywords: "targets stop" },
+    { title: "Home", desc: "Dashboard overview", href: "/", keywords: "dashboard home" },
+  ];
+
+  function filter(q) {
+    q = (q || "").trim().toLowerCase();
+    if (!q) return TOOLS.slice(0, 8);
+    return TOOLS.filter(function (t) {
+      var hay = (t.title + " " + t.desc + " " + t.keywords).toLowerCase();
+      return hay.indexOf(q) !== -1;
+    }).slice(0, 10);
+  }
+
+  function render(list) {
+    if (!list.length) {
+      results.innerHTML = '<div class="tool-search-empty">No matching tools</div>';
+      results.hidden = false;
+      return;
+    }
+    results.innerHTML = list.map(function (t, i) {
+      return '<a class="tool-search-item" role="option" href="' + t.href + '" data-idx="' + i + '">' +
+        '<span class="tool-search-title">' + t.title + '</span>' +
+        '<span class="tool-search-desc">' + t.desc + '</span></a>';
+    }).join("");
+    results.hidden = false;
+  }
+
+  function open() {
+    render(filter(input.value));
+    wrap.classList.add("open");
+  }
+  function close() {
+    results.hidden = true;
+    wrap.classList.remove("open");
+  }
+
+  input.addEventListener("focus", open);
+  input.addEventListener("input", function () { render(filter(input.value)); });
+  input.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") { close(); input.blur(); }
+    if (e.key === "Enter") {
+      var first = results.querySelector(".tool-search-item");
+      if (first) { e.preventDefault(); window.location = first.getAttribute("href"); }
+    }
+  });
+  document.addEventListener("click", function (e) {
+    if (!wrap.contains(e.target)) close();
+  });
+  document.addEventListener("keydown", function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      input.focus();
+      open();
+    }
+  });
+})();

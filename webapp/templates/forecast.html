@@ -82,11 +82,13 @@
 {% if result_text %}
 <div class="result-section" id="resultSection">
   <div class="result-header">
-    <h2>Forecast result</h2>
+    <h2>Outlook</h2>
     <span class="result-tag" id="resultTag">{{ result_ticker }}</span>
   </div>
   <div class="context-badges" id="contextBadges" style="display:none;"></div>
   <div class="earnings-gate-banner" id="earningsGate" style="display:none;" role="alert"></div>
+  <div class="outlook-kpis" id="outlookKpis" style="display:none;"></div>
+  <p class="outlook-legend" id="outlookLegend" style="display:none;"></p>
   {% if image_url %}
   <div class="chart-frame" id="chartFrame"><img src="{{ image_url }}" alt="Forecast chart for {{ result_ticker }}"></div>
   {% endif %}
@@ -95,11 +97,39 @@
 {% else %}
 <div class="result-section" id="resultSection" style="display:none;">
   <div class="result-header">
-    <h2>Forecast result</h2>
+    <h2>Outlook</h2>
     <span class="result-tag" id="resultTag"></span>
   </div>
   <div class="context-badges" id="contextBadges" style="display:none;"></div>
   <div class="earnings-gate-banner" id="earningsGate" style="display:none;" role="alert"></div>
+
+  <!-- Range KPI strip (inspired by professional outlook panels) -->
+  <div class="outlook-kpis" id="outlookKpis" style="display:none;">
+    <div class="outlook-kpi">
+      <span class="outlook-kpi-label">Range high</span>
+      <span class="outlook-kpi-value high" id="kpiHigh">—</span>
+    </div>
+    <div class="outlook-kpi">
+      <span class="outlook-kpi-label">Centre</span>
+      <span class="outlook-kpi-value centre" id="kpiCentre">—</span>
+    </div>
+    <div class="outlook-kpi">
+      <span class="outlook-kpi-label">Range low</span>
+      <span class="outlook-kpi-value low" id="kpiLow">—</span>
+    </div>
+    <div class="outlook-kpi">
+      <span class="outlook-kpi-label">Analyst target</span>
+      <span class="outlook-kpi-value analyst" id="kpiAnalyst">—</span>
+    </div>
+  </div>
+  <p class="outlook-legend" id="outlookLegend" style="display:none;">
+    <span class="leg-high">● Range high</span>
+    <span class="leg-centre">● Centre</span>
+    <span class="leg-low">● Range low</span>
+    <span class="leg-analyst">◆ Analyst consensus</span>
+    · Information &amp; education only · Not financial advice
+  </p>
+
   <div class="chart-frame" id="chartFrame" style="display:none;"></div>
   <div class="result-text" id="resultText"></div>
 </div>
