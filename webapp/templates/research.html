@@ -19,6 +19,7 @@
     <button type="button" class="rd-tab" role="tab" aria-selected="false" data-tab="compare">Compare</button>
     <button type="button" class="rd-tab" role="tab" aria-selected="false" data-tab="thesis">Thesis</button>
     <button type="button" class="rd-tab" role="tab" aria-selected="false" data-tab="templates">Templates</button>
+    <button type="button" class="rd-tab" role="tab" aria-selected="false" data-tab="options">Options</button>
   </nav>
 
   <!-- OVERVIEW -->
@@ -47,6 +48,14 @@
           <p class="rd-overview-text">Wall Street breakdown, financials dig, forecast, risks — run in-page.</p>
         </div>
         <span class="rd-overview-go">Open Templates →</span>
+      </button>
+      <button type="button" class="card rd-overview-card" data-goto="options">
+        <div class="rd-overview-icon" aria-hidden="true">γ</div>
+        <div>
+          <h3 class="rd-overview-title">Options &amp; derivatives</h3>
+          <p class="rd-overview-text">Put/call ratios, IV skew, and a dealer gamma heuristic from the Yahoo chain.</p>
+        </div>
+        <span class="rd-overview-go">Open Options →</span>
       </button>
     </div>
     <div class="card rd-overview-meta">
@@ -202,6 +211,38 @@
         </div>
         <div class="rd-result-body" id="tplResultBody"></div>
         <p class="rd-disclaimer" id="tplResultDisclaimer"></p>
+      </div>
+    </section>
+  </div>
+
+  <!-- OPTIONS -->
+  <div class="rd-tab-panel" id="tab-options" role="tabpanel" hidden>
+    <section class="card rd-card">
+      <div class="rd-card-head">
+        <div>
+          <h2 class="card-title">Options &amp; derivatives positioning</h2>
+          <p class="rd-help">
+            Monitor put/call ratios, implied-vol skew, and a simplified dealer gamma heuristic
+            to see where hedging flows <em>might</em> force market makers to buy or sell the underlying.
+            Yahoo data — delayed, incomplete for many non-US names.
+          </p>
+        </div>
+      </div>
+      <form id="optionsForm" class="rd-form rd-compare-bar" autocomplete="off">
+        <label class="rd-field rd-field-tickers">
+          <span class="rd-label">Ticker</span>
+          <input type="text" id="optionsTicker" class="rd-input" placeholder="e.g. AAPL, SPY, TSLA" required maxlength="15">
+        </label>
+        <div class="rd-field rd-field-action">
+          <span class="rd-label rd-label-spacer" aria-hidden="true">&nbsp;</span>
+          <button class="btn rd-btn" type="submit">Run positioning →</button>
+        </div>
+      </form>
+      <p class="rd-status" id="optionsStatus" hidden></p>
+      <div class="rd-options-kpis" id="optionsKpis" hidden></div>
+      <div class="rd-result" id="optionsResult" hidden>
+        <div class="rd-result-body" id="optionsBody"></div>
+        <p class="rd-disclaimer" id="optionsDisclaimer"></p>
       </div>
     </section>
   </div>
@@ -416,6 +457,54 @@
       submitBtn.disabled = false;
     }
   });
+
+  // ---- Options positioning ----
+  var optionsForm = document.getElementById("optionsForm");
+  if (optionsForm) {
+    optionsForm.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var statusEl = document.getElementById("optionsStatus");
+      var kpis = document.getElementById("optionsKpis");
+      var result = document.getElementById("optionsResult");
+      var body = document.getElementById("optionsBody");
+      var disc = document.getElementById("optionsDisclaimer");
+      var ticker = (document.getElementById("optionsTicker").value || "").trim().toUpperCase();
+      if (!ticker) return;
+      statusEl.hidden = false;
+      statusEl.textContent = "Loading options chain for " + ticker + "…";
+      kpis.hidden = true;
+      result.hidden = true;
+      try {
+        var resp = await fetch("/api/research/options/" + encodeURIComponent(ticker));
+        var data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || "Failed");
+        function cell(label, val) {
+          return '<div class="rd-opt-kpi"><span>' + esc(label) + "</span><strong>" + esc(val) + "</strong></div>";
+        }
+        kpis.innerHTML =
+          cell("Spot", data.spot != null ? Number(data.spot).toFixed(2) : "—") +
+          cell("Expiry", data.expiry || "—") +
+          cell("P/C vol", data.pc_volume != null ? Number(data.pc_volume).toFixed(2) : "—") +
+          cell("P/C OI", data.pc_oi != null ? Number(data.pc_oi).toFixed(2) : "—") +
+          cell("Skew (pts)", data.skew_pts != null ? (data.skew_pts > 0 ? "+" : "") + Number(data.skew_pts).toFixed(1) : "—") +
+          cell("GEX proxy", data.net_gex_proxy != null ? Number(data.net_gex_proxy).toLocaleString(undefined, {maximumFractionDigits: 0}) : "—");
+        kpis.hidden = false;
+        var s = esc(data.text || "");
+        s = s.replace(/^### (.+)$/gm, "<h4 class='rd-md-h'>$1</h4>");
+        s = s.replace(/^## (.+)$/gm, "<h3 class='rd-md-h'>$1</h3>");
+        s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+        s = s.replace(/^- (.+)$/gm, "<div class='rd-md-li'>• $1</div>");
+        s = s.replace(/\n\n/g, "</p><p class='rd-md-p'>");
+        s = s.replace(/\n/g, "<br>");
+        body.innerHTML = "<p class='rd-md-p'>" + s + "</p>";
+        disc.textContent = data.disclaimer || "";
+        result.hidden = false;
+        statusEl.textContent = "Done — " + ticker + " · " + (data.expiry || "");
+      } catch (err) {
+        statusEl.textContent = err.message || String(err);
+      }
+    });
+  }
 })();
 </script>
 {% endblock %}

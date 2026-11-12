@@ -1606,6 +1606,19 @@ def api_research_compare():
 # ---------------------------------------------------------------------------
 # Invest / long-term position plan (entry zone + sell targets)
 # ---------------------------------------------------------------------------
+
+@app.route("/api/research/options/<ticker>")
+def api_research_options(ticker):
+    """Options positioning: P/C, IV skew, heuristic dealer gamma."""
+    from assistant import options_positioning as op
+    ticker = (ticker or "").strip().upper()
+    try:
+        return jsonify(op.analyze_options_positioning(ticker))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route("/invest")
 def invest_page():
     return render_template("invest.html", active="invest")
