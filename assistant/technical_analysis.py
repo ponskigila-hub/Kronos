@@ -1,8 +1,8 @@
 """
 Recent price/volume technical read for a ticker.
 
-Uses OHLCV + indicators (RSI, MACD, SMA, volume SMA, S/R). Research only —
-not a prediction or trade recommendation.
+Trend (50/200), MACD, RSI, Bollinger/Keltner squeeze, VWAP, OBV, volume profile.
+Research only — not a prediction or trade recommendation.
 """
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ def _fmt_pct(n: Optional[float]) -> str:
     return f"{float(n):+.2f}%"
 
 
-def analyze_technicals(ticker: str, lookback_days: int = 120) -> dict[str, Any]:
+def analyze_technicals(ticker: str, lookback_days: int = 260) -> dict[str, Any]:
     ticker = (ticker or "").strip().upper()
     if not ticker:
         raise ValueError("ticker required")
@@ -45,7 +45,8 @@ def analyze_technicals(ticker: str, lookback_days: int = 120) -> dict[str, Any]:
     if not ok:
         raise ValueError(f"'{ticker}' does not look like a valid ticker.")
 
-    df = data_fetcher.fetch_history(symbol, lookback_days=lookback_days, interval="1d")
+    # Need ~200+ bars for SMA200; request extra calendar days
+    df = data_fetcher.fetch_history(symbol, lookback_days=max(lookback_days, 320), interval="1d")
     if df is None or df.empty or len(df) < 30:
         raise ValueError(f"Not enough daily history for {symbol} (need ~30+ bars).")
 
@@ -53,95 +54,145 @@ def analyze_technicals(ticker: str, lookback_days: int = 120) -> dict[str, Any]:
     latest = indicators.summarize_latest(ind)
     sr20 = indicators.support_resistance(df, window=20)
     sr60 = indicators.support_resistance(df, window=min(60, len(df)))
+    profile = indicators.volume_profile(df, bins=24, lookback=min(90, len(df)))
 
     closes = ind["close"].astype(float)
-    volumes = ind["volume"].astype(float)
     last = float(closes.iloc[-1])
     first = float(closes.iloc[0])
     period_ret = (last - first) / first * 100 if first else None
 
-    # Trend: price vs SMA20/50
-    sma20, sma50 = latest.get("sma_20"), latest.get("sma_50")
-    if sma20 and sma50:
-        if last > sma20 > sma50:
-            trend = "Primary trend looks **up** (price above rising intermediate averages)."
-            trend_key = "up"
-        elif last < sma20 < sma50:
-            trend = "Primary trend looks **down** (price below intermediate averages)."
-            trend_key = "down"
-        else:
-            trend = "Trend looks **mixed / range-bound** (price and averages are crossed or flat)."
-            trend_key = "mixed"
-    elif sma20:
-        trend_key = "up" if last > sma20 else "down"
-        trend = f"Price is {'above' if last > sma20 else 'below'} the 20-day average."
-    else:
-        trend_key = "mixed"
-        trend = "Not enough data to classify the trend cleanly."
+    sma20 = latest.get("sma_20")
+    sma50 = latest.get("sma_50")
+    sma200 = latest.get("sma_200")
+    ema50 = latest.get("ema_50")
+    ema200 = latest.get("ema_200")
 
-    # Momentum RSI / MACD
-    rsi = latest.get("rsi_14")
+    # --- Primary trend (50 / 200) ---
+    trend_bits = []
+    trend_key = "mixed"
+    if sma50 and sma200:
+        if last > sma50 > sma200:
+            trend_key = "up"
+            trend_bits.append("Price **above** SMA50 and SMA200 — primary trend **bullish** stack.")
+        elif last < sma50 < sma200:
+            trend_key = "down"
+            trend_bits.append("Price **below** SMA50 and SMA200 — primary trend **bearish** stack.")
+        else:
+            trend_bits.append("Price / SMA50 / SMA200 are **mixed** (possible transition or range).")
+        # Crossover detection on last two bars
+        s50p, s200p = latest.get("sma50_prev"), latest.get("sma200_prev")
+        if s50p is not None and s200p is not None:
+            if s50p <= s200p and sma50 > sma200:
+                trend_bits.append("**Golden cross** style: SMA50 crossed above SMA200 recently.")
+            elif s50p >= s200p and sma50 < sma200:
+                trend_bits.append("**Death cross** style: SMA50 crossed below SMA200 recently.")
+    elif sma50:
+        trend_key = "up" if last > sma50 else "down"
+        trend_bits.append(f"Price is {'above' if last > sma50 else 'below'} SMA50 (SMA200 not ready — need longer history).")
+    else:
+        trend_bits.append("Not enough history to classify the primary trend cleanly.")
+
+    if ema50 and ema200:
+        trend_bits.append(
+            f"EMA50 **{_fmt(ema50)}** vs EMA200 **{_fmt(ema200)}** "
+            f"({'bullish' if ema50 > ema200 else 'bearish'} EMA stack)."
+        )
+    if sma20 and sma50:
+        trend_bits.append(f"Intermediate: SMA20 **{_fmt(sma20)}** / SMA50 **{_fmt(sma50)}**.")
+
+    # --- Momentum ---
     mom_bits = []
+    rsi = latest.get("rsi_14")
     if rsi is not None:
         if rsi >= 70:
-            mom_bits.append(f"RSI(14) **{rsi:.1f}** — elevated / overbought zone.")
+            mom_bits.append(f"RSI(14) **{rsi:.1f}** — overbought / exhaustion zone (>70).")
         elif rsi <= 30:
-            mom_bits.append(f"RSI(14) **{rsi:.1f}** — washed-out / oversold zone.")
+            mom_bits.append(f"RSI(14) **{rsi:.1f}** — oversold / washed-out zone (<30).")
         else:
             mom_bits.append(f"RSI(14) **{rsi:.1f}** — mid-range momentum.")
     macd_h, macd_hp = latest.get("macd_hist"), latest.get("macd_hist_prev")
     if macd_h is not None and macd_hp is not None:
         if macd_h > 0 and macd_h > macd_hp:
-            mom_bits.append("MACD histogram positive and expanding.")
+            mom_bits.append("MACD histogram **positive and expanding** (acceleration up).")
         elif macd_h > 0:
             mom_bits.append("MACD histogram positive but not expanding.")
         elif macd_h < 0 and macd_h < macd_hp:
-            mom_bits.append("MACD histogram negative and deepening.")
+            mom_bits.append("MACD histogram **negative and deepening** (acceleration down).")
         else:
             mom_bits.append("MACD histogram negative / recovering.")
 
-    # Volume
+    # --- Volatility / mean reversion ---
+    vol_bits = []
+    bb_u, bb_l, bb_w = latest.get("bb_upper"), latest.get("bb_lower"), latest.get("bb_width")
+    kc_u, kc_l = latest.get("kc_upper"), latest.get("kc_lower")
+    if bb_u and last >= bb_u:
+        vol_bits.append("Close at/above **upper Bollinger** — extended vs recent volatility.")
+    if bb_l and last <= bb_l:
+        vol_bits.append("Close at/below **lower Bollinger** — depressed vs recent volatility.")
+    if bb_w is not None:
+        # percentile of bb_width vs last 100 bars
+        widths = ind["bb_width"].dropna()
+        if len(widths) >= 20:
+            pct = float((widths.tail(100) <= bb_w).mean() * 100)
+            vol_bits.append(f"BB width percentile ≈ **{pct:.0f}%** of recent history.")
+    if latest.get("squeeze_on"):
+        streak = latest.get("squeeze_streak") or 1
+        vol_bits.append(
+            f"**Volatility squeeze ON** (Bollinger inside Keltner) for **{streak}** bar(s) — "
+            "low vol often precedes a sharper directional break."
+        )
+    else:
+        vol_bits.append("No active BB-inside-Keltner squeeze on the latest bar.")
+    if kc_u and kc_l:
+        vol_bits.append(f"Keltner channel: **{_fmt(kc_l)}** – **{_fmt(kc_u)}**.")
+
+    # --- Volume-price ---
+    vp_bits = []
     vol, vol_sma = latest.get("volume"), latest.get("volume_sma_20")
-    vol_note = "Volume vs 20-day average unavailable."
     vol_ratio = None
     if vol is not None and vol_sma and vol_sma > 0:
         vol_ratio = vol / vol_sma
         if vol_ratio >= 1.5:
-            vol_note = f"Latest volume **{vol_ratio:.1f}×** the 20-day average — elevated participation."
+            vp_bits.append(f"Volume **{vol_ratio:.1f}×** the 20-day average — elevated participation.")
         elif vol_ratio <= 0.7:
-            vol_note = f"Latest volume **{vol_ratio:.1f}×** the 20-day average — quiet session."
+            vp_bits.append(f"Volume **{vol_ratio:.1f}×** average — quiet session.")
         else:
-            vol_note = f"Latest volume near average (**{vol_ratio:.1f}×** 20-day avg)."
+            vp_bits.append(f"Volume near average (**{vol_ratio:.1f}×**).")
+    vwap = latest.get("vwap")
+    if vwap:
+        side = "above" if last >= vwap else "below"
+        vp_bits.append(
+            f"Price is **{side} cumulative VWAP** (**{_fmt(vwap)}**) — "
+            "institutional execution often anchors around VWAP."
+        )
+    obv, obv_sma = latest.get("obv"), latest.get("obv_sma_20")
+    if obv is not None and obv_sma is not None:
+        if obv >= obv_sma:
+            vp_bits.append("OBV holds **above** its 20-day average — volume flow supportive.")
+        else:
+            vp_bits.append("OBV **below** its 20-day average — volume flow softer.")
+    if profile:
+        vp_bits.append(
+            f"Volume profile (~{profile['lookback_bars']} bars): **POC {_fmt(profile['poc'])}**, "
+            f"value area **{_fmt(profile['va_low'])} – {_fmt(profile['va_high'])}**."
+        )
+        if profile.get("top_nodes"):
+            nodes = ", ".join(
+                f"{_fmt(n['price_mid'])} ({n['share_pct']:.0f}%)" for n in profile["top_nodes"][:3]
+            )
+            vp_bits.append(f"High-volume nodes: {nodes}.")
 
-    # Patterns (simple, transparent rules)
+    # --- Patterns ---
     patterns = []
     tail = closes.tail(5)
     if len(tail) >= 5:
         if all(tail.iloc[i] > tail.iloc[i - 1] for i in range(1, 5)):
-            patterns.append("Four consecutive higher closes (short bullish sequence).")
+            patterns.append("Four consecutive higher closes.")
         if all(tail.iloc[i] < tail.iloc[i - 1] for i in range(1, 5)):
-            patterns.append("Four consecutive lower closes (short bearish sequence).")
-    if sma20 and sma50 and len(closes) >= 3:
-        prev_c = float(closes.iloc[-3])
-        # rough golden/death cross recent
-        sma20_s = ind["sma_20"].dropna()
-        sma50_s = ind["sma_50"].dropna()
-        if len(sma20_s) >= 5 and len(sma50_s) >= 5:
-            a, b = float(sma20_s.iloc[-1]), float(sma50_s.iloc[-1])
-            a0, b0 = float(sma20_s.iloc[-5]), float(sma50_s.iloc[-5])
-            if a0 <= b0 and a > b:
-                patterns.append("SMA20 recently crossed above SMA50 (golden-cross style).")
-            if a0 >= b0 and a < b:
-                patterns.append("SMA20 recently crossed below SMA50 (death-cross style).")
-    bb_u, bb_l = latest.get("bb_upper"), latest.get("bb_lower")
-    if bb_u and last >= bb_u:
-        patterns.append("Close at/above upper Bollinger band — extended vs recent volatility.")
-    if bb_l and last <= bb_l:
-        patterns.append("Close at/below lower Bollinger band — depressed vs recent volatility.")
+            patterns.append("Four consecutive lower closes.")
     if not patterns:
-        patterns.append("No strong textbook pattern flagged by the simple rule set.")
+        patterns.append("No strong short-sequence pattern flagged.")
 
-    # Sample of recent price/volume for transparency
     sample = []
     tail_n = min(10, len(ind))
     for i in range(-tail_n, 0):
@@ -164,29 +215,39 @@ def analyze_technicals(ticker: str, lookback_days: int = 120) -> dict[str, Any]:
     lines = [
         f"## Technical read — {symbol}",
         "",
-        f"_Daily bars, last ~{len(df)} sessions. Not a prediction._",
+        f"_Daily bars (~{len(df)} sessions). Research only — not a prediction._",
         "",
-        "### Primary trend",
-        f"- {trend}",
-        f"- Period return (window): **{_fmt_pct(period_ret)}** · Last close **{_fmt(last)}**",
-        f"- SMA20 **{_fmt(sma20)}** · SMA50 **{_fmt(sma50)}**",
-        "",
-        "### Support & resistance (recent)",
-        f"- ~20-session range: support **{_fmt(sr20.get('support'))}** / resistance **{_fmt(sr20.get('resistance'))}**",
-        f"- ~60-session range: support **{_fmt(sr60.get('support'))}** / resistance **{_fmt(sr60.get('resistance'))}**",
-        "",
-        "### Momentum",
+        "### Primary trend (50 / 200)",
     ]
-    for m in mom_bits:
-        lines.append(f"- {m}")
-    if not mom_bits:
-        lines.append("- Momentum readings unavailable.")
-    lines += ["", "### Volume", f"- {vol_note}", "", "### Notable patterns"]
+    for b in trend_bits:
+        lines.append(f"- {b}")
+    lines += [
+        f"- Period return (window): **{_fmt_pct(period_ret)}** · Last **{_fmt(last)}**",
+        f"- SMA50 **{_fmt(sma50)}** · SMA200 **{_fmt(sma200)}** · EMA200 **{_fmt(ema200)}**",
+        "",
+        "### Momentum (MACD · RSI)",
+    ]
+    for b in mom_bits or ["- Momentum readings unavailable."]:
+        lines.append(f"- {b}" if not b.startswith("-") else b)
+    lines += ["", "### Volatility & mean-reversion (Bollinger · Keltner)"]
+    for b in vol_bits or ["- Volatility structure unavailable."]:
+        lines.append(f"- {b}" if not str(b).startswith("-") else b)
+    lines += [
+        "",
+        "### Support & resistance",
+        f"- ~20-session: support **{_fmt(sr20.get('support'))}** / resistance **{_fmt(sr20.get('resistance'))}**",
+        f"- ~60-session: support **{_fmt(sr60.get('support'))}** / resistance **{_fmt(sr60.get('resistance'))}**",
+        "",
+        "### Volume-price (VWAP · OBV · profile)",
+    ]
+    for b in vp_bits or ["- Volume-price tools unavailable."]:
+        lines.append(f"- {b}" if not str(b).startswith("-") else b)
+    lines += ["", "### Notable patterns"]
     for p in patterns:
         lines.append(f"- {p}")
     lines += [
         "",
-        "### Recent price & volume (last sessions)",
+        "### Recent price & volume",
         "| Date | Close | High | Low | Volume |",
         "|---|---:|---:|---:|---:|",
     ]
@@ -198,10 +259,10 @@ def analyze_technicals(ticker: str, lookback_days: int = 120) -> dict[str, Any]:
     lines += [
         "",
         "### What the data suggests",
-        f"- Structure: **{trend_key}** bias on this window, with nearby support near "
-        f"**{_fmt(sr20.get('support'))}** and resistance near **{_fmt(sr20.get('resistance'))}**.",
-        "- Treat levels as **zones**, not precise lines. Volume confirmation matters on breaks.",
-        "- Nothing here is a guaranteed setup — combine with fundamentals, catalysts, and risk limits.",
+        f"- Structure bias on this window: **{trend_key}**, with nearby support "
+        f"**{_fmt(sr20.get('support'))}** and resistance **{_fmt(sr20.get('resistance'))}**.",
+        "- Treat MAs, VWAP, and profile nodes as **zones**. Confirmation on volume still matters.",
+        "- Nothing here is a guaranteed setup — size risk independently.",
         "",
         f"_Retrieved {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}._",
     ]
@@ -209,23 +270,32 @@ def analyze_technicals(ticker: str, lookback_days: int = 120) -> dict[str, Any]:
     return {
         "ticker": symbol,
         "trend": trend_key,
-        "trend_text": trend,
         "last": last,
         "period_return_pct": period_ret,
         "sma_20": sma20,
         "sma_50": sma50,
+        "sma_200": sma200,
+        "ema_50": ema50,
+        "ema_200": ema200,
         "rsi_14": rsi,
         "support_20": sr20.get("support"),
         "resistance_20": sr20.get("resistance"),
         "support_60": sr60.get("support"),
         "resistance_60": sr60.get("resistance"),
+        "bb_width": latest.get("bb_width"),
+        "squeeze_on": latest.get("squeeze_on"),
+        "squeeze_streak": latest.get("squeeze_streak"),
+        "vwap": vwap,
+        "obv": obv,
         "volume_ratio": vol_ratio,
+        "volume_profile": profile,
         "patterns": patterns,
         "sample": sample,
         "text": "\n".join(lines),
         "disclaimer": (
-            "Technical research synthesis from historical OHLCV — not a prediction "
-            "and not a recommendation to buy or sell."
+            "Technical research from historical OHLCV — not a prediction and not a "
+            "recommendation to buy or sell. VWAP on daily bars is cumulative over the window, "
+            "not a pure intraday session VWAP."
         ),
         "retrieved_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
     }

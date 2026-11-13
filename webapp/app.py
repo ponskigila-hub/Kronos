@@ -699,7 +699,7 @@ def api_stock_profile(ticker):
 @app.route("/stock")
 @app.route("/stock/<ticker>")
 def stock_page(ticker=None):
-    """Stock performance page."""
+    """Pluang-style stock performance page."""
     return render_template(
         "stock.html",
         active="stock",
