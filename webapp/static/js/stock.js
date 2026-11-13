@@ -261,16 +261,35 @@
   }
 
 
+  function techSection(title, lines) {
+    if (!lines || !lines.length) return "";
+    var items = lines.filter(Boolean).map(function (line) {
+      return "<li>" + line + "</li>";
+    }).join("");
+    return (
+      '<section class="stk-tech-sec">' +
+        "<h4 class=\"stk-tech-sec-title\">" + title + "</h4>" +
+        "<ul class=\"stk-tech-list\">" + items + "</ul>" +
+      "</section>"
+    );
+  }
+
+  function boldNums(s) {
+    // light emphasis for already-escaped text pieces we control
+    return String(s);
+  }
+
   async function loadTechnical(ticker) {
     const body = document.getElementById("stkTechBody");
     const flags = document.getElementById("stkTechFlags");
     if (!body) return;
-    body.textContent = "Loading technical read…";
+    body.innerHTML = "<p class=\"stk-tech-loading\">Loading technical read…</p>";
     if (flags) flags.innerHTML = "";
     try {
       const resp = await fetch("/api/stock/technical/" + encodeURIComponent(ticker));
       const d = await resp.json();
       if (!resp.ok) throw new Error(d.error || "Failed");
+
       if (flags) {
         const chips = [];
         if (d.trend) chips.push('<span class="stk-tech-chip">' + esc(d.trend) + " trend</span>");
@@ -280,20 +299,144 @@
         if (d.vwap != null) chips.push('<span class="stk-tech-chip">VWAP ' + fmtPrice(d.vwap) + "</span>");
         if (d.support_20 != null) chips.push('<span class="stk-tech-chip">Supp ' + fmtPrice(d.support_20) + "</span>");
         if (d.resistance_20 != null) chips.push('<span class="stk-tech-chip">Res ' + fmtPrice(d.resistance_20) + "</span>");
-        if (d.volume_profile && d.volume_profile.poc != null) chips.push('<span class="stk-tech-chip">POC ' + fmtPrice(d.volume_profile.poc) + "</span>");
+        if (d.volume_profile && d.volume_profile.poc != null) {
+          chips.push('<span class="stk-tech-chip">POC ' + fmtPrice(d.volume_profile.poc) + "</span>");
+        }
         flags.innerHTML = chips.join("");
       }
-      let s = esc(d.text || "");
-      s = s.replace(/^### (.+)$/gm, "<h4>$1</h4>");
-      s = s.replace(/^## (.+)$/gm, "<h3>$1</h3>");
-      s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-      s = s.replace(/^- (.+)$/gm, "<div class='rd-md-li'>• $1</div>");
-      s = s.replace(/\n\n/g, "</p><p>");
-      s = s.replace(/\n/g, "<br>");
-      body.innerHTML = "<p>" + s + "</p>";
-      if (d.disclaimer) {
-        body.innerHTML += "<p class='stk-tech-disc'>" + esc(d.disclaimer) + "</p>";
+
+      // Structured layout from API fields (not raw markdown dump)
+      var trendLines = [];
+      if (d.trend === "up") {
+        trendLines.push("Primary stack looks <strong>bullish</strong> (price vs intermediate / long MAs).");
+      } else if (d.trend === "down") {
+        trendLines.push("Primary stack looks <strong>bearish</strong> (price vs intermediate / long MAs).");
+      } else {
+        trendLines.push("Primary structure looks <strong>mixed / transitional</strong>.");
       }
+      if (d.sma_50 != null || d.sma_200 != null) {
+        trendLines.push(
+          "SMA50 <strong>" + fmtPrice(d.sma_50) + "</strong> · SMA200 <strong>" + fmtPrice(d.sma_200) + "</strong>" +
+          (d.ema_200 != null ? " · EMA200 <strong>" + fmtPrice(d.ema_200) + "</strong>" : "")
+        );
+      }
+      if (d.sma_20 != null && d.sma_50 != null) {
+        trendLines.push("Intermediate: SMA20 <strong>" + fmtPrice(d.sma_20) + "</strong> / SMA50 <strong>" + fmtPrice(d.sma_50) + "</strong>");
+      }
+      if (d.period_return_pct != null) {
+        trendLines.push(
+          "Window return <strong>" + fmtPct(d.period_return_pct) + "</strong> · Last <strong>" + fmtPrice(d.last) + "</strong>"
+        );
+      }
+
+      var momLines = [];
+      if (d.rsi_14 != null) {
+        var rsi = Number(d.rsi_14);
+        var rsiNote = rsi >= 70 ? "overbought zone" : rsi <= 30 ? "oversold zone" : "mid-range";
+        momLines.push("RSI(14) <strong>" + rsi.toFixed(1) + "</strong> — " + rsiNote);
+      }
+      // Pull MACD / squeeze / vol notes from text sections when present
+      var text = d.text || "";
+      function grabBullets(sectionTitle) {
+        var re = new RegExp("### " + sectionTitle + "[\\s\\S]*?(?=### |$)");
+        var m = text.match(re);
+        if (!m) return [];
+        return (m[0].match(/^- (.+)$/gm) || []).map(function (line) {
+          return line.replace(/^- /, "")
+            .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+            .replace(/_/g, "");
+        });
+      }
+
+      var momFromText = grabBullets("Momentum \\(MACD · RSI\\)");
+      momFromText.forEach(function (b) {
+        if (b.indexOf("RSI") === 0 && momLines.length) return; // already have RSI
+        momLines.push(b);
+      });
+
+      var volLines = grabBullets("Volatility & mean-reversion \\(Bollinger · Keltner\\)");
+      if (!volLines.length) volLines = grabBullets("Volatility");
+
+      var srLines = [
+        d.support_20 != null || d.resistance_20 != null
+          ? "≈20-session: support <strong>" + fmtPrice(d.support_20) + "</strong> / resistance <strong>" + fmtPrice(d.resistance_20) + "</strong>"
+          : null,
+        d.support_60 != null || d.resistance_60 != null
+          ? "≈60-session: support <strong>" + fmtPrice(d.support_60) + "</strong> / resistance <strong>" + fmtPrice(d.resistance_60) + "</strong>"
+          : null,
+      ].filter(Boolean);
+
+      var vpLines = [];
+      if (d.volume_ratio != null) {
+        vpLines.push("Volume vs 20-day avg: <strong>" + Number(d.volume_ratio).toFixed(2) + "×</strong>");
+      }
+      if (d.vwap != null) {
+        var side = d.last != null && d.last >= d.vwap ? "above" : "below";
+        vpLines.push("Price is <strong>" + side + "</strong> cumulative VWAP <strong>" + fmtPrice(d.vwap) + "</strong>");
+      }
+      if (d.volume_profile) {
+        var vp = d.volume_profile;
+        if (vp.poc != null) {
+          vpLines.push(
+            "Volume profile POC <strong>" + fmtPrice(vp.poc) + "</strong>" +
+            (vp.va_low != null ? " · value area <strong>" + fmtPrice(vp.va_low) + " – " + fmtPrice(vp.va_high) + "</strong>" : "")
+          );
+        }
+        if (vp.top_nodes && vp.top_nodes.length) {
+          vpLines.push(
+            "High-volume nodes: " +
+            vp.top_nodes.slice(0, 3).map(function (n) {
+              return "<strong>" + fmtPrice(n.price_mid) + "</strong> (" + Number(n.share_pct).toFixed(0) + "%)";
+            }).join(", ")
+          );
+        }
+      }
+      var vpFromText = grabBullets("Volume-price \\(VWAP · OBV · profile\\)");
+      vpFromText.forEach(function (b) {
+        if (/OBV/i.test(b) && vpLines.join(" ").indexOf("OBV") < 0) vpLines.push(b);
+      });
+
+      var patternLines = (d.patterns || []).map(function (p) {
+        return esc(p).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+      });
+
+      // Sample table
+      var tableHtml = "";
+      if (d.sample && d.sample.length) {
+        tableHtml =
+          '<section class="stk-tech-sec">' +
+          '<h4 class="stk-tech-sec-title">Recent sessions</h4>' +
+          '<div class="stk-tech-table-wrap"><table class="stk-tech-table">' +
+          "<thead><tr><th>Date</th><th>Close</th><th>High</th><th>Low</th><th>Volume</th></tr></thead><tbody>" +
+          d.sample.map(function (row) {
+            return (
+              "<tr>" +
+              "<td>" + esc(row.date) + "</td>" +
+              "<td>" + fmtPrice(row.close) + "</td>" +
+              "<td>" + fmtPrice(row.high) + "</td>" +
+              "<td>" + fmtPrice(row.low) + "</td>" +
+              "<td>" + (row.volume != null ? Number(row.volume).toLocaleString(undefined, { maximumFractionDigits: 0 }) : "—") + "</td>" +
+              "</tr>"
+            );
+          }).join("") +
+          "</tbody></table></div></section>";
+      }
+
+      body.innerHTML =
+        '<div class="stk-tech-layout">' +
+          '<header class="stk-tech-header">' +
+            "<h3 class=\"stk-tech-title\">Technical read — " + esc(d.ticker || ticker) + "</h3>" +
+            '<p class="stk-tech-sub">Daily bars · research only — not a prediction</p>' +
+          "</header>" +
+          techSection("Primary trend (50 / 200)", trendLines) +
+          techSection("Momentum (MACD · RSI)", momLines) +
+          techSection("Volatility (Bollinger · Keltner)", volLines) +
+          techSection("Support & resistance", srLines) +
+          techSection("Volume-price (VWAP · OBV · profile)", vpLines) +
+          techSection("Patterns", patternLines) +
+          tableHtml +
+          (d.disclaimer ? '<p class="stk-tech-disc">' + esc(d.disclaimer) + "</p>" : "") +
+        "</div>";
     } catch (e) {
       body.textContent = e.message || "Technical analysis unavailable.";
     }
