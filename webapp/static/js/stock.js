@@ -274,9 +274,13 @@
       if (flags) {
         const chips = [];
         if (d.trend) chips.push('<span class="stk-tech-chip">' + esc(d.trend) + " trend</span>");
+        if (d.sma_200 != null) chips.push('<span class="stk-tech-chip">SMA200 ' + fmtPrice(d.sma_200) + "</span>");
         if (d.rsi_14 != null) chips.push('<span class="stk-tech-chip">RSI ' + Number(d.rsi_14).toFixed(1) + "</span>");
+        if (d.squeeze_on) chips.push('<span class="stk-tech-chip">Squeeze' + (d.squeeze_streak ? " ×" + d.squeeze_streak : "") + "</span>");
+        if (d.vwap != null) chips.push('<span class="stk-tech-chip">VWAP ' + fmtPrice(d.vwap) + "</span>");
         if (d.support_20 != null) chips.push('<span class="stk-tech-chip">Supp ' + fmtPrice(d.support_20) + "</span>");
         if (d.resistance_20 != null) chips.push('<span class="stk-tech-chip">Res ' + fmtPrice(d.resistance_20) + "</span>");
+        if (d.volume_profile && d.volume_profile.poc != null) chips.push('<span class="stk-tech-chip">POC ' + fmtPrice(d.volume_profile.poc) + "</span>");
         flags.innerHTML = chips.join("");
       }
       let s = esc(d.text || "");
